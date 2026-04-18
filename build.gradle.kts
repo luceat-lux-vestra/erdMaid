@@ -2,10 +2,19 @@ import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
+repositories {
+    mavenCentral()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
+
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-    id("org.jetbrains.intellij.platform")
-    id("org.jetbrains.changelog")
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
+    id("org.jetbrains.intellij.platform") version "2.14.0"
+    id("org.jetbrains.changelog") version "2.5.0"
 }
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
@@ -14,7 +23,7 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        intellijIdea("2025.2.6.1")
+        intellijIdea("2025.2.6")
         testFramework(TestFrameworkType.Platform)
     }
 }
