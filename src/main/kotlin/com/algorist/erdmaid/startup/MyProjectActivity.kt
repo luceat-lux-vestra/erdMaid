@@ -1,4 +1,4 @@
-package com.github.luceatluxvestra.erdmaidprivate.startup
+package com.algorist.erdmaid.startup
 
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project

@@ -10,7 +10,6 @@ repositories {
     }
 }
 
-
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.3.20"
     id("org.jetbrains.intellij.platform") version "2.14.0"
@@ -23,7 +22,7 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        intellijIdea("2025.2.6")
+        intellijIdeaUltimate("2025.2.6")
         testFramework(TestFrameworkType.Platform)
     }
 }

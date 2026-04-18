@@ -1,9 +1,9 @@
-package com.github.luceatluxvestra.erdmaidprivate.services
+package com.algorist.erdmaid.services
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import com.github.luceatluxvestra.erdmaidprivate.MyBundle
+import com.algorist.erdmaid.MyBundle
 
 @Service(Service.Level.PROJECT)
 class MyProjectService(project: Project) {

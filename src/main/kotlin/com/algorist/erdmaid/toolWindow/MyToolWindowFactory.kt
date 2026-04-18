@@ -1,4 +1,4 @@
-package com.github.luceatluxvestra.erdmaidprivate.toolWindow
+package com.algorist.erdmaid.toolWindow
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
@@ -8,8 +8,8 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
-import com.github.luceatluxvestra.erdmaidprivate.MyBundle
-import com.github.luceatluxvestra.erdmaidprivate.services.MyProjectService
+import com.algorist.erdmaid.MyBundle
+import com.algorist.erdmaid.services.MyProjectService
 import javax.swing.JButton
 
 
