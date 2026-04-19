@@ -1,50 +1,34 @@
 package com.algorist.erdmaid.actions
 
-import com.algorist.erdmaid.generator.MermaidGenerator
-import com.intellij.database.model.DasTable
-import com.intellij.database.view.DatabaseView
-import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.ide.actions.CopyAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.ide.CopyPasteManager
-import com.intellij.notification.Notification
-import com.intellij.notification.NotificationType
-import com.intellij.notification.Notifications
-import java.awt.datatransfer.StringSelection
+import com.intellij.openapi.actionSystem.PlatformDataKeys.PSI_ELEMENT_ARRAY
+import com.intellij.openapi.project.DumbAwareAction
+import com.algorist.erdmaid.MermaidGenerator
 
-class ErdMaidExportAction : AnAction() {
-
+class ErdMaidExportAction : DumbAwareAction() {
     override fun update(e: AnActionEvent) {
-        val presentation = e.presentation
-        val project = e.project ?: return
-
-        val databaseView = DatabaseView.getInstance(project)
-        val selection = databaseView.selectionSet
-        val tables = selection.filterIsInstance<DasTable>()
-
-        presentation.isEnabledAndVisible = tables.isNotEmpty()
+        val elements = e.getData(PSI_ELEMENT_ARRAY)?.filterIsInstance<com.intellij.database.psi.DbTable>() ?: emptyList()
+        e.presentation.isEnabledAndVisible = elements.isNotEmpty()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
+        val elements = e.getData(PSI_ELEMENT_ARRAY)?.filterIsInstance<com.intellij.database.psi.DbTable>() ?: emptyList()
+        if (elements.isEmpty()) return
 
-        val databaseView = DatabaseView.getInstance(project)
-        val selection = databaseView.selectionSet
-        val tables = selection.filterIsInstance<DasTable>()
+        try {
+            val mermaidCode = MermaidGenerator.generate(elements)
+            CopyAction.copyToClipboard(mermaidCode)
 
-        if (tables.isEmpty()) return
-
-        val mermaid = MermaidGenerator.generate(tables.toList())
-
-        CopyPasteManager.getInstance().setContents(StringSelection(mermaid))
-
-        Notifications.Bus.notify(
-            Notification(
-                "erdMaidNotification",
-                "Mermaid ERD copied to clipboard",
-                "${tables.size} table(s) exported",
-                NotificationType.INFORMATION
-            ),
-            project
-        )
+            val group = com.intellij.notification.NotificationGroupManager.getInstance()
+                .getNotificationGroup("erdMaidNotification")
+            group.createNotification(
+                "erdMaid", 
+                com.intellij.notification.NotificationType.INFORMATION,
+                "Mermaid ERD copied to clipboard"
+            ).notify(e.project)
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+        }
     }
 }
