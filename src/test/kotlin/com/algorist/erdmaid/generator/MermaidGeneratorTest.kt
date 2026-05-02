@@ -86,13 +86,42 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         val orders = table("orders", relations = listOf(relation("fk_orders_users", "users", "orders")))
         val users = table("users")
         val result = MermaidGenerator.buildDiagram(listOf(orders, users))
-        assertTrue(result.contains("    users ||--o{ orders : \"fk_orders_users\""))
+        assertTrue(result.contains("    users ||--o{ orders : \"\""))
+        assertFalse(result.contains("fk_orders_users"))
     }
 
     fun testBlankForeignKeyNameUsesEmptyQuotes() {
         val orders = table("orders", relations = listOf(relation("", "users", "orders")))
         val result = MermaidGenerator.buildDiagram(listOf(orders, table("users")))
         assertTrue(result.contains("    users ||--o{ orders : \"\""))
+    }
+
+    fun testEntityNamesWithSpacesAreQuoted() {
+        val t = table("order items", columns = listOf(col("item id", "bigint")))
+        val result = MermaidGenerator.buildDiagram(listOf(t))
+        assertTrue(result.contains("    \"order items\" {"))
+        assertTrue(result.contains("bigint item id"))
+    }
+
+    fun testDetailedModeEmitsColumnReferenceComments() {
+        val orders = table(
+            "orders",
+            relations = listOf(
+                RelationSpec(
+                    childTableName = "orders",
+                    parentTableName = "users",
+                    name = "fk_orders_users",
+                    childColumns = listOf("user_id"),
+                    parentColumns = listOf("id"),
+                )
+            )
+        )
+        val users = table("users")
+        val result = MermaidGenerator.buildDiagram(
+            listOf(orders, users),
+            MermaidGenerator.MermaidRenderOptions(includeColumnReferences = true)
+        )
+        assertTrue(result.contains("%% FK: orders.user_id -> users.id"))
     }
 
     // ── type normalisation ────────────────────────────────────────────────────
@@ -113,5 +142,11 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         assertTrue(result.contains("\"user 'input' field\""))
         // The raw comment text with embedded double-quotes must not appear verbatim in the output
         assertFalse("Embedded double-quotes in comment must be sanitised", result.contains("user \"input\" field"))
+    }
+
+    fun testColumnCommentParenthesesAreSanitizedForMermaidSafety() {
+        val t = table("logs", columns = listOf(col("msg", "varchar", comment = "state (ready)")))
+        val result = MermaidGenerator.buildDiagram(listOf(t))
+        assertTrue(result.contains("\"state （ready）\""))
     }
 }

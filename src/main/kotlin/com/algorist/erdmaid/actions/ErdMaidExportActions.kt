@@ -1,6 +1,7 @@
 package com.algorist.erdmaid.actions
 
 import com.algorist.erdmaid.generator.MermaidGenerator
+import com.algorist.erdmaid.generator.MermaidGenerator.MermaidRenderOptions
 import com.intellij.database.psi.DbElement
 import com.intellij.database.psi.DbTable
 import com.intellij.notification.NotificationGroupManager
@@ -14,7 +15,9 @@ import com.intellij.openapi.project.DumbAwareAction
 import java.awt.datatransfer.StringSelection
 import java.lang.reflect.Method
 
-class ErdMaidExportAction : DumbAwareAction() {
+abstract class BaseErdMaidExportAction(
+    private val renderOptions: MermaidRenderOptions,
+) : DumbAwareAction() {
     override fun update(e: AnActionEvent) {
         val elements = selectedTables(e)
         e.presentation.isEnabledAndVisible = elements.isNotEmpty()
@@ -25,7 +28,7 @@ class ErdMaidExportAction : DumbAwareAction() {
         if (elements.isEmpty()) return
 
         try {
-            val mermaidCode = MermaidGenerator.generate(e.project, elements)
+            val mermaidCode = MermaidGenerator.generate(e.project, elements, renderOptions)
 
             CopyPasteManager.getInstance().setContents(StringSelection(mermaidCode))
 
@@ -71,7 +74,7 @@ class ErdMaidExportAction : DumbAwareAction() {
     }
 
     companion object {
-        private val LOG = Logger.getInstance(ErdMaidExportAction::class.java)
+        private val LOG = Logger.getInstance(BaseErdMaidExportAction::class.java)
 
         // Cached once on first use so that the update() hot path avoids repeated
         // Class.forName / getMethod lookups on every UI refresh.
@@ -83,3 +86,8 @@ class ErdMaidExportAction : DumbAwareAction() {
         }
     }
 }
+
+class ErdMaidExportAction : BaseErdMaidExportAction(MermaidRenderOptions())
+
+class ErdMaidExportActionWithColumnReferences :
+    BaseErdMaidExportAction(MermaidRenderOptions(includeColumnReferences = true))

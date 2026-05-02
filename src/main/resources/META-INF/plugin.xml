@@ -23,5 +23,11 @@
                 description="Export selected database tables as Mermaid ER diagram">
             <add-to-group group-id="DatabaseViewPopupMenu" anchor="last"/>
         </action>
+        <action id="com.algorist.erdmaid.actions.ErdMaidExportActionWithColumnReferences"
+                class="com.algorist.erdmaid.actions.ErdMaidExportActionWithColumnReferences"
+                text="Export as Mermaid ERD with FK details (erdMaid)"
+                description="Export selected database tables as Mermaid ER diagram with exact FK column references">
+            <add-to-group group-id="DatabaseViewPopupMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

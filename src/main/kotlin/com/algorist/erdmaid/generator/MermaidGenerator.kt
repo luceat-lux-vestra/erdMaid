@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project
 object MermaidGenerator {
 
     private const val INDENT = "    "
+    private val ENTITY_NAME_SAFE = Regex("^[A-Za-z_][A-Za-z0-9_]*$")
 
     // Internal data classes to decouple string-building logic from the IntelliJ DB API,
     // enabling straightforward unit testing without requiring live DB objects.
@@ -24,10 +25,23 @@ object MermaidGenerator {
         val comment: String?
     )
 
+    data class MermaidRenderOptions(
+        val includeColumnReferences: Boolean = false,
+    )
+
     fun generate(project: Project?, tables: List<DasTable>): String {
+        return generate(project, tables, MermaidRenderOptions())
+    }
+
+    fun generate(
+        project: Project?,
+        tables: List<DasTable>,
+        options: MermaidRenderOptions,
+    ): String {
         val relationMap = RelationResolver.resolve(project, tables)
         return buildDiagram(
-            tables.map { toTableSpec(it, relationMap[it.name].orEmpty()) }
+            tables.map { toTableSpec(it, relationMap[it.name].orEmpty()) },
+            options,
         )
     }
 
@@ -69,7 +83,10 @@ object MermaidGenerator {
         )
     }
 
-    internal fun buildDiagram(tables: List<TableSpec>): String = buildString {
+    internal fun buildDiagram(
+        tables: List<TableSpec>,
+        options: MermaidRenderOptions = MermaidRenderOptions(),
+    ): String = buildString {
         appendLine("erDiagram")
 
         for (table in tables) {
@@ -78,7 +95,7 @@ object MermaidGenerator {
         }
 
         for (table in tables) {
-            appendForeignKeys(table)
+            appendForeignKeys(table, options)
         }
     }
 
@@ -86,17 +103,21 @@ object MermaidGenerator {
         if (table.comment != null) {
             appendLine("%% ${table.comment}")
         }
-        appendLine("$INDENT${table.name} {")
+        appendLine("$INDENT${renderEntityName(table.name)} {")
         for (col in table.columns) {
             append(formatColumn(col))
         }
         appendLine("$INDENT}")
     }
 
-    private fun StringBuilder.appendForeignKeys(table: TableSpec) {
+    private fun StringBuilder.appendForeignKeys(table: TableSpec, options: MermaidRenderOptions) {
         for (relation in table.relations) {
-            val relationName = if (relation.name.isBlank()) "\"\"" else "\"${relation.name}\""
-            appendLine("$INDENT${relation.parentTableName} ||--o{ ${relation.childTableName} : $relationName")
+            if (options.includeColumnReferences) {
+                appendLine("%% FK: ${formatColumnReference(relation)}")
+            }
+            appendLine(
+                "$INDENT${renderEntityName(relation.parentTableName)} ||--o{ ${renderEntityName(relation.childTableName)} : ${renderRelationLabel(relation.name)}"
+            )
         }
     }
 
@@ -105,8 +126,28 @@ object MermaidGenerator {
         val parts = mutableListOf(type, col.name)
         if (col.isPrimaryKey) parts.add("PK")
         if (!col.comment.isNullOrEmpty()) {
-            parts.add("\"${col.comment.replace('"', '\'')}\"")
+            parts.add("\"${sanitizeMermaidComment(col.comment)}\"")
         }
         return "$INDENT$INDENT${parts.joinToString(" ")}\n"
     }
+
+    private fun renderEntityName(name: String): String {
+        val sanitized = sanitizeMermaidText(name)
+        return if (ENTITY_NAME_SAFE.matches(sanitized)) sanitized else "\"$sanitized\""
+    }
+
+    private fun formatColumnReference(relation: RelationResolver.RelationSpec): String {
+        val child = relation.childColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
+        val parent = relation.parentColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
+        return "${relation.childTableName}.$child -> ${relation.parentTableName}.$parent"
+    }
+
+    private fun sanitizeMermaidText(text: String): String = text.replace('"', '\'')
+
+    private fun sanitizeMermaidComment(text: String): String =
+        sanitizeMermaidText(text)
+            .replace('(', '（')
+            .replace(')', '）')
+
+    private fun renderRelationLabel(label: String): String = "\"\""
 }
