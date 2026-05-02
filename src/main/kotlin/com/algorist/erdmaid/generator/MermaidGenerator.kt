@@ -1,7 +1,5 @@
 package com.algorist.erdmaid.generator
 
-import com.intellij.database.model.DasColumn
-import com.intellij.database.model.DasForeignKey
 import com.intellij.database.model.DasTable
 import com.intellij.database.util.DasUtil
 
@@ -9,70 +7,106 @@ object MermaidGenerator {
 
     private const val INDENT = "    "
 
+    // Internal data classes to decouple string-building logic from the IntelliJ DB API,
+    // enabling straightforward unit testing without requiring live DB objects.
+    internal data class TableSpec(
+        val name: String,
+        val comment: String?,
+        val columns: List<ColumnSpec>,
+        val foreignKeys: List<FKSpec>
+    )
+
+    internal data class ColumnSpec(
+        val name: String,
+        val typeName: String,
+        val isPrimaryKey: Boolean,
+        val comment: String?
+    )
+
+    internal data class FKSpec(
+        val name: String,
+        val refTableName: String
+    )
+
     fun generate(tables: List<DasTable>): String {
-        val tableSet = tables.map { it.name }.toSet()
-        return buildString {
-            appendLine("erDiagram")
+        val tableNames = tables.map { it.name }.toSet()
+        return buildDiagram(tables.map { toTableSpec(it, tableNames) })
+    }
 
-            for (table in tables) {
-                appendTableBlock(table)
-                appendLine()
+    @Suppress("DEPRECATION") // DasType.toDataType() is deprecated but remains the stable
+    // way to access the column's data type name in the current IntelliJ Database API.
+    private fun toTableSpec(table: DasTable, tableNames: Set<String>): TableSpec {
+        // Collect PK column names via columnsRef.iterate() to support composite PKs.
+        // MultiRef.It is IntelliJ's own cursor (not java.util.Iterator), so a while loop
+        // is required; iterate().next() returns the column name directly as a String.
+        val pkNames = mutableSetOf<String>()
+        DasUtil.getPrimaryKey(table)?.let { pk ->
+            val iter = pk.columnsRef.iterate()
+            while (iter.hasNext()) {
+                pkNames.add(iter.next())
             }
+        }
 
-            for (table in tables) {
-                appendForeignKeys(table, tableSet)
-            }
+        val columns = DasUtil.getColumns(table).map { col ->
+            ColumnSpec(
+                name = col.name,
+                typeName = col.dasType.toDataType().typeName,
+                isPrimaryKey = col.name in pkNames,
+                comment = col.comment
+            )
+        }.toList()
+
+        val foreignKeys = DasUtil.getForeignKeys(table)
+            .filter { it.refTableName in tableNames }
+            .map { fk -> FKSpec(name = fk.name, refTableName = fk.refTableName) }
+            .toList()
+
+        return TableSpec(
+            name = table.name,
+            comment = table.comment?.takeIf { it.isNotBlank() },
+            columns = columns,
+            foreignKeys = foreignKeys
+        )
+    }
+
+    internal fun buildDiagram(tables: List<TableSpec>): String = buildString {
+        appendLine("erDiagram")
+
+        for (table in tables) {
+            appendTableBlock(table)
+            appendLine()
+        }
+
+        for (table in tables) {
+            appendForeignKeys(table)
         }
     }
 
-    private fun StringBuilder.appendTableBlock(table: DasTable) {
-        val tableComment = table.comment?.takeIf { it.isNotBlank() }
-        if (tableComment != null) {
-            appendLine("%% $tableComment")
+    private fun StringBuilder.appendTableBlock(table: TableSpec) {
+        if (table.comment != null) {
+            appendLine("%% ${table.comment}")
         }
-
         appendLine("$INDENT${table.name} {")
-
-        val columns = DasUtil.getColumns(table)
-        val primaryKeys = DasUtil.getPrimaryKey(table)?.let { primaryKey ->
-            setOf(primaryKey.name)
-        } ?: emptySet()
-
-        for (column in columns) {
-            append(formatColumn(column, primaryKeys))
+        for (col in table.columns) {
+            append(formatColumn(col))
         }
-
         appendLine("$INDENT}")
     }
 
-    private fun StringBuilder.appendForeignKeys(table: DasTable, tableSet: Set<String>) {
-        for (fk in DasUtil.getForeignKeys(table)) {
-            val refTableName = fk.refTableName
-            if (refTableName !in tableSet) continue
-
+    private fun StringBuilder.appendForeignKeys(table: TableSpec) {
+        for (fk in table.foreignKeys) {
             val relationName = if (fk.name.isBlank()) "\"\"" else "\"${fk.name}\""
-            appendLine("$INDENT$refTableName ||--o{ ${table.name} : $relationName")
+            appendLine("$INDENT${fk.refTableName} ||--o{ ${table.name} : $relationName")
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun formatColumn(column: DasColumn, primaryKeys: Set<String>): String {
-        val type = column.dasType.toDataType().typeName
-            .replace(' ', '_') // 공백을 언더스코어로 치환
-        val name = column.name
-        val pk = if (primaryKeys.contains(name)) "PK" else ""
-        val comment = column.comment?.replace('"', '\'') // 큰따옴표를 홑따옴표로 치환
-
-        val parts = mutableListOf<String>()
-        parts.add(type)
-        parts.add(name)
-        if (pk.isNotEmpty()) {
-            parts.add(pk)
+    private fun formatColumn(col: ColumnSpec): String {
+        val type = col.typeName.replace(' ', '_')
+        val parts = mutableListOf(type, col.name)
+        if (col.isPrimaryKey) parts.add("PK")
+        if (!col.comment.isNullOrEmpty()) {
+            parts.add("\"${col.comment.replace('"', '\'')}\"")
         }
-        if (!comment.isNullOrEmpty()) {
-            parts.add("\"$comment\"")
-        }
-
         return "$INDENT$INDENT${parts.joinToString(" ")}\n"
     }
 }

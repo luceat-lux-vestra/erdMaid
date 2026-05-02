@@ -8,9 +8,11 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.PlatformDataKeys.PSI_ELEMENT_ARRAY
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import java.awt.datatransfer.StringSelection
+import java.lang.reflect.Method
 
 class ErdMaidExportAction : DumbAwareAction() {
     override fun update(e: AnActionEvent) {
@@ -27,15 +29,22 @@ class ErdMaidExportAction : DumbAwareAction() {
 
             CopyPasteManager.getInstance().setContents(StringSelection(mermaidCode))
 
-            val group = NotificationGroupManager.getInstance()
+            NotificationGroupManager.getInstance()
                 .getNotificationGroup("erdMaidNotification")
-            group.createNotification(
-                "erdMaid",
-                "Mermaid ERD copied to clipboard",
-                NotificationType.INFORMATION
-            ).notify(e.project)
+                .createNotification(
+                    "erdMaid",
+                    "Mermaid ERD copied to clipboard",
+                    NotificationType.INFORMATION
+                ).notify(e.project)
         } catch (ex: Exception) {
-            ex.printStackTrace()
+            LOG.error("Failed to generate Mermaid ERD", ex)
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("erdMaidNotification")
+                .createNotification(
+                    "erdMaid",
+                    "Failed to generate Mermaid ERD: ${ex.message}",
+                    NotificationType.ERROR
+                ).notify(e.project)
         }
     }
 
@@ -48,9 +57,20 @@ class ErdMaidExportAction : DumbAwareAction() {
 
     private fun selectedDbElements(e: AnActionEvent): List<DbElement> =
         runCatching {
-            val contextFun = Class.forName("com.intellij.database.view.DatabaseContextFun")
-            val method = contextFun.getMethod("getSelectedDbElementsExpandingGroups", DataContext::class.java)
-            val selection = method.invoke(null, e.dataContext) as? Iterable<*>
+            val selection = REFLECT_METHOD?.invoke(null, e.dataContext) as? Iterable<*>
             selection?.filterIsInstance<DbElement>()
         }.getOrNull().orEmpty()
+
+    companion object {
+        private val LOG = Logger.getInstance(ErdMaidExportAction::class.java)
+
+        // Cached once on first use so that the update() hot path avoids repeated
+        // Class.forName / getMethod lookups on every UI refresh.
+        private val REFLECT_METHOD: Method? by lazy {
+            runCatching {
+                val cls = Class.forName("com.intellij.database.view.DatabaseContextFun")
+                cls.getMethod("getSelectedDbElementsExpandingGroups", DataContext::class.java)
+            }.getOrNull()
+        }
+    }
 }
