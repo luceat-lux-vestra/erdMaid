@@ -86,6 +86,8 @@ For local development builds, install the generated ZIP from `build/distribution
 
 - Build: `./gradlew build`
 - Tests: `./gradlew check`
+- Development builds use a timestamp-based plugin version by default.
+- Release builds can set an explicit version with `-PbuildVersion=x.y.z`.
 
 ## Notes
 
