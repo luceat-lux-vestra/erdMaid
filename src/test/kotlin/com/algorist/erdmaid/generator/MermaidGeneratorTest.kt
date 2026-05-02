@@ -1,7 +1,7 @@
 package com.algorist.erdmaid.generator
 
 import com.algorist.erdmaid.generator.MermaidGenerator.ColumnSpec
-import com.algorist.erdmaid.generator.MermaidGenerator.FKSpec
+import com.algorist.erdmaid.generator.RelationResolver.RelationSpec
 import com.algorist.erdmaid.generator.MermaidGenerator.TableSpec
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
@@ -24,14 +24,31 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         comment: String? = null
     ) = ColumnSpec(name, type, isPk, comment)
 
-    private fun fk(name: String, refTable: String) = FKSpec(name, refTable)
+    private fun relation(name: String, parentTable: String, childTable: String) =
+        RelationSpec(childTable, parentTable, name, emptyList(), emptyList())
 
     private fun table(
         name: String,
         comment: String? = null,
         columns: List<ColumnSpec> = emptyList(),
-        foreignKeys: List<FKSpec> = emptyList()
-    ) = TableSpec(name, comment, columns, foreignKeys)
+        relations: List<RelationSpec> = emptyList()
+    ) = TableSpec(name, comment, columns, relations)
+
+    private class LengthType(private val length: Int) {
+        fun getLength(): Int = length
+    }
+
+    private class PrecisionScaleType(
+        private val precision: Int,
+        private val scale: Int,
+    ) {
+        fun getPrecision(): Int = precision
+        fun getScale(): Int = scale
+    }
+
+    private class PrecisionOnlyType(private val precision: Int) {
+        fun getPrecision(): Int = precision
+    }
 
     // ── empty input ───────────────────────────────────────────────────────────
 
@@ -82,16 +99,44 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
     // ── foreign key relation ──────────────────────────────────────────────────
 
     fun testForeignKeyRelationLineIsEmitted() {
-        val orders = table("orders", foreignKeys = listOf(fk("fk_orders_users", "users")))
+        val orders = table("orders", relations = listOf(relation("fk_orders_users", "users", "orders")))
         val users = table("users")
         val result = MermaidGenerator.buildDiagram(listOf(orders, users))
         assertTrue(result.contains("    users ||--o{ orders : \"fk_orders_users\""))
     }
 
     fun testBlankForeignKeyNameUsesEmptyQuotes() {
-        val orders = table("orders", foreignKeys = listOf(fk("", "users")))
+        val orders = table("orders", relations = listOf(relation("", "users", "orders")))
         val result = MermaidGenerator.buildDiagram(listOf(orders, table("users")))
         assertTrue(result.contains("    users ||--o{ orders : \"\""))
+    }
+
+    fun testEntityNamesWithSpacesAreQuoted() {
+        val t = table("order items", columns = listOf(col("item id", "bigint")))
+        val result = MermaidGenerator.buildDiagram(listOf(t))
+        assertTrue(result.contains("    \"order items\" {"))
+        assertTrue(result.contains("bigint item_id"))
+    }
+
+    fun testDetailedModeEmitsColumnReferenceComments() {
+        val orders = table(
+            "orders",
+            relations = listOf(
+                RelationSpec(
+                    childTableName = "orders",
+                    parentTableName = "users",
+                    name = "fk_orders_users",
+                    childColumns = listOf("user_id"),
+                    parentColumns = listOf("id"),
+                )
+            )
+        )
+        val users = table("users")
+        val result = MermaidGenerator.buildDiagram(
+            listOf(orders, users),
+            MermaidGenerator.MermaidRenderOptions(includeColumnReferences = true)
+        )
+        assertTrue(result.contains("%% FK: orders.user_id -> users.id"))
     }
 
     // ── type normalisation ────────────────────────────────────────────────────
@@ -103,6 +148,26 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         assertFalse("Original whitespace type must not appear", result.contains("double precision"))
     }
 
+    fun testLengthIsAppendedForSizedCharacterTypes() {
+        val rendered = MermaidGenerator.renderColumnType("varchar", LengthType(255))
+        assertEquals("varchar(255)", rendered)
+    }
+
+    fun testPrecisionAndScaleAreAppendedForNumericTypes() {
+        val rendered = MermaidGenerator.renderColumnType("decimal", PrecisionScaleType(10, 2))
+        assertEquals("decimal(10_2)", rendered)
+    }
+
+    fun testPrecisionIsAppendedForTimestampTypes() {
+        val rendered = MermaidGenerator.renderColumnType("timestamp", PrecisionOnlyType(6))
+        assertEquals("timestamp(6)", rendered)
+    }
+
+    fun testUnsizedTypesDoNotPickUpLengthSuffix() {
+        val rendered = MermaidGenerator.renderColumnType("int", LengthType(11))
+        assertEquals("int", rendered)
+    }
+
     // ── comment quote sanitisation ────────────────────────────────────────────
 
     fun testColumnCommentDoubleQuoteReplacedWithSingleQuote() {
@@ -112,5 +177,11 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         assertTrue(result.contains("\"user 'input' field\""))
         // The raw comment text with embedded double-quotes must not appear verbatim in the output
         assertFalse("Embedded double-quotes in comment must be sanitised", result.contains("user \"input\" field"))
+    }
+
+    fun testColumnCommentParenthesesAreSanitizedForMermaidSafety() {
+        val t = table("logs", columns = listOf(col("msg", "varchar", comment = "state (ready)")))
+        val result = MermaidGenerator.buildDiagram(listOf(t))
+        assertTrue(result.contains("\"state （ready）\""))
     }
 }
