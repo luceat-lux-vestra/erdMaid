@@ -49,17 +49,26 @@ class ErdMaidExportAction : DumbAwareAction() {
     }
 
     private fun selectedTables(e: AnActionEvent): List<DbTable> =
-        selectedDbElements(e)
-            .filterIsInstance<DbTable>()
-            .ifEmpty {
-                e.getData(PSI_ELEMENT_ARRAY)?.filterIsInstance<DbTable>().orEmpty()
-            }
+        resolveSelectedTables(
+            selectedDbElements = selectedDbElements(e),
+            psiElements = e.getData(PSI_ELEMENT_ARRAY),
+        )
 
     private fun selectedDbElements(e: AnActionEvent): List<DbElement> =
         runCatching {
             val selection = REFLECT_METHOD?.invoke(null, e.dataContext) as? Iterable<*>
             selection?.filterIsInstance<DbElement>()
         }.getOrNull().orEmpty()
+
+    internal fun resolveSelectedTables(
+        selectedDbElements: Iterable<DbElement>?,
+        psiElements: Array<out Any>?,
+    ): List<DbTable> {
+        val dbTables = selectedDbElements?.filterIsInstance<DbTable>().orEmpty()
+        if (dbTables.isNotEmpty()) return dbTables
+
+        return psiElements?.filterIsInstance<DbTable>().orEmpty()
+    }
 
     companion object {
         private val LOG = Logger.getInstance(ErdMaidExportAction::class.java)
