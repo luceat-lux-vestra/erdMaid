@@ -1,5 +1,7 @@
 package com.algorist.erdmaid.actions
 
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.PlatformDataKeys.PSI_ELEMENT_ARRAY
 import com.intellij.database.psi.DbElement
 import com.intellij.database.psi.DbTable
 import org.junit.Assert.assertEquals
@@ -43,6 +45,24 @@ class ErdMaidExportActionTest {
         assertTrue(result.isEmpty())
     }
 
+    @Test
+    fun `update enables the action when psi selection contains a table`() {
+        val event = createEvent(arrayOf(newDbTable("orders")))
+
+        action.update(event)
+
+        assertTrue(event.presentation.isEnabledAndVisible)
+    }
+
+    @Test
+    fun `update hides the action when no tables are selected`() {
+        val event = createEvent(arrayOf<Any>("plain-string"))
+
+        action.update(event)
+
+        assertTrue(!event.presentation.isEnabledAndVisible)
+    }
+
     private fun newDbTable(name: String): DbTable =
         proxy(DbTable::class.java) { method, _ ->
             when (method.name) {
@@ -80,5 +100,16 @@ class ErdMaidExportActionTest {
         java.lang.Double.TYPE -> 0.0
         java.lang.Character.TYPE -> '\u0000'
         else -> null
+    }
+
+    private fun createEvent(psiElements: Array<out Any>): AnActionEvent {
+        val dataContext = com.intellij.openapi.actionSystem.DataContext { dataId ->
+            when (dataId) {
+                PSI_ELEMENT_ARRAY.name -> psiElements
+                else -> null
+            }
+        }
+
+        return AnActionEvent.createFromAnAction(action, null, "erdMaid-test", dataContext)
     }
 }
