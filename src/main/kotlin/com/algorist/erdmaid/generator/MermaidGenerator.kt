@@ -122,9 +122,13 @@ object MermaidGenerator {
         }
     }
 
+    private fun normalizeIdentifier(text: String): String =
+        sanitizeMermaidText(text).replace(' ', '_')
+
     private fun formatColumn(col: ColumnSpec): String {
-        val type = col.typeName.replace(' ', '_')
-        val parts = mutableListOf(type, col.name)
+        val type = normalizeIdentifier(col.typeName)
+        val safeName = normalizeIdentifier(col.name)
+        val parts = mutableListOf(type, safeName)
         if (col.isPrimaryKey) parts.add("PK")
         if (!col.comment.isNullOrEmpty()) {
             parts.add("\"${sanitizeMermaidComment(col.comment)}\"")
@@ -150,7 +154,10 @@ object MermaidGenerator {
             .replace('(', '（')
             .replace(')', '）')
 
-    private fun renderRelationLabel(label: String): String = "\"\""
+    private fun renderRelationLabel(label: String): String {
+        val sanitized = sanitizeMermaidText(label.trim())
+        return if (sanitized.isBlank()) "\"\"" else "\"$sanitized\""
+    }
 
     internal fun renderColumnType(typeName: String, dataType: Any? = null): String {
         val baseType = typeName.trim().replace(' ', '_')

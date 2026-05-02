@@ -102,8 +102,7 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         val orders = table("orders", relations = listOf(relation("fk_orders_users", "users", "orders")))
         val users = table("users")
         val result = MermaidGenerator.buildDiagram(listOf(orders, users))
-        assertTrue(result.contains("    users ||--o{ orders : \"\""))
-        assertFalse(result.contains("fk_orders_users"))
+        assertTrue(result.contains("    users ||--o{ orders : \"fk_orders_users\""))
     }
 
     fun testBlankForeignKeyNameUsesEmptyQuotes() {
@@ -116,7 +115,7 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         val t = table("order items", columns = listOf(col("item id", "bigint")))
         val result = MermaidGenerator.buildDiagram(listOf(t))
         assertTrue(result.contains("    \"order items\" {"))
-        assertTrue(result.contains("bigint item id"))
+        assertTrue(result.contains("bigint item_id"))
     }
 
     fun testDetailedModeEmitsColumnReferenceComments() {
