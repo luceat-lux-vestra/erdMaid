@@ -7,6 +7,7 @@ import com.intellij.database.psi.DbTable
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.StandardCharsets
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
@@ -61,6 +62,28 @@ class ErdMaidExportActionTest {
         action.update(event)
 
         assertTrue(!event.presentation.isEnabledAndVisible)
+    }
+
+    @Test
+    fun `default action includes foreign key column references`() {
+        val inspectableAction = object : ErdMaidExportAction() {
+            fun includesColumnReferences(): Boolean = renderOptions.includeColumnReferences
+        }
+
+        assertTrue(inspectableAction.includesColumnReferences())
+    }
+
+    @Test
+    fun `plugin xml registers only one export action`() {
+        val pluginXml = javaClass.classLoader
+            .getResourceAsStream("META-INF/plugin.xml")
+            ?.readBytes()
+            ?.toString(StandardCharsets.UTF_8)
+            ?: error("plugin.xml resource not found")
+
+        assertEquals(1, Regex("""<action id="com\.algorist\.erdmaid\.actions\.ErdMaidExportAction""").findAll(pluginXml).count())
+        assertTrue(!pluginXml.contains("ErdMaidExportActionWithColumnReferences"))
+        assertTrue(!pluginXml.contains("Export as Mermaid ERD with FK details"))
     }
 
     private fun newDbTable(name: String): DbTable =

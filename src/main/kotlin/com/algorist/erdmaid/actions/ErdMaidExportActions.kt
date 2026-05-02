@@ -16,7 +16,7 @@ import java.awt.datatransfer.StringSelection
 import java.lang.reflect.Method
 
 abstract class BaseErdMaidExportAction(
-    private val renderOptions: MermaidRenderOptions,
+    protected val renderOptions: MermaidRenderOptions,
 ) : DumbAwareAction() {
     override fun update(e: AnActionEvent) {
         val elements = selectedTables(e)
@@ -87,7 +87,5 @@ abstract class BaseErdMaidExportAction(
     }
 }
 
-class ErdMaidExportAction : BaseErdMaidExportAction(MermaidRenderOptions())
-
-class ErdMaidExportActionWithColumnReferences :
+open class ErdMaidExportAction :
     BaseErdMaidExportAction(MermaidRenderOptions(includeColumnReferences = true))
