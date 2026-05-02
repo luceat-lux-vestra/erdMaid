@@ -2,6 +2,7 @@ package com.algorist.erdmaid.generator
 
 import com.intellij.database.model.DasTable
 import com.intellij.database.util.DasUtil
+import com.intellij.openapi.project.Project
 
 object MermaidGenerator {
 
@@ -13,7 +14,7 @@ object MermaidGenerator {
         val name: String,
         val comment: String?,
         val columns: List<ColumnSpec>,
-        val foreignKeys: List<FKSpec>
+        val relations: List<RelationResolver.RelationSpec>
     )
 
     internal data class ColumnSpec(
@@ -23,19 +24,23 @@ object MermaidGenerator {
         val comment: String?
     )
 
-    internal data class FKSpec(
-        val name: String,
-        val refTableName: String
-    )
+    fun generate(project: Project?, tables: List<DasTable>): String {
+        val relationMap = RelationResolver.resolve(project, tables)
+        return buildDiagram(
+            tables.map { toTableSpec(it, relationMap[it.name].orEmpty()) }
+        )
+    }
 
     fun generate(tables: List<DasTable>): String {
-        val tableNames = tables.map { it.name }.toSet()
-        return buildDiagram(tables.map { toTableSpec(it, tableNames) })
+        return generate(null, tables)
     }
 
     @Suppress("DEPRECATION") // DasType.toDataType() is deprecated but remains the stable
     // way to access the column's data type name in the current IntelliJ Database API.
-    private fun toTableSpec(table: DasTable, tableNames: Set<String>): TableSpec {
+    private fun toTableSpec(
+        table: DasTable,
+        relations: List<RelationResolver.RelationSpec>,
+    ): TableSpec {
         // Collect PK column names via columnsRef.iterate() to support composite PKs.
         // MultiRef.It is IntelliJ's own cursor (not java.util.Iterator), so a while loop
         // is required; iterate().next() returns the column name directly as a String.
@@ -56,16 +61,11 @@ object MermaidGenerator {
             )
         }.toList()
 
-        val foreignKeys = DasUtil.getForeignKeys(table)
-            .filter { it.refTableName in tableNames }
-            .map { fk -> FKSpec(name = fk.name, refTableName = fk.refTableName) }
-            .toList()
-
         return TableSpec(
             name = table.name,
             comment = table.comment?.takeIf { it.isNotBlank() },
             columns = columns,
-            foreignKeys = foreignKeys
+            relations = relations
         )
     }
 
@@ -94,9 +94,9 @@ object MermaidGenerator {
     }
 
     private fun StringBuilder.appendForeignKeys(table: TableSpec) {
-        for (fk in table.foreignKeys) {
-            val relationName = if (fk.name.isBlank()) "\"\"" else "\"${fk.name}\""
-            appendLine("$INDENT${fk.refTableName} ||--o{ ${table.name} : $relationName")
+        for (relation in table.relations) {
+            val relationName = if (relation.name.isBlank()) "\"\"" else "\"${relation.name}\""
+            appendLine("$INDENT${relation.parentTableName} ||--o{ ${relation.childTableName} : $relationName")
         }
     }
 

@@ -1,7 +1,7 @@
 package com.algorist.erdmaid.generator
 
 import com.algorist.erdmaid.generator.MermaidGenerator.ColumnSpec
-import com.algorist.erdmaid.generator.MermaidGenerator.FKSpec
+import com.algorist.erdmaid.generator.RelationResolver.RelationSpec
 import com.algorist.erdmaid.generator.MermaidGenerator.TableSpec
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
@@ -24,14 +24,15 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         comment: String? = null
     ) = ColumnSpec(name, type, isPk, comment)
 
-    private fun fk(name: String, refTable: String) = FKSpec(name, refTable)
+    private fun relation(name: String, parentTable: String, childTable: String) =
+        RelationSpec(childTable, parentTable, name, emptyList(), emptyList())
 
     private fun table(
         name: String,
         comment: String? = null,
         columns: List<ColumnSpec> = emptyList(),
-        foreignKeys: List<FKSpec> = emptyList()
-    ) = TableSpec(name, comment, columns, foreignKeys)
+        relations: List<RelationSpec> = emptyList()
+    ) = TableSpec(name, comment, columns, relations)
 
     // ── empty input ───────────────────────────────────────────────────────────
 
@@ -82,14 +83,14 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
     // ── foreign key relation ──────────────────────────────────────────────────
 
     fun testForeignKeyRelationLineIsEmitted() {
-        val orders = table("orders", foreignKeys = listOf(fk("fk_orders_users", "users")))
+        val orders = table("orders", relations = listOf(relation("fk_orders_users", "users", "orders")))
         val users = table("users")
         val result = MermaidGenerator.buildDiagram(listOf(orders, users))
         assertTrue(result.contains("    users ||--o{ orders : \"fk_orders_users\""))
     }
 
     fun testBlankForeignKeyNameUsesEmptyQuotes() {
-        val orders = table("orders", foreignKeys = listOf(fk("", "users")))
+        val orders = table("orders", relations = listOf(relation("", "users", "orders")))
         val result = MermaidGenerator.buildDiagram(listOf(orders, table("users")))
         assertTrue(result.contains("    users ||--o{ orders : \"\""))
     }

@@ -25,7 +25,7 @@ class ErdMaidExportAction : DumbAwareAction() {
         if (elements.isEmpty()) return
 
         try {
-            val mermaidCode = MermaidGenerator.generate(elements)
+            val mermaidCode = MermaidGenerator.generate(e.project, elements)
 
             CopyPasteManager.getInstance().setContents(StringSelection(mermaidCode))
 
