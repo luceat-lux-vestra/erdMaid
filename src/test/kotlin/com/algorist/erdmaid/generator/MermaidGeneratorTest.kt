@@ -34,6 +34,22 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         relations: List<RelationSpec> = emptyList()
     ) = TableSpec(name, comment, columns, relations)
 
+    private class LengthType(private val length: Int) {
+        fun getLength(): Int = length
+    }
+
+    private class PrecisionScaleType(
+        private val precision: Int,
+        private val scale: Int,
+    ) {
+        fun getPrecision(): Int = precision
+        fun getScale(): Int = scale
+    }
+
+    private class PrecisionOnlyType(private val precision: Int) {
+        fun getPrecision(): Int = precision
+    }
+
     // ── empty input ───────────────────────────────────────────────────────────
 
     fun testEmptyTableListProducesHeader() {
@@ -131,6 +147,26 @@ class MermaidGeneratorTest : BasePlatformTestCase() {
         val result = MermaidGenerator.buildDiagram(listOf(t))
         assertTrue(result.contains("double_precision price"))
         assertFalse("Original whitespace type must not appear", result.contains("double precision"))
+    }
+
+    fun testLengthIsAppendedForSizedCharacterTypes() {
+        val rendered = MermaidGenerator.renderColumnType("varchar", LengthType(255))
+        assertEquals("varchar(255)", rendered)
+    }
+
+    fun testPrecisionAndScaleAreAppendedForNumericTypes() {
+        val rendered = MermaidGenerator.renderColumnType("decimal", PrecisionScaleType(10, 2))
+        assertEquals("decimal(10_2)", rendered)
+    }
+
+    fun testPrecisionIsAppendedForTimestampTypes() {
+        val rendered = MermaidGenerator.renderColumnType("timestamp", PrecisionOnlyType(6))
+        assertEquals("timestamp(6)", rendered)
+    }
+
+    fun testUnsizedTypesDoNotPickUpLengthSuffix() {
+        val rendered = MermaidGenerator.renderColumnType("int", LengthType(11))
+        assertEquals("int", rendered)
     }
 
     // ── comment quote sanitisation ────────────────────────────────────────────

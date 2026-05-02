@@ -67,9 +67,10 @@ object MermaidGenerator {
         }
 
         val columns = DasUtil.getColumns(table).map { col ->
+            val dataType = col.dasType.toDataType()
             ColumnSpec(
                 name = col.name,
-                typeName = col.dasType.toDataType().typeName,
+                typeName = renderColumnType(dataType.typeName, dataType),
                 isPrimaryKey = col.name in pkNames,
                 comment = col.comment
             )
@@ -150,4 +151,76 @@ object MermaidGenerator {
             .replace(')', '）')
 
     private fun renderRelationLabel(label: String): String = "\"\""
+
+    internal fun renderColumnType(typeName: String, dataType: Any? = null): String {
+        val baseType = typeName.trim().replace(' ', '_')
+        if (baseType.contains('(')) return baseType
+
+        val suffix = renderTypeSuffix(typeName, dataType)
+        return baseType + suffix
+    }
+
+    private fun renderTypeSuffix(typeName: String, dataType: Any?): String {
+        val normalized = typeName.lowercase().replace(Regex("\\s+"), "")
+        return when {
+            isPrecisionScaleType(normalized) -> renderPrecisionScaleSuffix(dataType)
+            isLengthType(normalized) -> renderLengthSuffix(dataType)
+            isPrecisionOnlyType(normalized) -> renderPrecisionOnlySuffix(dataType)
+            else -> null
+        }.orEmpty()
+    }
+
+    private fun isLengthType(typeName: String): Boolean =
+        listOf("char", "binary", "varbinary", "nvarchar", "varchar", "nchar", "bpchar", "bit")
+            .any { typeName.contains(it) }
+
+    private fun isPrecisionScaleType(typeName: String): Boolean =
+        listOf("decimal", "numeric", "number")
+            .any { typeName.contains(it) }
+
+    private fun isPrecisionOnlyType(typeName: String): Boolean =
+        listOf("timestamp", "datetime", "time", "interval")
+            .any { typeName.contains(it) }
+
+    private fun renderLengthSuffix(dataType: Any?): String? {
+        val length = dataType.readIntProperty("length", "size")
+        return length?.takeIf { it > 0 }?.let { "($it)" }
+    }
+
+    private fun renderPrecisionScaleSuffix(dataType: Any?): String? {
+        val precision = dataType.readIntProperty("precision", "size")
+        if (precision == null || precision <= 0) return null
+
+        val scale = dataType.readIntProperty("scale")
+        return if (scale != null && scale >= 0) {
+            "(${precision}_${scale})"
+        } else {
+            "($precision)"
+        }
+    }
+
+    private fun renderPrecisionOnlySuffix(dataType: Any?): String? {
+        val precision = dataType.readIntProperty("precision", "scale", "length", "size")
+        return precision?.takeIf { it > 0 }?.let { "($it)" }
+    }
+
+    private fun Any?.readIntProperty(vararg names: String): Int? {
+        val receiver = this ?: return null
+        for (name in names) {
+            val candidates = listOf(
+                name,
+                "get" + name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            )
+            val method = receiver.javaClass.methods.firstOrNull {
+                it.parameterCount == 0 && it.name in candidates
+            } ?: continue
+
+            val value = runCatching { method.invoke(receiver) }.getOrNull() ?: continue
+            when (value) {
+                is Int -> return value
+                is Number -> return value.toInt()
+            }
+        }
+        return null
+    }
 }
