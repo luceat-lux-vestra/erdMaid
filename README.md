@@ -1,45 +1,93 @@
-# erdMaid-private
+# erdMaid - Mermaid ERD Export for Database Tables
 
-erdMaid exports selected tables from the IntelliJ Database tool window as Mermaid `erDiagram` syntax.
-
-![Build](https://github.com/luceat-lux-vestra/erdMaid-private/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
+erdMaid is a Mermaid ERD export plugin for database tables in the Database tool window.
 
 ## What it does
 
-- Select one or more tables from the IntelliJ Database tool window.
-- Export the selected tables as Mermaid `erDiagram` syntax.
-- Preserve actual column order from the database metadata.
-- Include PK/FK relationships, column types, and column comments.
-- Copy the generated diagram to the clipboard and show a notification.
+- Exports either the schema's `Tables` node itself or individual tables selected under that node in the Database tool window.
+- Works from the schema-level table list, where all tables for that schema are visible and can be exported together.
+- Preserves the actual column order from database metadata.
+- Includes primary keys, foreign key relationships, column types, and column comments.
+- Renders column size details in a Mermaid-safe format.
+- Copies the generated diagram to the clipboard and shows a completion notification.
 
 <!-- Plugin description -->
-erdMaid exports selected database tables from the IntelliJ Database tool window into Mermaid `erDiagram` syntax, preserving actual column order and including PK/FK metadata, data types, and column comments. The result is copied to the clipboard and a notification is shown.
+erdMaid is a Mermaid ERD export plugin for the IntelliJ Database tool window.
+
+It is designed for developers who want a fast, accurate way to turn selected database tables into Mermaid `erDiagram` syntax without manually rewriting table metadata.
+
+Key benefits:
+
+- Exports tables selected under a schema's `Tables` node in the Database tool window.
+- Works from the schema-level table list, where all tables for that schema are visible.
+- Preserves the actual column order from database metadata.
+- Includes primary keys, foreign key relationships, column types, and column comments.
+- Renders size information in a Mermaid-safe format.
+- Copies the generated diagram to the clipboard and shows a completion notification.
+
+Typical workflow:
+
+1. In the Database tool window, expand a schema and open its `Tables` node.
+2. Select the `Tables` node to export every table in that schema, or select one or more individual tables under it to export only those tables.
+3. Right-click and choose `Export as Mermaid ERD (erdMaid)`.
+4. Paste the generated Mermaid code into Markdown, docs, or any Mermaid-enabled editor.
+
+Output details:
+
+- Table comments are emitted as `%%` Mermaid comments.
+- Column lines follow `type name [PK] ["comment"]`.
+- Type names with whitespace are normalized to underscores.
+- Column comments are sanitized so Mermaid can parse the output safely.
+- Numeric precision and scale are rendered in a Mermaid-safe way.
+
+Requirements:
+
+- IntelliJ IDEA Ultimate, DataGrip, or another IntelliJ-based IDE with database tooling.
+- A database connection with table metadata available in the Database tool window.
+
+Notes:
+
+- `classDiagram` is intentionally not supported.
+- View support is out of scope for now.
 <!-- Plugin description end -->
+
+## Usage
+
+1. Open the Database tool window in an IntelliJ-based IDE with database support.
+2. Expand a schema and open its `Tables` node.
+3. Select one or more tables from that schema-level table list.
+4. Right-click and choose `Export as Mermaid ERD (erdMaid)`.
+5. Paste the generated Mermaid code into Markdown, docs, or any Mermaid-enabled editor.
+
+## Output format
+
+- Table comments are emitted as `%%` Mermaid comments.
+- Column lines follow `type name [PK] ["comment"]`.
+- Type names with whitespace are normalized to underscores.
+- Column comments are sanitized so Mermaid can parse the output safely.
+- Numeric precision and scale are rendered with Mermaid-safe separators.
+
+## Requirements
+
+- IntelliJ IDEA Ultimate, DataGrip, or another IntelliJ-based IDE with database tooling.
+- A database connection with table metadata available in the Database tool window.
 
 ## Installation
 
-- Using the IDE built-in plugin system:
+When the plugin is published to JetBrains Marketplace, install it from:
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "erdMaid"</kbd> >
-  <kbd>Install</kbd>
+- <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd>
+- Search for `erdMaid`
+- Click <kbd>Install</kbd>
 
-- Using JetBrains Marketplace:
+For local development builds, install the generated ZIP from `build/distributions`.
 
-  Go to [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID) and install it by clicking the <kbd>Install to ...</kbd> button in case your IDE is running.
+## Development
 
-  You can also download the [latest release](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID/versions) from JetBrains Marketplace and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+- Build: `./gradlew build`
+- Tests: `./gradlew check`
 
-- Manually:
+## Notes
 
-  Download the [latest release](https://github.com/luceat-lux-vestra/erdMaid-private/releases/latest) and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
-
-
----
-Plugin based on the [IntelliJ Platform Plugin Template][template].
-
-[template]: https://github.com/JetBrains/intellij-platform-plugin-template
-[docs:plugin-description]: https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html#plugin-description-and-presentation
+- `classDiagram` is intentionally not supported.
+- View support is out of scope for now.
