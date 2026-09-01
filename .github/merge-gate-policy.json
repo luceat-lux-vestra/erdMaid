@@ -1,0 +1,28 @@
+{
+  "$comment": "Required PR contexts for erdMaid. Keep this file synchronized with workflow job names.",
+  "version": 1,
+  "repository": "luceat-lux-vestra/erdMaid-private",
+  "protected_branch": "main",
+  "required": [
+    {
+      "context": "Build",
+      "workflow": ".github/workflows/build.yml",
+      "job": "build"
+    },
+    {
+      "context": "Test",
+      "workflow": ".github/workflows/build.yml",
+      "job": "test"
+    },
+    {
+      "context": "Verify plugin",
+      "workflow": ".github/workflows/build.yml",
+      "job": "verify"
+    },
+    {
+      "context": "Workflow Static Analysis",
+      "workflow": ".github/workflows/workflow-security.yml",
+      "job": "static-analysis"
+    }
+  ]
+}

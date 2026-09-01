@@ -1,15 +1,32 @@
-# Dependabot configuration:
-# https://docs.github.com/en/free-pro-team@latest/github/administering-a-repository/configuration-options-for-dependency-updates
+# Dependabot version updates.
+#
+# Scoped to a solo-maintained repository: weekly rather than daily, grouped
+# into a single PR per ecosystem, and bounded. Note that Dependabot *alerts*
+# are a separate repository setting and require the Dependency Graph.
+#
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
 
 version: 2
 updates:
-  # Maintain dependencies for Gradle dependencies
+
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
-      interval: "daily"
-  # Maintain dependencies for GitHub Actions
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      gradle:
+        patterns:
+          - "*"
+
+  # Keeps the full-length commit SHA pins in `.github/workflows/` current.
+  # Those pins rely on the trailing `# vX.Y.Z` comment next to each SHA.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
