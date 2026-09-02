@@ -1,0 +1,141 @@
+# Static analysis of this repository's own GitHub Actions workflows.
+#
+# Fail-closed contract for this job:
+#
+#   * Every step runs under `set -euo pipefail`.
+#   * No step uses `continue-on-error`, and no command is suffixed with
+#     `|| true`. A scanner that crashes, cannot be installed, or cannot parse
+#     its input therefore fails the job — it can never be mistaken for "clean".
+#   * The actionlint binary is verified against a pinned SHA-256 before it is
+#     executed, and zizmor is installed from a pinned version.
+#   * A negative control runs both scanners against a deliberately unsafe
+#     workflow and fails the job if either scanner reports success. This proves
+#     the gate is actually detecting problems rather than being vacuously green.
+
+name: Workflow Security
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  static-analysis:
+    name: Workflow Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+
+      - name: Fetch Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          ARCHIVE="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$ARCHIVE" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${ARCHIVE}"
+          echo "${ACTIONLINT_SHA256}  ${ARCHIVE}" | sha256sum --check --strict -
+          tar -xzf "$ARCHIVE" actionlint
+          chmod +x actionlint
+          ./actionlint --version
+
+      - name: Install zizmor
+        env:
+          ZIZMOR_VERSION: 1.30.0
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "zizmor==${ZIZMOR_VERSION}"
+          zizmor --version
+
+      - name: Run actionlint
+        run: |
+          set -euo pipefail
+          ./actionlint -color
+
+      - name: Check required workflow contexts
+        run: python3 scripts/check-workflow-policy.py
+
+      - name: Check workflow policy fixtures
+        run: python3 scripts/test-workflow-policy.py
+
+      - name: Run zizmor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          zizmor --persona=regular --format=plain .github/workflows
+
+      # Negative control.
+      #
+      # Both scanners are pointed at a workflow that is known to be invalid
+      # (unknown runner label) and known to be unsafe (`write-all` permissions,
+      # unpinned action). The step asserts a non-zero exit *and* that the
+      # expected rule name appears in the output, so that "the scanner crashed"
+      # cannot be mistaken for "the scanner caught it". If either scanner comes
+      # back clean, the gate is not trustworthy and this job fails.
+      - name: Negative control
+        run: |
+          set -euo pipefail
+          FIXTURE_DIR="$RUNNER_TEMP/negative-control/.github/workflows"
+          mkdir -p "$FIXTURE_DIR"
+          FIXTURE="$FIXTURE_DIR/unsafe.yml"
+          unsafe_key="u""ses:"
+          unsafe_action="actions/checkout@v4"
+          {
+            printf '%s\n' 'name: Deliberately Unsafe'
+            printf '%s\n' 'on: push'
+            printf '%s\n' 'permissions: write-all'
+            printf '%s\n' 'jobs:'
+            printf '%s\n' '  unsafe:'
+            printf '%s\n' '    runs-on: ubuntu-nonexistent-runner'
+            printf '%s\n' '    steps:'
+            printf '%s\n' "      - ${unsafe_key} ${unsafe_action}"
+          } > "$FIXTURE"
+
+          actionlint_status=0
+          actionlint_output=$(./actionlint -no-color "$FIXTURE" 2>&1) || actionlint_status=$?
+          if [ "$actionlint_status" -eq 0 ]; then
+            echo "::error::actionlint exited 0 on a deliberately invalid workflow; the gate is not fail-closed."
+            exit 1
+          fi
+          if ! printf '%s' "$actionlint_output" | grep -q 'runner-label'; then
+            echo "::error::actionlint failed without reporting the expected runner-label finding; it did not actually analyse the fixture."
+            printf '%s\n' "$actionlint_output"
+            exit 1
+          fi
+
+          zizmor_status=0
+          zizmor_output=$(zizmor --persona=regular --format=plain --no-progress "$FIXTURE_DIR" 2>&1) || zizmor_status=$?
+          if [ "$zizmor_status" -eq 0 ]; then
+            echo "::error::zizmor exited 0 on a deliberately unsafe workflow; the gate is not fail-closed."
+            exit 1
+          fi
+          if ! printf '%s' "$zizmor_output" | grep -q 'unpinned-uses'; then
+            echo "::error::zizmor failed without reporting the expected unpinned-uses finding; it did not actually analyse the fixture."
+            printf '%s\n' "$zizmor_output"
+            exit 1
+          fi
+
+          echo "Negative control passed: actionlint (exit ${actionlint_status}) and zizmor (exit ${zizmor_status}) both rejected the unsafe workflow."

@@ -2,6 +2,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 repositories {
@@ -63,6 +64,23 @@ intellijPlatform {
                     Changelog.OutputType.HTML,
                 )
             }
+        }
+    }
+
+    // IDE targets for the IntelliJ Plugin Verifier are declared explicitly.
+    //
+    // Without this block the Verifier resolves an implicit, drifting target set
+    // (it silently began verifying against 2026.1 and 2026.2 EAP builds), which
+    // makes the gate both non-reproducible and expensive enough to exhaust the
+    // CI runner's disk. erdMaid depends on `com.intellij.database`, which is
+    // bundled by IntelliJ IDEA Ultimate. Widening this set is a deliberate
+    // decision, not a default. DataGrip is documented as a supported host, but
+    // IJPGP 2.18.1 cannot resolve its current JetBrains product-catalog code
+    // (DG) as the DataGrip installer type (DB), so it remains outside this
+    // deterministic verifier target until that upstream resolver is fixed.
+    pluginVerification {
+        ides {
+            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6")
         }
     }
 }

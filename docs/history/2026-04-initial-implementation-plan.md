@@ -1,3 +1,24 @@
+> [!IMPORTANT]
+> **Historical document — superseded and not authoritative.**
+>
+> This is the original April 2026 implementation prompt that was used to bootstrap
+> erdMaid. It is kept only as a record of the initial intent. It has since diverged
+> from the shipped code in at least the following ways:
+>
+> - it specifies IntelliJ Platform Gradle Plugin **1.x** (`plugins.set(...)`), while the
+>   project is on IJPGP 2.x with the `intellijPlatform { }` dependencies extension;
+> - it describes foreign-key extraction via `DasUtil.getForeignKeys` only, while
+>   `RelationResolver` prefers `ModelRelationManager.getForeignKeys(project, table)` and
+>   falls back to `DasUtil` only when no `Project` is available;
+> - it does not describe relation de-duplication, column-reference rendering, entity-name
+>   quoting, or the type precision/scale/length suffix rules that `MermaidGenerator`
+>   actually implements.
+>
+> **The authoritative engineering contract is [`AGENTS.md`](../../AGENTS.md).** Do not
+> treat anything below as a current requirement.
+
+---
+
 # 🛠️ Step-by-Step Implementation Plan
 
 ## 1. Project Configuration (build.gradle.kts & plugin.xml)
