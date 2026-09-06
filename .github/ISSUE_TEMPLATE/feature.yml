@@ -1,0 +1,26 @@
+name: Feature or behavior change
+description: Propose a product or compatibility change with explicit fidelity boundaries
+title: "feat: "
+labels:
+  - "type:feature"
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / user need
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Intended behavior and fidelity contract
+      description: Include supported/unsupported/degraded cases and compatibility expectations.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence needed
+      description: Describe tests, IDE/DataGrip verification, hostile fixtures, or runtime evidence that would prove the change.
+    validations:
+      required: true

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "repository": {
+    "full_name": "luceat-lux-vestra/erdMaid",
+    "default_branch": "main",
+    "private": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": false,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": true,
+    "allow_update_branch": true
+  },
+  "ruleset": {
+    "name": "main protection",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "luceat-lux-vestra/erdMaid",
+    "enforcement": "active",
+    "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
+    "required_rule_types": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history",
+      "pull_request",
+      "required_status_checks"
+    ],
+    "pull_request": {
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": true,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "required_review_thread_resolution": true,
+      "require_extra_approval_for_unattributed_changes": true,
+      "allowed_merge_methods": ["squash"]
+    },
+    "required_status_checks": {
+      "strict_required_status_checks_policy": true,
+      "do_not_enforce_on_create": false,
+      "integration_id": 15368
+    }
+  },
+  "manual_live_assertions": {
+    "ruleset_bypass_actors": {
+      "ruleset": "main protection",
+      "expected": []
+    }
+  },
+  "labels": [
+    {"name": "type:bug", "color": "d73a4a", "description": "Incorrect, unsafe, or regressed behavior"},
+    {"name": "type:feature", "color": "a2eeef", "description": "Product or supported-behavior change"},
+    {"name": "type:maintenance", "color": "fbca04", "description": "Repository, dependency, or maintenance work"},
+    {"name": "area:ci", "color": "5319e7", "description": "CI, workflows, repository policy, or automation"},
+    {"name": "area:docs", "color": "0075ca", "description": "Documentation or engineering contract"},
+    {"name": "area:metadata", "color": "1d76db", "description": "Database metadata identity or extraction"},
+    {"name": "area:mermaid", "color": "b60205", "description": "Mermaid rendering or sanitization"},
+    {"name": "area:compatibility", "color": "0e8a16", "description": "IntelliJ/DataGrip compatibility evidence"},
+    {"name": "dependencies", "color": "0366d6", "description": "Dependency update"}
+  ]
+}

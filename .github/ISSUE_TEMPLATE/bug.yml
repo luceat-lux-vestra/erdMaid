@@ -1,0 +1,31 @@
+name: Bug report
+description: Report incorrect, unsafe, or regressed erdMaid behavior
+title: "bug: "
+labels:
+  - "type:bug"
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Describe the exact incorrect or surprising behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and reproduction evidence
+      description: IDE/DataGrip build, database dialect/model facts, selection shape, and minimal reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Wrong-but-plausible or data-safety impact
+      description: State whether the result can look valid while representing the wrong schema, relation, or metadata.

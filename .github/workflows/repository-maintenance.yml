@@ -1,0 +1,40 @@
+# Dedicated metadata mutation. It runs only trusted default-branch code and may
+# create/update canonical labels; it never mutates source, branches, tags, or releases.
+name: Repository Metadata Maintenance
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/repository-policy.json"
+      - "scripts/repository_policy.py"
+      - ".github/workflows/repository-maintenance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-metadata-maintenance
+  cancel-in-progress: false
+
+jobs:
+  sync-labels:
+    name: Synchronize repository labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Fetch trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - name: Synchronize canonical labels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/repository_policy.py sync-labels
