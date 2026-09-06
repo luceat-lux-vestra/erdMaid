@@ -1,9 +1,9 @@
 {
   "version": 1,
   "repository": {
-    "full_name": "luceat-lux-vestra/erdMaid-private",
+    "full_name": "luceat-lux-vestra/erdMaid",
     "default_branch": "main",
-    "private": true,
+    "private": false,
     "allow_squash_merge": true,
     "allow_merge_commit": false,
     "allow_rebase_merge": false,
@@ -15,7 +15,7 @@
     "name": "main protection",
     "target": "branch",
     "source_type": "Repository",
-    "source": "luceat-lux-vestra/erdMaid-private",
+    "source": "luceat-lux-vestra/erdMaid",
     "enforcement": "active",
     "include": ["~DEFAULT_BRANCH"],
     "exclude": [],
