@@ -31,7 +31,7 @@ Refs #
 
 ## Exact-HEAD merge gate
 
-- [ ] Required CI is green on the exact final PR HEAD
-- [ ] Independent manual diff review is complete on that exact SHA
+- [ ] Required PR CI is green for the current PR HEAD/base pair; when GitHub uses a synthetic `pull_request` merge ref, that ref corresponds to this current head and base
+- [ ] Independent manual diff review is complete on the exact final PR HEAD SHA
 - [ ] Any HEAD movement invalidates previous review/evidence
 - [ ] Merge-time PR HEAD and fresh `main` are re-read before squash merge
