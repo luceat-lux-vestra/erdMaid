@@ -90,7 +90,7 @@ data class ColumnSnapshot(
 
 data class PrimaryKeyFact(
     val name: OptionalValue<String>,
-    val columns: List<ColumnId>,
+    val columns: FrozenList<ColumnId>,
 ) {
     init {
         require(columns.isNotEmpty()) { "Primary key must contain at least one column" }
@@ -103,7 +103,7 @@ data class PrimaryKeyFact(
 
 data class UniqueKeyFact(
     val name: OptionalValue<String>,
-    val columns: List<ColumnId>,
+    val columns: FrozenList<ColumnId>,
 ) {
     init {
         require(columns.isNotEmpty()) { "Unique key must contain at least one column" }
@@ -155,7 +155,7 @@ data class ForeignKeyFact(
     val referencedTable: TableReferenceEvidence,
     val name: OptionalValue<String>,
     val provenance: Evidence<RelationProvenance>,
-    val mappings: Evidence<List<ForeignKeyColumnMapping>>,
+    val mappings: Evidence<FrozenList<ForeignKeyColumnMapping>>,
 ) {
     init {
         requireOptionalName(name, "Foreign key")
@@ -176,13 +176,13 @@ data class ForeignKeyFact(
 data class TableSnapshot(
     val id: TableId,
     val comment: OptionalValue<String>,
-    val columns: List<ColumnSnapshot>,
+    val columns: FrozenList<ColumnSnapshot>,
     /** Absent means the table is authoritatively known to have no primary key. */
     val primaryKey: OptionalValue<PrimaryKeyFact>,
-    /** Known(emptyList()) means the table is authoritatively known to have no unique keys. */
-    val uniqueKeys: Evidence<List<UniqueKeyFact>>,
-    /** Known(emptyList()) means the table is authoritatively known to have no foreign keys. */
-    val foreignKeys: Evidence<List<ForeignKeyFact>>,
+    /** Known(frozenListOf()) means the table is authoritatively known to have no unique keys. */
+    val uniqueKeys: Evidence<FrozenList<UniqueKeyFact>>,
+    /** Known(frozenListOf()) means the table is authoritatively known to have no foreign keys. */
+    val foreignKeys: Evidence<FrozenList<ForeignKeyFact>>,
 ) {
     init {
         require(columns.all { it.id.table == id }) {
@@ -228,7 +228,7 @@ data class TableSnapshot(
 
 data class SchemaSnapshot(
     val origin: OriginId,
-    val tables: List<TableSnapshot>,
+    val tables: FrozenList<TableSnapshot>,
 ) {
     init {
         require(tables.all { it.id.origin == origin }) {

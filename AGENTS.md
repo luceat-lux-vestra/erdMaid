@@ -120,6 +120,8 @@ Rules:
 - Optional values that are known absent and values that could not be read have different type
   states.
 - Key/relation collections distinguish known-empty from unavailable evidence.
+- Collection-valued canonical facts own immutable snapshots; caller-owned mutable collections are
+  never retained or exposed as writable canonical state.
 - Composite PK/FK and unique-key column order is preserved exactly.
 - Platform exceptions may be summarized into plain diagnostics, but the core never retains a
   `Throwable` or platform object.
