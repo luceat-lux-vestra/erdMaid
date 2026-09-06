@@ -136,6 +136,7 @@ jobs:
           fi
           if ! printf '%s' "$zizmor_output" | grep -q 'unpinned-uses'; then
             echo "::error::zizmor failed without reporting the expected unpinned-uses finding; it did not actually analyse the fixture."
+            printf '%s\n' "$zizmor_output"
             exit 1
           fi
 
