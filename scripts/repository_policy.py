@@ -49,10 +49,7 @@ def api_request(path: str, token: str, method: str = "GET", body=None):
 def validate_repository(actual, expected):
     errors = []
     for key, value in expected.items():
-        if key == "full_name":
-            observed = actual.get("full_name")
-        else:
-            observed = actual.get(key)
+        observed = actual.get(key)
         if observed != value:
             errors.append(f"repository.{key}: expected {value!r}, observed {observed!r}")
     return errors
@@ -68,17 +65,18 @@ def validate_ruleset(actual, expected, required_contexts):
     for key in ("name", "target", "enforcement"):
         if actual.get(key) != expected[key]:
             errors.append(f"ruleset.{key}: expected {expected[key]!r}, observed {actual.get(key)!r}")
-    observed_include = actual.get("conditions", {}).get("ref_name", {}).get("include", [])
-    if observed_include != expected["include"]:
-        errors.append(f"ruleset.include: expected {expected['include']!r}, observed {observed_include!r}")
+    ref_name = actual.get("conditions", {}).get("ref_name", {})
+    if ref_name.get("include", []) != expected["include"]:
+        errors.append(f"ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include', [])!r}")
+    if ref_name.get("exclude", []) != expected["exclude"]:
+        errors.append(f"ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude', [])!r}")
     if actual.get("bypass_actors", []) != expected["bypass_actors"]:
         errors.append("ruleset.bypass_actors drifted from the no-bypass policy")
 
     rules = actual.get("rules", [])
     observed_types = [rule.get("type") for rule in rules]
-    for rule_type in expected["required_rule_types"]:
-        if observed_types.count(rule_type) != 1:
-            errors.append(f"ruleset requires exactly one {rule_type!r} rule; observed {observed_types.count(rule_type)}")
+    if sorted(observed_types) != sorted(expected["required_rule_types"]):
+        errors.append(f"ruleset rule topology: expected {sorted(expected['required_rule_types'])!r}, observed {sorted(observed_types)!r}")
 
     pr = _rule(rules, "pull_request")
     if pr:
@@ -90,12 +88,17 @@ def validate_ruleset(actual, expected, required_contexts):
     checks = _rule(rules, "required_status_checks")
     if checks:
         params = checks.get("parameters", {})
-        strict = expected["required_status_checks"]["strict_required_status_checks_policy"]
-        if params.get("strict_required_status_checks_policy") != strict:
-            errors.append("ruleset required status checks are not strict")
-        contexts = sorted(item.get("context") for item in params.get("required_status_checks", []))
+        wanted = expected["required_status_checks"]
+        for key in ("strict_required_status_checks_policy", "do_not_enforce_on_create"):
+            if params.get(key) != wanted[key]:
+                errors.append(f"ruleset.required_status_checks.{key}: expected {wanted[key]!r}, observed {params.get(key)!r}")
+        observed_checks = params.get("required_status_checks", [])
+        contexts = sorted(item.get("context") for item in observed_checks)
         if contexts != sorted(required_contexts):
             errors.append(f"ruleset required contexts: expected {sorted(required_contexts)!r}, observed {contexts!r}")
+        wrong_sources = [item for item in observed_checks if item.get("integration_id") != wanted["integration_id"]]
+        if wrong_sources:
+            errors.append(f"ruleset required check source drift: expected integration {wanted['integration_id']}")
     return errors
 
 
@@ -128,6 +131,13 @@ def read_all_labels(repo: str, token: str):
 def required_contexts():
     policy = load_json(MERGE_GATE_PATH)
     return [entry["context"] for entry in policy["required"]]
+
+
+def validate_invocation_repository(policy):
+    expected = policy["repository"]["full_name"]
+    actual = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if actual and actual != expected:
+        raise ValueError(f"GITHUB_REPOSITORY mismatch: expected {expected!r}, observed {actual!r}")
 
 
 def audit(policy, token):
@@ -182,6 +192,7 @@ def main():
         return 1
     try:
         policy = load_json(POLICY_PATH)
+        validate_invocation_repository(policy)
         if sys.argv[1] == "sync-labels":
             sync_labels(policy, token)
             return 0
@@ -193,7 +204,7 @@ def main():
         for error in errors:
             print(f"REPOSITORY POLICY ERROR: {error}", file=sys.stderr)
         return 1
-    print("repository policy OK: live settings, main ruleset, required contexts, and canonical labels match")
+    print("repository policy OK: live settings, exact main ruleset, required check sources, and canonical labels match")
     return 0
 
 

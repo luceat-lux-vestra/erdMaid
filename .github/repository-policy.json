@@ -7,6 +7,7 @@
     "allow_squash_merge": true,
     "allow_merge_commit": false,
     "allow_rebase_merge": false,
+    "allow_auto_merge": false,
     "delete_branch_on_merge": true,
     "allow_update_branch": true
   },
@@ -15,6 +16,7 @@
     "target": "branch",
     "enforcement": "active",
     "include": ["~DEFAULT_BRANCH"],
+    "exclude": [],
     "bypass_actors": [],
     "required_rule_types": [
       "deletion",
@@ -33,7 +35,9 @@
       "allowed_merge_methods": ["squash"]
     },
     "required_status_checks": {
-      "strict_required_status_checks_policy": true
+      "strict_required_status_checks_policy": true,
+      "do_not_enforce_on_create": false,
+      "integration_id": 15368
     }
   },
   "labels": [

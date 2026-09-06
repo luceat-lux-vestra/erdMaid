@@ -1,8 +1,16 @@
-# Scheduled read-only drift detection. A missing/inaccessible live surface is a
+# Scheduled/read-on-main drift detection. A missing/inaccessible live surface is a
 # failure, not a successful skip. There is intentionally no write/reporting token.
 name: Repository Drift Audit
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/merge-gate-policy.json"
+      - ".github/repository-policy.json"
+      - "scripts/repository_policy.py"
+      - "scripts/test_repository_policy.py"
+      - ".github/workflows/repository-drift.yml"
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:

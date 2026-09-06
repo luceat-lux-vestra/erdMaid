@@ -2,15 +2,14 @@
 #
 # Fail-closed contract for this job:
 #
-#   * Every step runs under `set -euo pipefail`.
+#   * Every step runs under `set -euo pipefail` where a shell pipeline is used.
 #   * No step uses `continue-on-error`, and no command is suffixed with
 #     `|| true`. A scanner that crashes, cannot be installed, or cannot parse
 #     its input therefore fails the job — it can never be mistaken for "clean".
 #   * The actionlint binary is verified against a pinned SHA-256 before it is
 #     executed, and zizmor is installed from a pinned version.
-#   * A negative control runs both scanners against a deliberately unsafe
-#     workflow and fails the job if either scanner reports success. This proves
-#     the gate is actually detecting problems rather than being vacuously green.
+#   * Negative controls prove unsafe workflow and repository-policy fixtures are
+#     rejected instead of being vacuously green.
 
 name: Workflow Security
 
@@ -80,6 +79,9 @@ jobs:
       - name: Check workflow policy fixtures
         run: python3 scripts/test-workflow-policy.py
 
+      - name: Check repository policy fixtures
+        run: python3 scripts/test_repository_policy.py
+
       - name: Run zizmor
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -134,7 +136,6 @@ jobs:
           fi
           if ! printf '%s' "$zizmor_output" | grep -q 'unpinned-uses'; then
             echo "::error::zizmor failed without reporting the expected unpinned-uses finding; it did not actually analyse the fixture."
-            printf '%s\n' "$zizmor_output"
             exit 1
           fi
 

@@ -9,7 +9,6 @@ on:
       - ".github/repository-policy.json"
       - "scripts/repository_policy.py"
       - ".github/workflows/repository-maintenance.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
