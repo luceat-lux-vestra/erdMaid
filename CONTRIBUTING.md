@@ -18,6 +18,8 @@ Merges are squash-only. Merge-time PR HEAD and fresh `main` are re-read before m
 
 Use full deterministic output assertions for rendering/identity behavior. Add literal hostile fixtures for sanitization defects. Do not weaken or skip a test to obtain green CI.
 
+The required `Test` context still means a successful `./gradlew check`. The CI wrapper may repeat that command **once** only for the known JetBrains IJ Platform Gradle Plugin 2.18.1 bundled-plugin failure where the log contains the complete erdMaid-specific `ClosedFileSystemException` / DatabaseTools / `com.intellij.database` signature. A partial signature, another bundled plugin, an ordinary test failure, or any failed second attempt remains a hard failure. This exception exists for the upstream jar-FileSystem lifecycle bug tracked as JetBrains `intellij-platform-gradle-plugin#2192` / `MP-8217`; it is not a general flaky-test retry policy.
+
 ## Repository automation
 
 Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Release/tag/branch mutation is not part of the current repository contract.
