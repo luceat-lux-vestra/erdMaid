@@ -94,23 +94,39 @@ the strictest treatment.
 
 ### Table identity
 
-`RelationResolver.resolve` builds `selectedTableNames` from `DasTable.name`, and
-`MermaidGenerator.generate` looks relations up with `relationMap[it.name]`. **Table identity
-is therefore the unqualified table name.**
+Internal table identity is `TableIdentity(catalog?, schema?, name)` and the same identity is
+used consistently for selected membership, relation grouping, generator lookup, relation
+de-duplication, and rendering decisions.
 
-Consequences that must be understood before touching this code:
+Identity rules:
 
-- Two selected tables named `orders` in different schemas collapse into one identity. A
-  foreign key belonging to `sales.orders` can be attached to `archive.orders`.
-- The same collision affects the `parentTableName` lookup, so a relation may be *silently
-  emitted between the wrong pair of entities* rather than dropped.
+- `catalog`, `schema`, and `name` are compared exactly and case-sensitively.
+- Values are not case-folded or trimmed. Quoted/case-sensitive identifiers therefore remain
+  distinct exactly as the IntelliJ Database model reports them.
+- Empty catalog/schema metadata is treated as absent (`null`). No sentinel string or guessed
+  catalog/schema is fabricated to make an identity look complete.
+- The child endpoint of an outgoing FK is authoritative: it is the qualified identity of the
+  `DasTable` currently being enumerated.
+- Duplicate selected objects with the same complete `TableIdentity` are ambiguous and cause
+  rendering to fail before any diagram text is returned.
 
-This is an accepted, documented limitation of the current implementation, **not** a fixed
-behaviour. Any change that touches selection, relation resolution, or entity naming must
-either preserve this behaviour deliberately or fix it properly by introducing a qualified
-identity (catalog/schema/name) used consistently in `selectedTableNames`, the `groupBy` key,
-the `relationMap` lookup, and the rendered entity name. Fixing it halfway — qualifying the
-rendered name but not the lookup key — is worse than not fixing it.
+FK parent metadata can be incomplete. Parent resolution first matches the exact table name,
+then applies any catalog/schema hints that the FK actually supplies, and accepts the result
+only when exactly one selected identity remains. A unique name with missing qualification
+can therefore resolve; an ambiguous same-name match is dropped. `UNKNOWN` never means
+"choose one".
+
+Rendering identity is deliberately separate from internal identity:
+
+- A table name that is unique in the selected set remains unqualified, preserving ordinary
+  single-schema output byte-for-byte.
+- For duplicate unqualified names, `schema.name` is used when every colliding identity has a
+  schema and those schema-qualified names are unique.
+- If schema is missing or insufficient, rendering uses the strongest available
+  `catalog.schema.name` form (omitting only metadata that is genuinely absent).
+- The complete set of rendered entity strings is checked for collisions, including collisions
+  with literal table names that already contain dots. Any collision fails closed rather than
+  emitting a plausible-but-wrong diagram.
 
 ### Column identity and ordering
 
@@ -138,11 +154,12 @@ rendered name but not the lookup key — is worse than not fixing it.
   *virtual* relations as well as real database FKs — and falls back to
   `DasUtil.getForeignKeys(table)` only when no `Project` is available (headless/tests).
   These two sources are not equivalent; the fallback is a degraded mode, not a synonym.
-- Only relations whose **both** endpoints are in the selected table set are emitted.
-  Dangling relations are dropped silently, by design.
-- De-duplication key is `child -> parent : childColumns | parentColumns`. A named relation
-  wins over an unnamed one for the same key; otherwise first-seen wins and `LinkedHashMap`
-  keeps the result deterministic.
+- Only relations whose **both qualified endpoints** are in the selected table set are emitted.
+  Dangling or ambiguous relations are dropped silently, by design.
+- De-duplication key is `qualified child -> qualified parent : childColumns | parentColumns`.
+  A named relation wins over an unnamed one for the same key; otherwise first-seen wins and
+  `LinkedHashMap` keeps the result deterministic. Composite FKs remain ordered, and distinct
+  column pairs between the same two tables remain distinct relations.
 - Cardinality is currently hard-coded to `||--o{`. erdMaid does **not** infer optionality or
   one-to-one-ness. Do not introduce inferred cardinality without a way to verify it against
   real nullability and uniqueness metadata.
@@ -331,8 +348,9 @@ final HEAD of the branch, not an earlier revision:
 
 1. **Metadata semantics** — does it read the model correctly, and is absent metadata still
    handled as absent rather than as an error or a fabricated value?
-2. **Identity** — table, column, PK, and FK identity, including the unqualified-name
-   collision in section 3. Was the boundary preserved deliberately or fixed completely?
+2. **Identity** — table, column, PK, and FK identity; qualified table identity is used end to
+   end, ambiguous parent metadata is dropped rather than guessed, and rendered names remain
+   collision-free.
 3. **Ordering and determinism** — column order preserved; same input still yields
    byte-identical output.
 4. **Escaping** — hostile identifiers and comments (quotes, newlines, `%%`, braces, pipes,
