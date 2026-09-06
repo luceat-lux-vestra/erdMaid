@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: zulu
-          java-version: 21
+          java-version: 25
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -101,7 +101,7 @@ jobs:
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: zulu
-          java-version: 21
+          java-version: 25
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -129,6 +129,11 @@ jobs:
   # here) because the Verifier downloads full IDE distributions plus their
   # Marketplace dependencies. Every `Verify plugin` run on `main` between
   # 2026-08-05 and 2026-08-27 failed with "No space left on device" without it.
+  #
+  # One required job owns both supported hosts on the 2026.2 platform line.
+  # IntelliJ IDEA runs via IJPGP's verifyPlugin task; DataGrip runs through the
+  # pinned standalone gate because IJPGP 2.18.1 still has the DB/DG catalog-code
+  # mismatch. Either step failing fails this same required context.
   verify:
     name: Verify plugin
     needs: [ build ]
@@ -153,24 +158,33 @@ jobs:
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: zulu
-          java-version: 21
+          java-version: 25
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: true
 
-      # Verification targets are declared explicitly in build.gradle.kts.
-      # The same IJPGP 2.18.1 zipfs race can happen before the Plugin Verifier
-      # starts, while resolving :compileClasspath. Real verifier findings never
-      # satisfy the exact upstream signature and therefore are never retried.
-      - name: Run Plugin Verification tasks
+      # The IJPGP-owned IntelliJ IDEA 2026.2.2 target is declared explicitly in
+      # build.gradle.kts. The known IJPGP zipfs race can happen before Plugin
+      # Verifier starts; real verifier findings never satisfy the exact retry
+      # signature.
+      - name: Verify IntelliJ IDEA compatibility
         run: python3 scripts/gradle_check_gate.py verifyPlugin
+
+      # DataGrip 2026.2.4 intentionally does not go through IJPGP's broken native
+      # resolver. This step selects that exact release/build, verifies archive
+      # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
+      # same default blocking levels as IJPGP 2.18.1. It has no retry path.
+      - name: Verify DataGrip compatibility
+        run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result
-          path: build/reports/pluginVerifier
+          path: |
+            build/reports/pluginVerifier
+            build/reports/pluginVerifierDataGrip
           if-no-files-found: warn

@@ -29,7 +29,12 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        intellijIdeaUltimate("2025.2.6")
+        // Run compilation and the IntelliJ test framework against the earliest
+        // stable 2026.2 patch release. This is the minimum supported build line,
+        // while newer 2026.2 hosts are checked independently by Plugin Verifier.
+        // Keeping tests on the baseline also avoids coupling unit-test startup to
+        // unrelated commercial-plugin startup changes in later IDEA patch builds.
+        intellijIdea("2026.2.0.1")
 
         bundledPlugins("com.intellij.database")
 
@@ -67,20 +72,20 @@ intellijPlatform {
         }
     }
 
-    // IDE targets for the IntelliJ Plugin Verifier are declared explicitly.
+    // IJPGP-owned verifier targets are declared explicitly and independently
+    // from the compile/test baseline. This lets the test suite exercise the
+    // minimum supported 262 release while compatibility verification exercises
+    // the latest supported IDEA patch release.
     //
-    // Without this block the Verifier resolves an implicit, drifting target set
-    // (it silently began verifying against 2026.1 and 2026.2 EAP builds), which
-    // makes the gate both non-reproducible and expensive enough to exhaust the
-    // CI runner's disk. erdMaid depends on `com.intellij.database`, which is
-    // bundled by IntelliJ IDEA Ultimate. Widening this set is a deliberate
-    // decision, not a default. DataGrip is documented as a supported host, but
-    // IJPGP 2.18.1 cannot resolve its current JetBrains product-catalog code
-    // (DG) as the DataGrip installer type (DB), so it remains outside this
-    // deterministic verifier target until that upstream resolver is fixed.
+    // DataGrip is intentionally NOT declared here yet. IJPGP 2.18.1 identifies
+    // the DataGrip IntelliJPlatformType as `DB`, while JetBrains' product release
+    // feed uses `DG`; native DataGrip resolution is fixed upstream after 2.18.1
+    // but is not available in a stable IJPGP release yet. The same required
+    // `Verify plugin` CI job verifies a separately pinned DataGrip 2026.2 release
+    // via scripts/datagrip_verifier.py.
     pluginVerification {
         ides {
-            create(IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6")
+            create(IntelliJPlatformType.IntellijIdea, "2026.2.2")
         }
     }
 }
