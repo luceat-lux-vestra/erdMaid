@@ -6,6 +6,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.lang.reflect.InvocationTargetException
 
 class SchemaSnapshotTest {
 
@@ -61,7 +62,7 @@ class SchemaSnapshotTest {
         val lineNo = ColumnId(table, "line_no")
         val key = PrimaryKeyFact(
             name = OptionalValue.Present("pk_order_line"),
-            columns = listOf(orderId, lineNo),
+            columns = frozenListOf(orderId, lineNo),
         )
 
         assertEquals(listOf(orderId, lineNo), key.columns)
@@ -72,7 +73,7 @@ class SchemaSnapshotTest {
         val child = TableId(origin, "app", "sales", "order_line")
         val orderId = ColumnId(child, "order_id")
         val tenantId = ColumnId(child, "tenant_id")
-        val mappings = listOf(
+        val mappings = frozenListOf(
             ForeignKeyColumnMapping(orderId, "id"),
             ForeignKeyColumnMapping(tenantId, "tenant_id"),
         )
@@ -107,7 +108,7 @@ class SchemaSnapshotTest {
             name = OptionalValue.Absent,
             provenance = Evidence.Unavailable(CoreDiagnostic("provenance-not-exposed")),
             mappings = Evidence.Known(
-                listOf(ForeignKeyColumnMapping(ColumnId(child, "user_id"), "id"))
+                frozenListOf(ForeignKeyColumnMapping(ColumnId(child, "user_id"), "id"))
             ),
         )
 
@@ -135,18 +136,18 @@ class SchemaSnapshotTest {
         )
         val withKnownNoUniqueKeys = tableSnapshot(
             table = table,
-            columns = listOf(id, email),
-            uniqueKeys = Evidence.Known(emptyList()),
+            columns = frozenListOf(id, email),
+            uniqueKeys = Evidence.Known(frozenListOf()),
         )
         val withUnavailableUniqueKeys = tableSnapshot(
             table = table,
-            columns = listOf(id, email),
+            columns = frozenListOf(id, email),
             uniqueKeys = Evidence.Unavailable(CoreDiagnostic("unique-keys-unavailable")),
         )
 
         assertEquals(Evidence.Known(false), id.nullable)
         assertTrue(email.nullable is Evidence.Unavailable)
-        assertEquals(Evidence.Known(emptyList<UniqueKeyFact>()), withKnownNoUniqueKeys.uniqueKeys)
+        assertEquals(Evidence.Known(frozenListOf<UniqueKeyFact>()), withKnownNoUniqueKeys.uniqueKeys)
         assertTrue(withUnavailableUniqueKeys.uniqueKeys is Evidence.Unavailable)
     }
 
@@ -155,7 +156,7 @@ class SchemaSnapshotTest {
         val table = TableId(origin, null, "sales", "orders")
         val first = column(table, "created_at", sourcePosition = 3)
         val second = column(table, "id", sourcePosition = 7)
-        val snapshot = tableSnapshot(table, columns = listOf(first, second))
+        val snapshot = tableSnapshot(table, columns = frozenListOf(first, second))
 
         assertEquals(listOf("created_at", "id"), snapshot.columns.map { it.id.name })
         assertEquals(listOf(3, 7), snapshot.columns.map { it.sourcePosition })
@@ -168,7 +169,7 @@ class SchemaSnapshotTest {
         val earlier = column(table, "earlier", sourcePosition = 1)
 
         assertThrows(IllegalArgumentException::class.java) {
-            tableSnapshot(table, columns = listOf(later, earlier))
+            tableSnapshot(table, columns = frozenListOf(later, earlier))
         }
     }
 
@@ -179,7 +180,7 @@ class SchemaSnapshotTest {
         val duplicate = tableSnapshot(table)
 
         assertThrows(IllegalArgumentException::class.java) {
-            SchemaSnapshot(origin, listOf(first, duplicate))
+            SchemaSnapshot(origin, frozenListOf(first, duplicate))
         }
     }
 
@@ -190,8 +191,147 @@ class SchemaSnapshotTest {
         val foreign = tableSnapshot(TableId(foreignOrigin, "app", "sales", "users"))
 
         assertThrows(IllegalArgumentException::class.java) {
-            SchemaSnapshot(origin, listOf(local, foreign))
+            SchemaSnapshot(origin, frozenListOf(local, foreign))
         }
+    }
+
+    @Test
+    fun `frozen list owns source order and blocks mutable surfaces`() {
+        val source = mutableListOf("first", "second")
+        val frozen = FrozenList.copyOf(source)
+
+        source.clear()
+        source += "rewritten"
+
+        assertEquals(listOf("first", "second"), frozen)
+        assertEquals(frozen, listOf("first", "second"))
+        assertEquals(listOf("first", "second"), frozen)
+        assertEquals(listOf("first", "second").hashCode(), frozen.hashCode())
+
+        assertThrows(ClassCastException::class.java) {
+            @Suppress("CAST_NEVER_SUCCEEDS")
+            (frozen as MutableList<String>).add("mutated")
+        }
+
+        val add = java.util.List::class.java.getMethod("add", Any::class.java)
+        val failure = assertThrows(InvocationTargetException::class.java) {
+            add.invoke(frozen, "mutated")
+        }
+        assertTrue(failure.cause is UnsupportedOperationException)
+        assertEquals(listOf("first", "second"), frozen)
+    }
+
+    @Test
+    fun `frozen list rejects null inserted through erased collection type`() {
+        @Suppress("UNCHECKED_CAST")
+        val invalid = listOf<String?>(null) as Collection<String>
+
+        assertThrows(IllegalArgumentException::class.java) {
+            FrozenList.copyOf(invalid)
+        }
+    }
+
+    @Test
+    fun `primary and foreign key facts do not retain mutable source aliases`() {
+        val child = TableId(origin, "app", "sales", "order_line")
+        val orderId = ColumnId(child, "order_id")
+        val tenantId = ColumnId(child, "tenant_id")
+        val pkSource = mutableListOf(orderId, tenantId)
+        val mappingSource = mutableListOf(
+            ForeignKeyColumnMapping(orderId, "id"),
+            ForeignKeyColumnMapping(tenantId, "tenant_id"),
+        )
+        val key = PrimaryKeyFact(OptionalValue.Absent, FrozenList.copyOf(pkSource))
+        val foreignKey = ForeignKeyFact(
+            childTable = child,
+            referencedTable = TableReferenceEvidence(
+                origin = Evidence.Known(origin),
+                catalog = OptionalValue.Present("app"),
+                schema = OptionalValue.Present("sales"),
+                name = Evidence.Known("orders"),
+            ),
+            name = OptionalValue.Absent,
+            provenance = Evidence.Known(RelationProvenance.PHYSICAL),
+            mappings = Evidence.Known(FrozenList.copyOf(mappingSource)),
+        )
+
+        pkSource.clear()
+        mappingSource.clear()
+
+        assertEquals(listOf(orderId, tenantId), key.columns)
+        assertEquals(2, (foreignKey.mappings as Evidence.Known).value.size)
+    }
+
+    @Test
+    fun `table and schema snapshots do not retain mutable source aliases`() {
+        val table = TableId(origin, "app", "sales", "orders")
+        val firstColumn = column(table, "id", 0)
+        val columnsSource = mutableListOf(firstColumn)
+        val uniqueSource = mutableListOf(
+            UniqueKeyFact(OptionalValue.Absent, frozenListOf(firstColumn.id))
+        )
+        val foreignSource = mutableListOf<ForeignKeyFact>()
+        val snapshot = TableSnapshot(
+            id = table,
+            comment = OptionalValue.Absent,
+            columns = FrozenList.copyOf(columnsSource),
+            primaryKey = OptionalValue.Absent,
+            uniqueKeys = Evidence.Known(FrozenList.copyOf(uniqueSource)),
+            foreignKeys = Evidence.Known(FrozenList.copyOf(foreignSource)),
+        )
+        val tablesSource = mutableListOf(snapshot)
+        val schema = SchemaSnapshot(origin, FrozenList.copyOf(tablesSource))
+
+        columnsSource.clear()
+        uniqueSource.clear()
+        foreignSource += foreignKeyFor(table, firstColumn.id)
+        tablesSource.clear()
+
+        assertEquals(listOf(firstColumn), snapshot.columns)
+        assertEquals(1, (snapshot.uniqueKeys as Evidence.Known).value.size)
+        assertTrue((snapshot.foreignKeys as Evidence.Known).value.isEmpty())
+        assertEquals(listOf(snapshot), schema.tables)
+    }
+
+    @Test
+    fun `canonical collection property surface requires frozen fields`() {
+        assertEquals(
+            FrozenList::class.java,
+            PrimaryKeyFact::class.java.getDeclaredField("columns").type,
+        )
+        assertEquals(
+            FrozenList::class.java,
+            UniqueKeyFact::class.java.getDeclaredField("columns").type,
+        )
+        assertEquals(
+            FrozenList::class.java,
+            TableSnapshot::class.java.getDeclaredField("columns").type,
+        )
+        assertEquals(
+            FrozenList::class.java,
+            SchemaSnapshot::class.java.getDeclaredField("tables").type,
+        )
+        assertTrue(
+            ForeignKeyFact::class.java
+                .getDeclaredField("mappings")
+                .genericType
+                .typeName
+                .contains("FrozenList"),
+        )
+        assertTrue(
+            TableSnapshot::class.java
+                .getDeclaredField("uniqueKeys")
+                .genericType
+                .typeName
+                .contains("FrozenList"),
+        )
+        assertTrue(
+            TableSnapshot::class.java
+                .getDeclaredField("foreignKeys")
+                .genericType
+                .typeName
+                .contains("FrozenList"),
+        )
     }
 
     @Test
@@ -201,6 +341,7 @@ class SchemaSnapshotTest {
             CoreDiagnostic::class.java,
             OptionalValue::class.java,
             Evidence::class.java,
+            FrozenList::class.java,
             TableId::class.java,
             ColumnId::class.java,
             RawTypeMetadata::class.java,
@@ -244,14 +385,32 @@ class SchemaSnapshotTest {
 
     private fun tableSnapshot(
         table: TableId,
-        columns: List<ColumnSnapshot> = emptyList(),
-        uniqueKeys: Evidence<List<UniqueKeyFact>> = Evidence.Known(emptyList()),
+        columns: FrozenList<ColumnSnapshot> = frozenListOf(),
+        uniqueKeys: Evidence<FrozenList<UniqueKeyFact>> = Evidence.Known(frozenListOf()),
     ): TableSnapshot = TableSnapshot(
         id = table,
         comment = OptionalValue.Absent,
         columns = columns,
         primaryKey = OptionalValue.Absent,
         uniqueKeys = uniqueKeys,
-        foreignKeys = Evidence.Known(emptyList()),
+        foreignKeys = Evidence.Known(frozenListOf()),
+    )
+
+    private fun foreignKeyFor(
+        childTable: TableId,
+        childColumn: ColumnId,
+    ): ForeignKeyFact = ForeignKeyFact(
+        childTable = childTable,
+        referencedTable = TableReferenceEvidence(
+            origin = Evidence.Known(origin),
+            catalog = OptionalValue.Present("app"),
+            schema = OptionalValue.Present("sales"),
+            name = Evidence.Known("users"),
+        ),
+        name = OptionalValue.Absent,
+        provenance = Evidence.Known(RelationProvenance.PHYSICAL),
+        mappings = Evidence.Known(
+            frozenListOf(ForeignKeyColumnMapping(childColumn, "id"))
+        ),
     )
 }
