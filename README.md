@@ -42,7 +42,7 @@ Output details:
 
 Requirements:
 
-- IntelliJ IDEA Ultimate, DataGrip, or another IntelliJ-based IDE with database tooling.
+- IntelliJ Platform 2026.2 (build 262) or newer, with database tooling. The automated compatibility gate covers IntelliJ IDEA and DataGrip on the 2026.2 line.
 - A database connection with table metadata available in the Database tool window.
 
 Notes:
@@ -69,7 +69,7 @@ Notes:
 
 ## Requirements
 
-- IntelliJ IDEA Ultimate, DataGrip, or another IntelliJ-based IDE with database tooling.
+- IntelliJ Platform 2026.2 (build 262) or newer, with database tooling.
 - A database connection with table metadata available in the Database tool window.
 
 ## Installation
@@ -88,6 +88,25 @@ For local development builds, install the generated ZIP from `build/distribution
 - Tests: `./gradlew check`
 - Development builds use a timestamp-based plugin version by default.
 - Release builds can set an explicit version with `-PbuildVersion=x.y.z`.
+- CI uses Java 25 for the IntelliJ Platform 2026.2 baseline.
+
+### Automated compatibility matrix
+
+The required CI gates deliberately separate minimum-baseline testing from newer-patch binary compatibility verification.
+
+| Purpose | Host | Declared version | Platform build | Mechanism |
+| --- | --- | --- | --- | --- |
+| Compile + tests | IntelliJ IDEA | 2026.2.0.1 | 262.8665.337 | `buildPlugin` + `check` |
+| Latest IDEA compatibility | IntelliJ IDEA | 2026.2.2 | 262.10315.125 | IJPGP 2.18.1 `verifyPlugin` |
+| DataGrip compatibility | DataGrip | 2026.2.4 | 262.10315.24 | Standalone IntelliJ Plugin Verifier 1.410 |
+
+IntelliJ IDEA 2026.2.0.1 is the compile/test target because it is the earliest stable patch release on the supported 262 platform line. Running the test suite at the minimum supported baseline catches accidental dependencies on later patch APIs. The packaged plugin descriptor contains `since-build="262"` and no `until-build`, so build 262 is the minimum declared platform baseline and newer platform builds are not blocked by descriptor metadata.
+
+The latest supported IDEA patch is verified separately against IntelliJ IDEA 2026.2.2. This separation is intentional: IntelliJ IDEA 2026.2.2's Plugin Verifier accepts erdMaid as compatible, while its ordinary IntelliJ test runtime currently fails during unrelated `com.intellij.modules.ultimate` startup before erdMaid tests can execute. That platform-startup failure is not suppressed or converted to success; the test suite remains authoritative on the minimum 262 baseline, and the latest patch remains an independent blocking Plugin Verifier target.
+
+DataGrip uses `scripts/datagrip_verifier.py` because IJPGP 2.18.1 still cannot translate JetBrains' DataGrip release-catalog code `DG` to its platform code `DB`; that mapping is fixed upstream after 2.18.1 but is not yet available in a stable IJPGP release. The standalone gate selects exactly `DG` 2026.2.4 / build `262.10315.24` from JetBrains' release feed, verifies the vendor-published Linux archive checksum and extracted `product-info.json` identity, and runs the pinned Plugin Verifier 1.410 release whose JAR SHA-256 is checked before execution. It does not select latest or EAP releases.
+
+The DataGrip report is evaluated fail-closed using the same default blocking levels as IJPGP 2.18.1 (`COMPATIBILITY_PROBLEMS`, `INTERNAL_API_USAGES`, and `OVERRIDE_ONLY_API_USAGES`). Detailed failure reports are checked first, and the pinned Plugin Verifier 1.410 verdict is independently checked for missing mandatory dependencies, blocking findings, invalid/not-found/download-failed states, and unknown verdict formats. Any unrecognized verdict fails closed; compatibility warnings and the other IJPGP-default non-blocking categories remain allowed.
 
 ## Notes
 
