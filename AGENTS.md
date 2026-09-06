@@ -306,12 +306,20 @@ Tests live in `src/test/kotlin` and run under `./gradlew check`.
   job level with a reason.
 - `actions/checkout` uses `persist-credentials: false`. If a step ever genuinely needs to
   push, that step gets its own job with its own scoped permissions.
-- **Validation never mutates repository state.** No workflow triggered by `push` or
-  `pull_request` may create, delete, or modify releases, tags, labels, or branches. erdMaid
-  has no active distribution channel — no tags, no published releases, and no signing or
-  publishing secrets — so the template's release automation was removed rather than carried
-  as dead machinery. Reintroducing it requires a real distribution plan and a separate
-  workflow behind a separate trigger.
+- **Validation is read-only.** Required `push`/`pull_request` validation workflows may not
+  create, delete, or modify releases, tags, labels, or branches.
+- **Metadata automation is a separate trust boundary.** A dedicated metadata-only workflow
+  may create/update issue or pull-request labels with only the minimum `issues: write` or
+  `pull-requests: write` permission. `pull_request_target` metadata jobs must consume trusted
+  base/default-branch configuration, must not check out or execute PR-head content, and must
+  never receive release/tag/branch mutation authority. A `push` metadata-maintenance job may
+  mutate labels only when it executes the just-merged trusted default-branch code.
+- The scheduled repository drift audit is read-only. Missing credentials, inaccessible live
+  settings/rulesets, or an API failure are findings and must fail the audit rather than be
+  treated as a successful skip.
+- erdMaid has no active distribution channel — no tags, no published releases, and no signing
+  or publishing secrets — so release automation remains absent. Reintroducing it requires a
+  real distribution plan and a separate reviewed trust boundary.
 - CI green is a precondition for review, not a substitute for it.
 
 ---
@@ -337,7 +345,8 @@ final HEAD of the branch, not an earlier revision:
 8. **Resource retention** — no new long-lived reference to a `Project`, `DbElement`, or PSI.
 9. **Tests** — new behaviour tested; no test weakened; regression tests use literal hostile
    inputs.
-10. **Workflow and repository security** — SHA pins intact, permissions unchanged or narrowed,
-    no validation workflow mutating repository state.
+10. **Workflow and repository security** — SHA pins intact; validation remains read-only;
+    metadata write permission is isolated; `pull_request_target` jobs never execute untrusted
+    PR-head code; live-policy audit failures cannot silently skip.
 11. **Docs** — README and this file still describe what the code actually does.
 12. **Diff scope** — nothing unrelated to the stated purpose of the change.
