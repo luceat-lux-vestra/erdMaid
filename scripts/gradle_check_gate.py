@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run the authoritative Gradle check with one fail-closed upstream-flake retry.
+"""Run an authoritative Gradle validation with one fail-closed upstream-flake retry.
 
-JetBrains IJ Platform Gradle Plugin 2.18.1 can intermittently lose a bundled
-plugin while building the IDE layout index because a cached jar FileSystem is
-closed during descriptor/XInclude resolution. See JetBrains issue #2192 and
-MP-8217. A generic retry would hide real regressions, so this gate retries only
-when every erdMaid-specific signature from that upstream failure is present.
+JetBrains IJ Platform Gradle Plugin 2.18.1 can intermittently lose the bundled
+DatabaseTools plugin while building the IDE layout index because a cached jar
+FileSystem is closed during descriptor/XInclude resolution. See JetBrains issue
+#2192 and MP-8217. A generic retry would hide real regressions, so each allowed
+validation mode retries only when every command-specific signature is present.
 """
 
 from __future__ import annotations
@@ -13,26 +13,45 @@ from __future__ import annotations
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 
-GRADLE_CHECK = ("./gradlew", "check")
-KNOWN_UPSTREAM_SIGNATURES = (
+
+@dataclass(frozen=True)
+class ValidationSpec:
+    command: tuple[str, ...]
+    required_signatures: tuple[str, ...]
+
+
+COMMON_UPSTREAM_SIGNATURES = (
     "java.nio.file.ClosedFileSystemException",
     "plugins/DatabaseTools/lib/database-plugin.jar",
     "Following 1 plugins could not be created: plugins/DatabaseTools",
-    "Could not resolve all dependencies for configuration ':intellijPlatformTestClasspath'.",
     "Could not find bundled plugin with ID: 'com.intellij.database'",
 )
 
-RunCheck = Callable[[], tuple[int, str]]
+VALIDATIONS = {
+    "check": ValidationSpec(
+        command=("./gradlew", "check"),
+        required_signatures=COMMON_UPSTREAM_SIGNATURES
+        + ("Could not resolve all dependencies for configuration ':intellijPlatformTestClasspath'.",),
+    ),
+    "verifyPlugin": ValidationSpec(
+        command=("./gradlew", "verifyPlugin"),
+        required_signatures=COMMON_UPSTREAM_SIGNATURES
+        + ("Could not resolve all dependencies for configuration ':compileClasspath'.",),
+    ),
+}
+
+RunCommand = Callable[[tuple[str, ...]], tuple[int, str]]
 
 
-def is_known_upstream_closed_fs_failure(output: str) -> bool:
-    return all(signature in output for signature in KNOWN_UPSTREAM_SIGNATURES)
+def is_known_upstream_closed_fs_failure(output: str, spec: ValidationSpec) -> bool:
+    return all(signature in output for signature in spec.required_signatures)
 
 
-def run_gradle_check() -> tuple[int, str]:
+def run_gradle(command: tuple[str, ...]) -> tuple[int, str]:
     process = subprocess.Popen(
-        GRADLE_CHECK,
+        command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -48,24 +67,30 @@ def run_gradle_check() -> tuple[int, str]:
     return process.wait(), "".join(chunks)
 
 
-def execute(run_check: RunCheck = run_gradle_check) -> int:
-    first_status, first_output = run_check()
+def execute(spec: ValidationSpec, run_command: RunCommand = run_gradle) -> int:
+    first_status, first_output = run_command(spec.command)
     if first_status == 0:
         return 0
-    if not is_known_upstream_closed_fs_failure(first_output):
+    if not is_known_upstream_closed_fs_failure(first_output, spec):
         return first_status
 
+    command_display = " ".join(spec.command)
     print(
         "::warning::Matched the exact known JetBrains ClosedFileSystemException "
-        "signature while resolving com.intellij.database; retrying ./gradlew check once."
+        f"signature for {command_display}; retrying once."
     )
-    second_status, _ = run_check()
+    second_status, _ = run_command(spec.command)
     return second_status
 
 
-def main() -> int:
-    return execute()
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if len(args) != 1 or args[0] not in VALIDATIONS:
+        allowed = ", ".join(VALIDATIONS)
+        print(f"usage: gradle_check_gate.py <{allowed}>", file=sys.stderr)
+        return 2
+    return execute(VALIDATIONS[args[0]])
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
