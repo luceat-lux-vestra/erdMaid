@@ -1,0 +1,40 @@
+# Scheduled read-only drift detection. A missing/inaccessible live surface is a
+# failure, not a successful skip. There is intentionally no write/reporting token.
+name: Repository Drift Audit
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: repository-drift-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Repository drift audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Fetch trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - name: Run policy unit tests
+        run: python3 scripts/test_repository_policy.py
+      - name: Read back live repository policy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/repository_policy.py audit

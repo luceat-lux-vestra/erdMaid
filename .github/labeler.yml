@@ -1,0 +1,28 @@
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "scripts/**"
+
+area:compatibility:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "build.gradle.kts"
+          - "gradle.properties"
+          - "gradle/**"
+
+area:metadata:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/**/RelationResolver.kt"
+
+area:mermaid:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/**/MermaidGenerator.kt"

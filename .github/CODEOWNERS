@@ -1,0 +1,3 @@
+# Ownership routing only. The solo-maintainer ruleset intentionally does not require
+# a code-owner approval that the author cannot self-satisfy.
+* @luceat-lux-vestra
