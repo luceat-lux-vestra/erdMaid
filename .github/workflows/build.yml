@@ -110,10 +110,10 @@ jobs:
 
       # IJPGP 2.18.1 has a known intermittent jar FileSystem lifecycle bug while
       # resolving bundled plugins. The gate retries exactly once only when the
-      # complete erdMaid-specific ClosedFileSystemException signature is present;
+      # complete command-specific ClosedFileSystemException signature is present;
       # every other failure remains an immediate failure.
       - name: Run Tests
-        run: python3 scripts/gradle_check_gate.py
+        run: python3 scripts/gradle_check_gate.py check
 
       - name: Collect Tests Result
         if: ${{ failure() }}
@@ -161,8 +161,11 @@ jobs:
           cache-read-only: true
 
       # Verification targets are declared explicitly in build.gradle.kts.
+      # The same IJPGP 2.18.1 zipfs race can happen before the Plugin Verifier
+      # starts, while resolving :compileClasspath. Real verifier findings never
+      # satisfy the exact upstream signature and therefore are never retried.
       - name: Run Plugin Verification tasks
-        run: ./gradlew verifyPlugin
+        run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       - name: Collect Plugin Verifier Result
         if: ${{ always() }}

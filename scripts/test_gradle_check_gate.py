@@ -9,10 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gradle_check_gate as gate  # noqa: E402
 
-# Literal representative excerpt from the 2026-09-06 post-merge failure.
-# Keep this fixture independent of KNOWN_UPSTREAM_SIGNATURES so a production
-# signature drift cannot silently rewrite its own test oracle.
-KNOWN_LOG = """
+# Literal representative excerpts from the two 2026-09-06 post-merge failures.
+# Keep these fixtures independent of production signature constants so
+# classifier drift cannot silently rewrite its own test oracle.
+TEST_KNOWN_LOG = """
 Unable to read descriptor [plugin.xml] from [/home/runner/.gradle/caches/transforms/example/transformed/ideaIU-2025.2.6/plugins/DatabaseTools/lib/database-plugin.jar]
 java.nio.file.ClosedFileSystemException
     at com.jetbrains.plugin.structure.fs.FsHandlerFileSystemProvider.checkAccess(FsHandlerFileSystemProvider.kt:103)
@@ -21,18 +21,27 @@ Following 1 plugins could not be created: plugins/DatabaseTools
    > Could not find bundled plugin with ID: 'com.intellij.database'. See https://jb.gg/ij-plugin-dependencies.
 """.strip()
 
+VERIFY_KNOWN_LOG = """
+Unable to read descriptor [plugin.xml] from [/home/runner/.gradle/caches/transforms/example/transformed/ideaIU-2025.2.6/plugins/DatabaseTools/lib/database-plugin.jar]
+java.nio.file.ClosedFileSystemException
+    at com.jetbrains.plugin.structure.fs.FsHandlerFileSystemProvider.checkAccess(FsHandlerFileSystemProvider.kt:103)
+Following 1 plugins could not be created: plugins/DatabaseTools
+Could not determine the dependencies of task ':compileJava'.
+> Could not resolve all dependencies for configuration ':compileClasspath'.
+   > Could not find bundled plugin with ID: 'com.intellij.database'. See https://jb.gg/ij-plugin-dependencies.
+""".strip()
+
 
 class FakeRun:
     def __init__(self, results: list[tuple[int, str]]):
         self.results = list(results)
-        self.calls = 0
+        self.calls: list[tuple[str, ...]] = []
 
-    def __call__(self) -> tuple[int, str]:
-        if self.calls >= len(self.results):
+    def __call__(self, command: tuple[str, ...]) -> tuple[int, str]:
+        if len(self.calls) >= len(self.results):
             raise AssertionError("gate performed an unexpected extra retry")
-        result = self.results[self.calls]
-        self.calls += 1
-        return result
+        self.calls.append(command)
+        return self.results[len(self.calls) - 1]
 
 
 def require(condition: bool, message: str) -> None:
@@ -40,38 +49,73 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def main() -> int:
-    require(gate.is_known_upstream_closed_fs_failure(KNOWN_LOG), "literal upstream failure fixture must match")
+def exercise_spec(mode: str, known_log: str, other_log: str) -> None:
+    spec = gate.VALIDATIONS[mode]
+    require(gate.is_known_upstream_closed_fs_failure(known_log, spec), f"{mode} literal oracle must match")
+    require(
+        not gate.is_known_upstream_closed_fs_failure(other_log, spec),
+        f"{mode} must reject the other validation mode's failure",
+    )
 
-    for signature in gate.KNOWN_UPSTREAM_SIGNATURES:
-        require(signature in KNOWN_LOG, f"production signature {signature!r} drifted away from the literal oracle")
-        partial = KNOWN_LOG.replace(signature, "<deliberately removed signature>")
+    for signature in spec.required_signatures:
+        require(signature in known_log, f"{mode} signature {signature!r} drifted away from literal oracle")
+        partial = known_log.replace(signature, "<deliberately removed signature>")
         require(
-            not gate.is_known_upstream_closed_fs_failure(partial),
-            f"fixture missing {signature!r} must not match",
+            not gate.is_known_upstream_closed_fs_failure(partial, spec),
+            f"{mode} fixture missing {signature!r} must not match",
         )
 
-    java_plugin = KNOWN_LOG.replace("com.intellij.database", "com.intellij.java")
-    require(not gate.is_known_upstream_closed_fs_failure(java_plugin), "another bundled plugin must not match")
-    ordinary_test_failure = "There were failing tests. See the report at build/reports/tests/test/index.html"
-    require(not gate.is_known_upstream_closed_fs_failure(ordinary_test_failure), "ordinary test failure must not match")
+    ordinary_failure = "There were failing tests. See the report at build/reports/tests/test/index.html"
+    ordinary = FakeRun([(7, ordinary_failure)])
+    require(gate.execute(spec, ordinary) == 7, f"{mode} ordinary failure must propagate")
+    require(ordinary.calls == [spec.command], f"{mode} ordinary failure must not retry")
+
+    recovered = FakeRun([(1, known_log), (0, "BUILD SUCCESSFUL")])
+    require(gate.execute(spec, recovered) == 0, f"{mode} exact upstream flake may recover")
+    require(recovered.calls == [spec.command, spec.command], f"{mode} may retry exactly once")
+
+    retry_failed = FakeRun([(1, known_log), (9, ordinary_failure)])
+    require(gate.execute(spec, retry_failed) == 9, f"{mode} retry failure must propagate")
+    require(retry_failed.calls == [spec.command, spec.command], f"{mode} failed retry must stop")
+
+    repeated_flake = FakeRun([(1, known_log), (1, known_log)])
+    require(gate.execute(spec, repeated_flake) == 1, f"{mode} repeated flake remains failure")
+    require(repeated_flake.calls == [spec.command, spec.command], f"{mode} must never receive a third attempt")
+
+
+def main() -> int:
+    require(set(gate.VALIDATIONS) == {"check", "verifyPlugin"}, "validation mode allowlist drifted")
 
     clean = FakeRun([(0, "BUILD SUCCESSFUL")])
-    require(gate.execute(clean) == 0 and clean.calls == 1, "successful check must run exactly once")
+    check_spec = gate.VALIDATIONS["check"]
+    require(gate.execute(check_spec, clean) == 0, "successful validation must pass")
+    require(clean.calls == [check_spec.command], "successful validation must run exactly once")
 
-    ordinary = FakeRun([(7, ordinary_test_failure)])
-    require(gate.execute(ordinary) == 7 and ordinary.calls == 1, "ordinary failure must propagate without retry")
+    exercise_spec("check", TEST_KNOWN_LOG, VERIFY_KNOWN_LOG)
+    exercise_spec("verifyPlugin", VERIFY_KNOWN_LOG, TEST_KNOWN_LOG)
 
-    recovered = FakeRun([(1, KNOWN_LOG), (0, "BUILD SUCCESSFUL")])
-    require(gate.execute(recovered) == 0 and recovered.calls == 2, "exact upstream flake may retry once and recover")
+    java_plugin = TEST_KNOWN_LOG.replace("com.intellij.database", "com.intellij.java")
+    require(
+        not gate.is_known_upstream_closed_fs_failure(java_plugin, check_spec),
+        "another bundled plugin must not match",
+    )
 
-    retry_failed = FakeRun([(1, KNOWN_LOG), (9, ordinary_test_failure)])
-    require(gate.execute(retry_failed) == 9 and retry_failed.calls == 2, "retry failure must propagate")
+    verifier_finding = """
+Plugin verification failed:
+Compatibility problems: 1
+Deprecated API usages: 2
+""".strip()
+    verify_spec = gate.VALIDATIONS["verifyPlugin"]
+    require(
+        not gate.is_known_upstream_closed_fs_failure(verifier_finding, verify_spec),
+        "real plugin-verifier findings must not be retried",
+    )
 
-    repeated_flake = FakeRun([(1, KNOWN_LOG), (1, KNOWN_LOG)])
-    require(gate.execute(repeated_flake) == 1 and repeated_flake.calls == 2, "known flake must never receive a third attempt")
+    require(gate.main([]) == 2, "missing mode must fail before Gradle execution")
+    require(gate.main(["verify"]) == 2, "unknown mode must fail before Gradle execution")
+    require(gate.main(["check", "extra"]) == 2, "extra arguments must fail before Gradle execution")
 
-    print("Gradle check gate negative controls OK")
+    print("Gradle validation gate negative controls OK")
     return 0
 
 
