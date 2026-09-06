@@ -1,18 +1,13 @@
-# Scheduled/read-on-main drift detection. A missing/inaccessible live surface is a
+# Scheduled authoritative-main drift detection. A missing/inaccessible live surface is a
 # failure, not a successful skip. There is intentionally no write/reporting token.
 # GitHub redacts ruleset bypass_actors from callers without ruleset write access,
 # so the no-bypass assertion remains a separate privileged merge/exit-gate readback.
+#
+# This workflow is schedule-only on purpose: trusted-main label maintenance runs on push,
+# and a concurrent push audit could race that synchronization and report transient false drift.
 name: Repository Drift Audit
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - ".github/merge-gate-policy.json"
-      - ".github/repository-policy.json"
-      - "scripts/repository_policy.py"
-      - "scripts/test_repository_policy.py"
-      - ".github/workflows/repository-drift.yml"
   schedule:
     - cron: "17 3 * * 1"
 
