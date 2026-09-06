@@ -9,7 +9,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gradle_check_gate as gate  # noqa: E402
 
-KNOWN_LOG = "\n".join(gate.KNOWN_UPSTREAM_SIGNATURES)
+# Literal representative excerpt from the 2026-09-06 post-merge failure.
+# Keep this fixture independent of KNOWN_UPSTREAM_SIGNATURES so a production
+# signature drift cannot silently rewrite its own test oracle.
+KNOWN_LOG = """
+Unable to read descriptor [plugin.xml] from [/home/runner/.gradle/caches/transforms/example/transformed/ideaIU-2025.2.6/plugins/DatabaseTools/lib/database-plugin.jar]
+java.nio.file.ClosedFileSystemException
+    at com.jetbrains.plugin.structure.fs.FsHandlerFileSystemProvider.checkAccess(FsHandlerFileSystemProvider.kt:103)
+Following 1 plugins could not be created: plugins/DatabaseTools
+> Could not resolve all dependencies for configuration ':intellijPlatformTestClasspath'.
+   > Could not find bundled plugin with ID: 'com.intellij.database'. See https://jb.gg/ij-plugin-dependencies.
+""".strip()
 
 
 class FakeRun:
@@ -31,13 +41,14 @@ def require(condition: bool, message: str) -> None:
 
 
 def main() -> int:
-    require(gate.is_known_upstream_closed_fs_failure(KNOWN_LOG), "complete upstream signature must match")
+    require(gate.is_known_upstream_closed_fs_failure(KNOWN_LOG), "literal upstream failure fixture must match")
 
-    for missing in gate.KNOWN_UPSTREAM_SIGNATURES:
-        partial = "\n".join(s for s in gate.KNOWN_UPSTREAM_SIGNATURES if s != missing)
+    for signature in gate.KNOWN_UPSTREAM_SIGNATURES:
+        require(signature in KNOWN_LOG, f"production signature {signature!r} drifted away from the literal oracle")
+        partial = KNOWN_LOG.replace(signature, "<deliberately removed signature>")
         require(
             not gate.is_known_upstream_closed_fs_failure(partial),
-            f"signature missing {missing!r} must not match",
+            f"fixture missing {signature!r} must not match",
         )
 
     java_plugin = KNOWN_LOG.replace("com.intellij.database", "com.intellij.java")
