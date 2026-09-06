@@ -66,9 +66,9 @@ data class ColumnId(
 
 data class RawTypeMetadata(
     val name: String,
-    val length: OptionalValue<Int> = OptionalValue.Absent,
-    val precision: OptionalValue<Int> = OptionalValue.Absent,
-    val scale: OptionalValue<Int> = OptionalValue.Absent,
+    val length: OptionalValue<Int> = unavailableTypeDetail("length"),
+    val precision: OptionalValue<Int> = unavailableTypeDetail("precision"),
+    val scale: OptionalValue<Int> = unavailableTypeDetail("scale"),
 ) {
     init {
         require(name.isNotEmpty()) { "Raw type name must not be empty" }
@@ -245,3 +245,6 @@ private fun requireOptionalName(value: OptionalValue<String>, owner: String) {
         require(value.value.isNotEmpty()) { "$owner name must not be empty when present" }
     }
 }
+
+private fun unavailableTypeDetail(detail: String): OptionalValue<Int> =
+    OptionalValue.Unavailable(CoreDiagnostic("type-$detail-not-established"))
