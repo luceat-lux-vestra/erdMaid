@@ -9,6 +9,17 @@ object MermaidGenerator {
 
     private const val INDENT = "    "
     private val ENTITY_NAME_SAFE = Regex("^[A-Za-z_][A-Za-z0-9_]*$")
+    private val ENTITY_NAME_RESERVED = setOf(
+        "erDiagram",
+        "style",
+        "classDef",
+        "class",
+        "subgraph",
+        "end",
+        "many",
+        "one",
+        "to",
+    )
 
     // Internal data classes to decouple string-building logic from the IntelliJ DB API,
     // enabling straightforward unit testing without requiring live DB objects.
@@ -92,17 +103,21 @@ object MermaidGenerator {
     internal fun buildDiagram(
         tables: List<TableSpec>,
         options: MermaidRenderOptions = MermaidRenderOptions(),
-    ): String = buildString {
+    ): String {
         val entityNames = entityNamesFor(tables)
-        appendLine("erDiagram")
+        tables.forEach(::requireUniqueRenderedColumnNames)
 
-        for (table in tables) {
-            appendTableBlock(table, entityNames)
-            appendLine()
-        }
+        return buildString {
+            appendLine("erDiagram")
 
-        for (table in tables) {
-            appendForeignKeys(table, options, entityNames)
+            for (table in tables) {
+                appendTableBlock(table, entityNames)
+                appendLine()
+            }
+
+            for (table in tables) {
+                appendForeignKeys(table, options, entityNames)
+            }
         }
     }
 
@@ -118,11 +133,21 @@ object MermaidGenerator {
         val rendered = tables.map { table ->
             val identity = table.identity
             val sameNamed = byUnqualifiedName.getValue(identity.name).map { it.identity }
-            identity to when {
+            val rawName = when {
                 sameNamed.size == 1 -> identity.name
                 schemasDisambiguate(sameNamed) -> schemaQualifiedName(identity)
                 else -> identity.qualifiedName
             }
+            val sanitizedName = MermaidSanitizer.sanitize(
+                rawName,
+                MermaidSanitizer.Context.QUOTED_TEXT,
+            )
+            if (sanitizedName.isEmpty()) {
+                throw IllegalArgumentException(
+                    "Cannot render empty table identity: ${identity.qualifiedName}"
+                )
+            }
+            identity to sanitizedName
         }
 
         val duplicateRenderedName = rendered.groupBy { it.second }
@@ -149,12 +174,26 @@ object MermaidGenerator {
     private fun schemaQualifiedName(identity: TableIdentity): String =
         listOfNotNull(identity.schema).plus(identity.name).joinToString(".")
 
+    private fun requireUniqueRenderedColumnNames(table: TableSpec) {
+        val duplicate = table.columns
+            .groupBy { normalizeIdentifier(it.name) }
+            .entries
+            .firstOrNull { it.value.size > 1 }
+        if (duplicate != null) {
+            throw IllegalArgumentException(
+                "Ambiguous rendered column identity in ${table.identity.qualifiedName}: ${duplicate.key}"
+            )
+        }
+    }
+
     private fun StringBuilder.appendTableBlock(
         table: TableSpec,
         entityNames: Map<TableIdentity, String>,
     ) {
         if (table.comment != null) {
-            appendLine("%% ${table.comment}")
+            appendLine(
+                "%% ${MermaidSanitizer.sanitize(table.comment, MermaidSanitizer.Context.LINE_COMMENT)}"
+            )
         }
         appendLine("$INDENT${renderEntityName(entityNames.getValue(table.identity))} {")
         for (col in table.columns) {
@@ -180,7 +219,7 @@ object MermaidGenerator {
     }
 
     private fun normalizeIdentifier(text: String): String =
-        sanitizeMermaidText(text).replace(' ', '_')
+        MermaidSanitizer.sanitize(text, MermaidSanitizer.Context.ATTRIBUTE_TOKEN)
 
     private fun formatColumn(col: ColumnSpec): String {
         val type = normalizeIdentifier(col.typeName)
@@ -188,14 +227,19 @@ object MermaidGenerator {
         val parts = mutableListOf(type, safeName)
         if (col.isPrimaryKey) parts.add("PK")
         if (!col.comment.isNullOrEmpty()) {
-            parts.add("\"${sanitizeMermaidComment(col.comment)}\"")
+            parts.add(
+                "\"${MermaidSanitizer.sanitize(col.comment, MermaidSanitizer.Context.ATTRIBUTE_COMMENT)}\""
+            )
         }
         return "$INDENT$INDENT${parts.joinToString(" ")}\n"
     }
 
     private fun renderEntityName(name: String): String {
-        val sanitized = sanitizeMermaidText(name)
-        return if (ENTITY_NAME_SAFE.matches(sanitized)) sanitized else "\"$sanitized\""
+        val sanitized = MermaidSanitizer.sanitize(name, MermaidSanitizer.Context.QUOTED_TEXT)
+        require(sanitized.isNotEmpty()) { "Cannot render an empty Mermaid entity name" }
+        val canRenderBare = ENTITY_NAME_SAFE.matches(sanitized) &&
+            ENTITY_NAME_RESERVED.none { sanitized.equals(it, ignoreCase = true) }
+        return if (canRenderBare) sanitized else "\"$sanitized\""
     }
 
     private fun formatColumnReference(
@@ -204,24 +248,21 @@ object MermaidGenerator {
     ): String {
         val child = relation.childColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
         val parent = relation.parentColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
-        return "${entityNames.getValue(relation.childTable)}.$child -> " +
+        val reference = "${entityNames.getValue(relation.childTable)}.$child -> " +
             "${entityNames.getValue(relation.parentTable)}.$parent"
+        return MermaidSanitizer.sanitize(reference, MermaidSanitizer.Context.LINE_COMMENT)
     }
 
-    private fun sanitizeMermaidText(text: String): String = text.replace('"', '\'')
-
-    private fun sanitizeMermaidComment(text: String): String =
-        sanitizeMermaidText(text)
-            .replace('(', '（')
-            .replace(')', '）')
-
     private fun renderRelationLabel(label: String): String {
-        val sanitized = sanitizeMermaidText(label.trim())
+        val sanitized = MermaidSanitizer.sanitize(
+            label.trim(),
+            MermaidSanitizer.Context.QUOTED_TEXT,
+        )
         return if (sanitized.isBlank()) "\"\"" else "\"$sanitized\""
     }
 
     internal fun renderColumnType(typeName: String, dataType: Any? = null): String {
-        val baseType = typeName.trim().replace(' ', '_')
+        val baseType = typeName.trim()
         if (baseType.contains('(')) return baseType
 
         val suffix = renderTypeSuffix(typeName, dataType)

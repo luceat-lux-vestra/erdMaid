@@ -34,6 +34,7 @@ integration, writing to files, and modifying anything in the user's database.
 |---|---|
 | `src/main/kotlin/.../actions/ErdMaidExportActions.kt` | Action lifecycle, selection resolution, clipboard, notifications, error reporting |
 | `src/main/kotlin/.../generator/MermaidGenerator.kt` | IntelliJ Database model → internal specs → Mermaid text |
+| `src/main/kotlin/.../generator/MermaidSanitizer.kt` | Context-aware, rendering-only sanitization of database-controlled Mermaid text |
 | `src/main/kotlin/.../generator/RelationResolver.kt` | Foreign-key discovery, filtering, and de-duplication |
 | `src/main/resources/META-INF/plugin.xml` | Action registration, notification group, `com.intellij.database` dependency |
 
@@ -124,9 +125,11 @@ Rendering identity is deliberately separate from internal identity:
   schema and those schema-qualified names are unique.
 - If schema is missing or insufficient, rendering uses the strongest available
   `catalog.schema.name` form (omitting only metadata that is genuinely absent).
-- The complete set of rendered entity strings is checked for collisions, including collisions
-  with literal table names that already contain dots. Any collision fails closed rather than
-  emitting a plausible-but-wrong diagram.
+- Qualification is chosen from raw identity first. The resulting display name is then
+  sanitized at the rendering boundary; the complete set of sanitized entity strings is
+  checked for collisions, including collisions introduced by sanitization or with literal
+  table names that already contain dots. Any collision fails closed rather than emitting a
+  plausible-but-wrong diagram.
 
 ### Column identity and ordering
 
@@ -134,6 +137,9 @@ Rendering identity is deliberately separate from internal identity:
   database's ordinal position. Output order is part of the contract: two exports of an
   unchanged schema must produce byte-identical text.
 - Do not sort, re-order, or de-duplicate columns.
+- Raw column names remain the metadata identity. Normalization is rendering-only; if two raw
+  column names normalize to the same rendered attribute name, generation fails closed before
+  any diagram text is returned.
 
 ### Primary keys
 
@@ -182,7 +188,8 @@ worst outcome, because the user sees a plausible diagram that misrepresents thei
   the diagram parses.
 - Type suffix rules: length types get `(n)`, precision/scale types get `(p_s)` (underscore,
   because `,` is unsafe in this position), precision-only types get `(p)`. A type name that
-  already contains `(` is passed through untouched.
+  already contains `(` is passed through untouched before the final attribute-token
+  sanitization boundary.
 - **Determinism is required.** Same input, same output — no timestamps, no map iteration
   order dependence, no locale-dependent case conversion in identifier handling.
 
@@ -192,34 +199,47 @@ worst outcome, because the user sees a plausible diagram that misrepresents thei
 
 The generated text is derived from database-controlled strings (table names, column names,
 comments, type names, FK names). Treat all of them as untrusted input to the Mermaid parser.
+Sanitization is **rendering-only**: it must never feed back into `TableIdentity`, FK endpoint
+resolution, PK membership, or any other database-model identity decision.
 
-Current behaviour, stated precisely so that gaps are visible:
+All sanitization is centralized in `MermaidSanitizer` and selected by output context:
 
-- `sanitizeMermaidText` replaces `"` with `'`. That is all it does.
-- `sanitizeMermaidComment` additionally maps ASCII `(` and `)` to fullwidth `（` `）`.
-- `normalizeIdentifier` = `sanitizeMermaidText` plus space → `_`.
-- `renderEntityName` emits the name bare if it matches `^[A-Za-z_][A-Za-z0-9_]*$`, otherwise
-  wraps it in double quotes.
-- `renderRelationLabel` trims, sanitizes, and always quotes; a blank label becomes `""`.
+- `QUOTED_TEXT` is used for rendered entity names and relation labels. It maps `"` to `'`,
+  ASCII `%` to fullwidth `％`, and backslash to fullwidth `＼`. CR, LF, CRLF, Unicode line
+  separators, and C0 controls are converted to visible single-line markers so hostile text
+  cannot escape the quoted Mermaid construct.
+- `ATTRIBUTE_TOKEN` is used for both rendered column types and column names. It starts from
+  the common neutralization above, maps spaces to `_`, converts otherwise-illegal printable
+  ASCII to readable fullwidth counterparts, encodes unsupported non-ASCII UTF-16 code units
+  as stable `_uXXXX_` text, and guarantees a lexer-safe leading character. Exact `PK`, `FK`,
+  and `UK` tokens are prefixed with `_` so database metadata cannot be lexed as an attribute
+  key. The result must satisfy the Mermaid ER `ATTRIBUTE_WORD` character contract.
+- `ATTRIBUTE_COMMENT` is used inside the quoted comment field on a column line. It applies
+  the common neutralization and preserves the pre-existing rendering convention that maps
+  ASCII parentheses to fullwidth `（` and `）`. Structural characters such as `{`, `}`, `|`,
+  `:`, `<`, and `>` remain readable here because they are inside the quoted comment token;
+  they must not be copied into an unquoted attribute token unchanged.
+- `LINE_COMMENT` is used for table comments and the optional detailed FK reference comment.
+  Raw line breakers, ASCII `%`, quotes, backslashes, and controls are neutralized before the
+  text is prefixed by erdMaid's own `%%`, so database metadata cannot start another Mermaid
+  line or inject a comment delimiter.
 
-Known gaps — do not assume these are handled:
+Additional invariants:
 
-- **Newlines and carriage returns are not stripped.** A multi-line column comment breaks out
-  of its column line, and a multi-line table comment escapes the `%%` comment. This is the
-  most likely real-world break.
-- `%%` appearing inside a comment or identifier is not neutralised.
-- `{`, `}`, `|`, `:`, `<`, `>` are not escaped in comments.
-- Non-ASCII identifiers do not match `ENTITY_NAME_SAFE` and are therefore always quoted;
-  that is correct, but the quoting relies on `"` having already been replaced.
-
-Rules for changes here:
-
-- Sanitization is centralised. Do not inline ad-hoc `replace` calls at a call site — extend
-  the sanitize functions so every caller benefits.
-- Every sanitization change needs a unit test with the hostile input as a literal.
-- Sanitization must be idempotent: `sanitize(sanitize(x)) == sanitize(x)`.
-- Prefer neutralising a character over dropping it; never drop content silently in a way
-  that makes the diagram look complete when it is not.
+- Sanitization must be deterministic and idempotent:
+  `sanitize(sanitize(x), context) == sanitize(x, context)`.
+- Prefer visible neutralization over dropping data. A hostile character must not silently
+  disappear and make the diagram look more complete than the source metadata.
+- Ordinary non-ASCII metadata remains readable. Non-ASCII entity names are quoted; legal
+  non-ASCII attribute characters remain attribute characters.
+- Entity qualification is selected from raw identity before sanitization. If distinct raw
+  entity names become the same rendered name after sanitization, generation fails closed.
+- Bare entity names that would collide case-insensitively with Mermaid ER lexer keywords are
+  quoted rather than emitted as grammar tokens. The raw database identity is unchanged.
+- If distinct raw column names become the same rendered attribute name after normalization,
+  generation fails closed.
+- Every sanitization change ships with literal hostile-input tests for the affected context,
+  including line breakers, reserved words, and syntax delimiters relevant to that context.
 
 ---
 
