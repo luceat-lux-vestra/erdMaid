@@ -1,5 +1,6 @@
 package com.algorist.erdmaid.generator
 
+import com.algorist.erdmaid.generator.RelationResolver.TableIdentity
 import com.intellij.database.model.DasTable
 import com.intellij.database.util.DasUtil
 import com.intellij.openapi.project.Project
@@ -12,7 +13,7 @@ object MermaidGenerator {
     // Internal data classes to decouple string-building logic from the IntelliJ DB API,
     // enabling straightforward unit testing without requiring live DB objects.
     internal data class TableSpec(
-        val name: String,
+        val identity: TableIdentity,
         val comment: String?,
         val columns: List<ColumnSpec>,
         val relations: List<RelationResolver.RelationSpec>
@@ -40,7 +41,10 @@ object MermaidGenerator {
     ): String {
         val relationMap = RelationResolver.resolve(project, tables)
         return buildDiagram(
-            tables.map { toTableSpec(it, relationMap[it.name].orEmpty()) },
+            tables.map { table ->
+                val identity = RelationResolver.tableIdentity(table)
+                toTableSpec(table, identity, relationMap[identity].orEmpty())
+            },
             options,
         )
     }
@@ -53,6 +57,7 @@ object MermaidGenerator {
     // way to access the column's data type name in the current IntelliJ Database API.
     private fun toTableSpec(
         table: DasTable,
+        identity: TableIdentity,
         relations: List<RelationResolver.RelationSpec>,
     ): TableSpec {
         // Collect PK column names via columnsRef.iterate() to support composite PKs.
@@ -77,7 +82,7 @@ object MermaidGenerator {
         }.toList()
 
         return TableSpec(
-            name = table.name,
+            identity = identity,
             comment = table.comment?.takeIf { it.isNotBlank() },
             columns = columns,
             relations = relations
@@ -88,36 +93,88 @@ object MermaidGenerator {
         tables: List<TableSpec>,
         options: MermaidRenderOptions = MermaidRenderOptions(),
     ): String = buildString {
+        val entityNames = entityNamesFor(tables)
         appendLine("erDiagram")
 
         for (table in tables) {
-            appendTableBlock(table)
+            appendTableBlock(table, entityNames)
             appendLine()
         }
 
         for (table in tables) {
-            appendForeignKeys(table, options)
+            appendForeignKeys(table, options, entityNames)
         }
     }
 
-    private fun StringBuilder.appendTableBlock(table: TableSpec) {
+    internal fun entityNamesFor(tables: List<TableSpec>): Map<TableIdentity, String> {
+        val duplicateIdentity = tables.groupBy { it.identity }.entries.firstOrNull { it.value.size > 1 }
+        if (duplicateIdentity != null) {
+            throw IllegalArgumentException(
+                "Ambiguous selected table identity: ${duplicateIdentity.key.qualifiedName}"
+            )
+        }
+
+        val byUnqualifiedName = tables.groupBy { it.identity.name }
+        val rendered = tables.map { table ->
+            val identity = table.identity
+            val sameNamed = byUnqualifiedName.getValue(identity.name).map { it.identity }
+            identity to when {
+                sameNamed.size == 1 -> identity.name
+                schemasDisambiguate(sameNamed) -> schemaQualifiedName(identity)
+                else -> identity.qualifiedName
+            }
+        }
+
+        val duplicateRenderedName = rendered.groupBy { it.second }
+            .entries
+            .firstOrNull { it.value.size > 1 }
+        if (duplicateRenderedName != null) {
+            throw IllegalArgumentException(
+                "Ambiguous rendered table identity: ${duplicateRenderedName.key}"
+            )
+        }
+
+        return LinkedHashMap<TableIdentity, String>().apply {
+            for ((identity, renderedName) in rendered) {
+                put(identity, renderedName)
+            }
+        }
+    }
+
+    private fun schemasDisambiguate(identities: List<TableIdentity>): Boolean {
+        if (identities.any { it.schema == null }) return false
+        return identities.map(::schemaQualifiedName).toSet().size == identities.size
+    }
+
+    private fun schemaQualifiedName(identity: TableIdentity): String =
+        listOfNotNull(identity.schema).plus(identity.name).joinToString(".")
+
+    private fun StringBuilder.appendTableBlock(
+        table: TableSpec,
+        entityNames: Map<TableIdentity, String>,
+    ) {
         if (table.comment != null) {
             appendLine("%% ${table.comment}")
         }
-        appendLine("$INDENT${renderEntityName(table.name)} {")
+        appendLine("$INDENT${renderEntityName(entityNames.getValue(table.identity))} {")
         for (col in table.columns) {
             append(formatColumn(col))
         }
         appendLine("$INDENT}")
     }
 
-    private fun StringBuilder.appendForeignKeys(table: TableSpec, options: MermaidRenderOptions) {
+    private fun StringBuilder.appendForeignKeys(
+        table: TableSpec,
+        options: MermaidRenderOptions,
+        entityNames: Map<TableIdentity, String>,
+    ) {
         for (relation in table.relations) {
             if (options.includeColumnReferences) {
-                appendLine("%% FK: ${formatColumnReference(relation)}")
+                appendLine("%% FK: ${formatColumnReference(relation, entityNames)}")
             }
             appendLine(
-                "$INDENT${renderEntityName(relation.parentTableName)} ||--o{ ${renderEntityName(relation.childTableName)} : ${renderRelationLabel(relation.name)}"
+                "$INDENT${renderEntityName(entityNames.getValue(relation.parentTable))} ||--o{ " +
+                    "${renderEntityName(entityNames.getValue(relation.childTable))} : ${renderRelationLabel(relation.name)}"
             )
         }
     }
@@ -141,10 +198,14 @@ object MermaidGenerator {
         return if (ENTITY_NAME_SAFE.matches(sanitized)) sanitized else "\"$sanitized\""
     }
 
-    private fun formatColumnReference(relation: RelationResolver.RelationSpec): String {
+    private fun formatColumnReference(
+        relation: RelationResolver.RelationSpec,
+        entityNames: Map<TableIdentity, String>,
+    ): String {
         val child = relation.childColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
         val parent = relation.parentColumns.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "*"
-        return "${relation.childTableName}.$child -> ${relation.parentTableName}.$parent"
+        return "${entityNames.getValue(relation.childTable)}.$child -> " +
+            "${entityNames.getValue(relation.parentTable)}.$parent"
     }
 
     private fun sanitizeMermaidText(text: String): String = text.replace('"', '\'')
