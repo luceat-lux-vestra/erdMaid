@@ -8,8 +8,8 @@
 #     its input therefore fails the job — it can never be mistaken for "clean".
 #   * The actionlint binary is verified against a pinned SHA-256 before it is
 #     executed, and zizmor is installed from a pinned version.
-#   * Negative controls prove unsafe workflow and repository-policy fixtures are
-#     rejected instead of being vacuously green.
+#   * Negative controls prove unsafe workflow, repository-policy, and bounded
+#     test-retry fixtures are rejected instead of being vacuously green.
 
 name: Workflow Security
 
@@ -81,6 +81,9 @@ jobs:
 
       - name: Check repository policy fixtures
         run: python3 scripts/test_repository_policy.py
+
+      - name: Check bounded Gradle retry fixtures
+        run: python3 scripts/test_gradle_check_gate.py
 
       - name: Run zizmor
         env:

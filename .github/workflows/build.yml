@@ -108,8 +108,12 @@ jobs:
         with:
           cache-read-only: true
 
+      # IJPGP 2.18.1 has a known intermittent jar FileSystem lifecycle bug while
+      # resolving bundled plugins. The gate retries exactly once only when the
+      # complete erdMaid-specific ClosedFileSystemException signature is present;
+      # every other failure remains an immediate failure.
       - name: Run Tests
-        run: ./gradlew check
+        run: python3 scripts/gradle_check_gate.py
 
       - name: Collect Tests Result
         if: ${{ failure() }}
