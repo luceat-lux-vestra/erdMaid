@@ -14,10 +14,11 @@
   "ruleset": {
     "name": "main protection",
     "target": "branch",
+    "source_type": "Repository",
+    "source": "luceat-lux-vestra/erdMaid-private",
     "enforcement": "active",
     "include": ["~DEFAULT_BRANCH"],
     "exclude": [],
-    "bypass_actors": [],
     "required_rule_types": [
       "deletion",
       "non_fast_forward",
@@ -38,6 +39,12 @@
       "strict_required_status_checks_policy": true,
       "do_not_enforce_on_create": false,
       "integration_id": 15368
+    }
+  },
+  "manual_live_assertions": {
+    "ruleset_bypass_actors": {
+      "ruleset": "main protection",
+      "expected": []
     }
   },
   "labels": [

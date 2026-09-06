@@ -1,5 +1,7 @@
 # Scheduled/read-on-main drift detection. A missing/inaccessible live surface is a
 # failure, not a successful skip. There is intentionally no write/reporting token.
+# GitHub redacts ruleset bypass_actors from callers without ruleset write access,
+# so the no-bypass assertion remains a separate privileged merge/exit-gate readback.
 name: Repository Drift Audit
 
 on:

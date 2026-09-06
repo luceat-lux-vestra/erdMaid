@@ -60,9 +60,21 @@ def _rule(rules, rule_type):
     return matches[0] if len(matches) == 1 else None
 
 
-def validate_ruleset(actual, expected, required_contexts):
+def validate_ruleset_collection(actual, expected):
     errors = []
-    for key in ("name", "target", "enforcement"):
+    if len(actual) != 1:
+        errors.append(f"repository ruleset topology: expected exactly one ruleset, observed {len(actual)}")
+        return errors
+    summary = actual[0]
+    for key in ("name", "target", "source_type", "source", "enforcement"):
+        if summary.get(key) != expected[key]:
+            errors.append(f"ruleset summary.{key}: expected {expected[key]!r}, observed {summary.get(key)!r}")
+    return errors
+
+
+def validate_ruleset(actual, expected, required_contexts, expected_bypass_actors):
+    errors = []
+    for key in ("name", "target", "source_type", "source", "enforcement"):
         if actual.get(key) != expected[key]:
             errors.append(f"ruleset.{key}: expected {expected[key]!r}, observed {actual.get(key)!r}")
     ref_name = actual.get("conditions", {}).get("ref_name", {})
@@ -70,8 +82,15 @@ def validate_ruleset(actual, expected, required_contexts):
         errors.append(f"ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include', [])!r}")
     if ref_name.get("exclude", []) != expected["exclude"]:
         errors.append(f"ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude', [])!r}")
-    if actual.get("bypass_actors", []) != expected["bypass_actors"]:
-        errors.append("ruleset.bypass_actors drifted from the no-bypass policy")
+
+    # GitHub deliberately redacts bypass_actors unless the caller has write access
+    # to the ruleset. The scheduled read-only audit must not treat a missing field
+    # as proof of an empty bypass set. If the API does expose it, validate it; the
+    # authoritative no-bypass proof remains the privileged merge/exit-gate readback.
+    if "bypass_actors" in actual and actual["bypass_actors"] != expected_bypass_actors:
+        errors.append(
+            f"ruleset.bypass_actors: expected {expected_bypass_actors!r}, observed {actual['bypass_actors']!r}"
+        )
 
     rules = actual.get("rules", [])
     observed_types = [rule.get("type") for rule in rules]
@@ -122,9 +141,27 @@ def read_all_labels(repo: str, token: str):
     page = 1
     while True:
         batch = api_request(f"/repos/{repo}/labels?per_page=100&page={page}", token)
+        if not isinstance(batch, list):
+            raise TypeError("GitHub labels response is not a list")
         labels.extend(batch)
         if len(batch) < 100:
             return labels
+        page += 1
+
+
+def read_all_repository_rulesets(repo: str, token: str):
+    rulesets = []
+    page = 1
+    while True:
+        batch = api_request(
+            f"/repos/{repo}/rulesets?per_page=100&page={page}&includes_parents=false",
+            token,
+        )
+        if not isinstance(batch, list):
+            raise TypeError("GitHub rulesets response is not a list")
+        rulesets.extend(batch)
+        if len(batch) < 100:
+            return rulesets
         page += 1
 
 
@@ -146,13 +183,24 @@ def audit(policy, token):
     repository = api_request(f"/repos/{repo}", token)
     errors.extend(validate_repository(repository, policy["repository"]))
 
-    rulesets = api_request(f"/repos/{repo}/rulesets", token)
+    rulesets = read_all_repository_rulesets(repo, token)
+    errors.extend(validate_ruleset_collection(rulesets, policy["ruleset"]))
     candidates = [item for item in rulesets if item.get("name") == policy["ruleset"]["name"]]
-    if len(candidates) != 1:
+    if len(candidates) == 1:
+        ruleset = api_request(f"/repos/{repo}/rulesets/{candidates[0]['id']}?includes_parents=false", token)
+        manual = policy["manual_live_assertions"]["ruleset_bypass_actors"]
+        if manual["ruleset"] != policy["ruleset"]["name"]:
+            errors.append("manual bypass assertion targets a different ruleset")
+        errors.extend(
+            validate_ruleset(
+                ruleset,
+                policy["ruleset"],
+                required_contexts(),
+                manual["expected"],
+            )
+        )
+    elif len(candidates) != 1:
         errors.append(f"expected exactly one ruleset named {policy['ruleset']['name']!r}; observed {len(candidates)}")
-    else:
-        ruleset = api_request(f"/repos/{repo}/rulesets/{candidates[0]['id']}", token)
-        errors.extend(validate_ruleset(ruleset, policy["ruleset"], required_contexts()))
 
     labels = read_all_labels(repo, token)
     errors.extend(validate_labels(labels, policy["labels"]))
@@ -204,7 +252,11 @@ def main():
         for error in errors:
             print(f"REPOSITORY POLICY ERROR: {error}", file=sys.stderr)
         return 1
-    print("repository policy OK: live settings, exact main ruleset, required check sources, and canonical labels match")
+    print(
+        "repository policy OK: read-visible settings, exact repository ruleset topology, "
+        "required check sources, and canonical labels match; ruleset bypass actors require "
+        "separate privileged live readback"
+    )
     return 0
 
 

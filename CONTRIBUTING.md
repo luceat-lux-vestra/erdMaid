@@ -21,3 +21,5 @@ Use full deterministic output assertions for rendering/identity behavior. Add li
 ## Repository automation
 
 Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Release/tag/branch mutation is not part of the current repository contract.
+
+The scheduled drift audit verifies only policy surfaces visible to a read-only GitHub token. GitHub deliberately redacts ruleset `bypass_actors` unless the caller has write access to the ruleset, so the no-bypass assertion is never inferred from a missing field; it remains a separate privileged live readback at the merge/exit gate.
