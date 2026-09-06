@@ -1,0 +1,336 @@
+# Architecture-neutral falsification scenarios for docs/product-fidelity-contract.md.
+# These are product evidence, not a frozen production object model.
+# The shape under `facts` is intentionally scenario-specific; downstream work evaluates
+# the explicit obligations rather than treating this file as a production data schema.
+contract_version: 1
+base_audit_sha: 66107058004e5554d0a6c9afdb4f995d98aa9ba5
+
+scenarios:
+  - id: ordinary-single-schema
+    purpose: Preserve the ordinary table export contract without inventing extra qualification.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, catalog: app, schema: sales, name: orders}
+        - {kind: table, catalog: app, schema: sales, name: users}
+    facts:
+      columns:
+        orders: [id, user_id, created_at]
+        users: [id, email]
+      primary_keys:
+        orders: [id]
+        users: [id]
+      relations:
+        - {provenance: physical, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - source column order is preserved
+        - table display names may remain unqualified because they are unique
+        - the relation exists exactly once
+        - cardinality is emitted only if separately proven
+
+  - id: selection-order-invariance
+    purpose: Prove table ordering is canonical rather than inherited from incidental UI selection order.
+    selection_variants:
+      - origins: [ds-a]
+        objects:
+          - {kind: table, catalog: app, schema: sales, name: users}
+          - {kind: table, catalog: app, schema: sales, name: orders}
+      - origins: [ds-a]
+        objects:
+          - {kind: table, catalog: app, schema: sales, name: orders}
+          - {kind: table, catalog: app, schema: sales, name: users}
+    facts:
+      same_authoritative_objects: true
+      same_options: true
+    obligations:
+      outcome: complete
+      assertions:
+        - both selection variants produce byte-identical output
+        - canonical table ordering is independent of UI iteration and selection order
+
+  - id: duplicate-name-across-schemas
+    purpose: Prevent same-named tables in one datasource from cross-wiring.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, catalog: app, schema: sales, name: orders}
+        - {kind: table, catalog: app, schema: archive, name: orders}
+        - {kind: table, catalog: app, schema: sales, name: users}
+    facts:
+      relations:
+        - {provenance: physical, child: sales.orders, child_columns: [user_id], parent: sales.users, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - sales.orders and archive.orders remain distinct canonical identities
+        - the FK binds only sales.orders to sales.users
+        - rendered names use schema qualification because it is sufficient
+
+  - id: duplicate-name-across-catalogs
+    purpose: Require catalog qualification when schema alone cannot disambiguate.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, catalog: tenant_a, schema: sales, name: orders}
+        - {kind: table, catalog: tenant_b, schema: sales, name: orders}
+    obligations:
+      outcome: complete
+      assertions:
+        - canonical identities remain distinct
+        - rendered names include catalog and schema because schema alone is ambiguous
+
+  - id: cross-datasource-selection
+    purpose: Prove the single-origin export boundary.
+    selection:
+      origins: [ds-a, ds-b]
+      objects:
+        - {kind: table, origin: ds-a, catalog: app, schema: sales, name: orders}
+        - {kind: table, origin: ds-b, catalog: app, schema: sales, name: users}
+    obligations:
+      outcome: unsupported
+      assertions:
+        - the whole invocation is rejected
+        - no implicit split occurs
+        - no clipboard publication occurs
+
+  - id: exact-duplicate-ui-selection
+    purpose: Distinguish true duplicate selection from identity collision.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, stable_object: table-42, catalog: app, schema: sales, name: orders}
+        - {kind: table, stable_object: table-42, catalog: app, schema: sales, name: orders}
+    obligations:
+      outcome: complete
+      assertions:
+        - the exact authoritative object is normalized to one table before snapshotting
+        - two distinct objects that merely share incomplete display identity must not be collapsed by this rule
+
+  - id: quoted-case-sensitive-identifiers
+    purpose: Prevent locale/case normalization from changing database identity.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, catalog: App, schema: Sales, name: "Order Items"}
+        - {kind: table, catalog: App, schema: Sales, name: "order items"}
+    facts:
+      columns:
+        "Order Items": ["Item ID", "item id"]
+    obligations:
+      outcome: complete
+      assertions:
+        - canonical identity preserves exact case and whitespace
+        - no locale-aware case folding is used for identity
+        - renderer sanitization cannot mutate canonical identity
+        - if any different raw identifiers collide after rendering normalization, generation fails before clipboard publication rather than merging them
+
+  - id: composite-primary-and-foreign-key
+    purpose: Preserve ordered key mappings.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: order_lines}
+        - {kind: table, schema: sales, name: orders}
+    facts:
+      primary_keys:
+        order_lines: [tenant_id, order_id, line_no]
+        orders: [tenant_id, id]
+      relations:
+        - provenance: physical
+          child: order_lines
+          child_columns: [tenant_id, order_id]
+          parent: orders
+          parent_columns: [tenant_id, id]
+    obligations:
+      outcome: complete
+      assertions:
+        - primary-key order is preserved
+        - child and parent FK column order is preserved pairwise
+
+  - id: multiple-foreign-keys-same-pair
+    purpose: Prevent distinct relations between the same endpoints from collapsing.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+        - {kind: table, schema: sales, name: users}
+    facts:
+      relations:
+        - {provenance: physical, name: fk_created_by, child: orders, child_columns: [created_by], parent: users, parent_columns: [id]}
+        - {provenance: physical, name: fk_updated_by, child: orders, child_columns: [updated_by], parent: users, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - both relations survive deterministic de-duplication
+        - relation ordering is canonical and independent of provider iteration order
+
+  - id: self-reference
+    purpose: Preserve a relation whose parent and child table are the same identity.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: org, name: employee}
+    facts:
+      relations:
+        - {provenance: physical, child: employee, child_columns: [manager_id], parent: employee, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - the self endpoint is not dropped as a duplicate
+        - the ordered mapping remains intact
+
+  - id: relation-endpoint-outside-selection
+    purpose: Fix selected-subgraph semantics without treating deliberate scope filtering as metadata loss.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+    facts:
+      relations:
+        - {provenance: physical, child: orders, child_columns: [user_id], parent: users, parent_columns: [id], parent_selected: false}
+    obligations:
+      outcome: complete
+      assertions:
+        - the relation is omitted from the selected-subgraph diagram
+        - users is not auto-included
+        - the omission is policy, not evidence that no FK exists
+
+  - id: physical-and-virtual-relation-provenance
+    purpose: Prevent IDE virtual relations from becoming indistinguishable from database FKs.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+        - {kind: table, schema: sales, name: users}
+    facts:
+      relations:
+        - {provenance: physical, name: fk_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+        - {provenance: virtual, name: ide_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - physical and virtual provenance remain representable as distinct facts
+        - de-duplication does not erase provenance merely because mappings match
+
+  - id: structural-metadata-read-failure
+    purpose: Block plausible output when keys or relation truth cannot be established.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+    facts:
+      primary_key_state: unknown_due_to_platform_read_failure
+      relation_state: unknown_due_to_platform_read_failure
+    obligations:
+      outcome: degraded
+      assertions:
+        - unknown is not treated as no primary key or no foreign keys
+        - no diagram is published to the clipboard
+        - the terminal outcome names the unavailable structural metadata
+
+  - id: optional-type-detail-absent
+    purpose: Distinguish legitimate absence of presentation detail from fabricated values.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: notes}
+    facts:
+      columns:
+        - {name: body, raw_type: varchar, length_state: authoritatively_absent}
+    obligations:
+      outcome: complete
+      assertions:
+        - no length suffix is invented
+        - absent length is not rendered as zero
+
+  - id: hostile-metadata
+    purpose: Preserve the hardening baseline while keeping identity separate from rendering.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: "sales\n%%", name: "order\"items"}
+    facts:
+      columns:
+        - {name: "id|}\nnext", raw_type: "number(10,2)", comment: "x\r\ny %% { | : < > \\\""}
+      table_comment: "line1\nline2 %% injected"
+      relation_label: "fk\n%% relation"
+    obligations:
+      outcome: complete
+      assertions:
+        - canonical metadata preserves authoritative raw identity
+        - renderer escaping is context-specific and idempotent
+        - hostile text cannot create a second Mermaid statement or line
+        - if sanitization creates a rendered collision, generation fails before clipboard publication rather than merging distinct metadata
+
+  - id: mixed-table-and-view-selection
+    purpose: Prevent silent partial export of user intent.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+        - {kind: view, schema: sales, name: order_summary}
+    obligations:
+      outcome: unsupported
+      assertions:
+        - order_summary is not silently dropped
+        - orders alone is not exported as if the whole selection succeeded
+        - no clipboard publication occurs
+
+  - id: legitimate-empty-selection
+    purpose: Separate an ordinary empty UI state from selection infrastructure failure.
+    selection:
+      origins: []
+      objects: []
+      selection_api_state: success
+    obligations:
+      outcome: supported-ui-state-no-export
+      assertions:
+        - no Mermaid header-only diagram is published
+        - no clipboard mutation occurs
+
+  - id: selection-platform-failure
+    purpose: Ensure selection failure cannot masquerade as empty selection.
+    selection:
+      selection_api_state: failed
+      fallback_state: unavailable
+    obligations:
+      outcome: failure
+      assertions:
+        - the state is not converted to an empty list
+        - a user-visible selection failure is produced when invocation occurs
+        - no clipboard mutation occurs
+
+  - id: large-selection
+    purpose: Give #37/#38 a reproducible successful scale contract without freezing implementation classes.
+    selection:
+      origins: [ds-a]
+      generated_shape:
+        tables: 1000
+        columns_per_table: 40
+        relations: 3000
+      cancellation_requested: false
+    obligations:
+      outcome: complete
+      assertions:
+        - UI eligibility work does not scale with all metadata in the selection
+        - expensive snapshot/model/render work is cancellable
+        - identical authoritative generated input yields byte-identical output
+        - downstream scale evidence records elapsed time and retained-resource observations rather than relying on an unmeasured claim
+
+  - id: large-selection-cancelled
+    purpose: Prove cancellation and publication semantics under the same large workload shape.
+    selection:
+      origins: [ds-a]
+      generated_shape:
+        tables: 1000
+        columns_per_table: 40
+        relations: 3000
+      cancellation_requested: true
+    obligations:
+      outcome: cancelled
+      assertions:
+        - cancellation is observed within the downstream latency threshold defined by #37/#38
+        - no partial or complete diagram is published after cancellation
+        - invocation-owned project/database/snapshot/render state is released after cancellation
