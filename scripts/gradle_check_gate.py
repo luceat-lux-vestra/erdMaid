@@ -6,6 +6,10 @@ DatabaseTools plugin while building the IDE layout index because a cached jar
 FileSystem is closed during descriptor/XInclude resolution. See JetBrains issue
 #2192 and MP-8217. A generic retry would hide real regressions, so each allowed
 validation mode retries only when every command-specific signature is present.
+
+The retry uses --no-daemon only to isolate it from the Gradle daemon that just
+observed the known failure. This does not claim to fix the upstream zipfs bug;
+a second failure still fails the gate and there is never a third attempt.
 """
 
 from __future__ import annotations
@@ -49,6 +53,10 @@ def is_known_upstream_closed_fs_failure(output: str, spec: ValidationSpec) -> bo
     return all(signature in output for signature in spec.required_signatures)
 
 
+def isolated_retry_command(command: tuple[str, ...]) -> tuple[str, ...]:
+    return (command[0], "--no-daemon", *command[1:])
+
+
 def run_gradle(command: tuple[str, ...]) -> tuple[int, str]:
     process = subprocess.Popen(
         command,
@@ -74,12 +82,13 @@ def execute(spec: ValidationSpec, run_command: RunCommand = run_gradle) -> int:
     if not is_known_upstream_closed_fs_failure(first_output, spec):
         return first_status
 
+    retry_command = isolated_retry_command(spec.command)
     command_display = " ".join(spec.command)
     print(
         "::warning::Matched the exact known JetBrains ClosedFileSystemException "
-        f"signature for {command_display}; retrying once."
+        f"signature for {command_display}; retrying once with --no-daemon."
     )
-    second_status, _ = run_command(spec.command)
+    second_status, _ = run_command(retry_command)
     return second_status
 
 

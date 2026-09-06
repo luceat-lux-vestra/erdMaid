@@ -51,11 +51,17 @@ def require(condition: bool, message: str) -> None:
 
 def exercise_spec(mode: str, known_log: str, other_log: str) -> None:
     spec = gate.VALIDATIONS[mode]
+    retry_command = gate.isolated_retry_command(spec.command)
     require(gate.is_known_upstream_closed_fs_failure(known_log, spec), f"{mode} literal oracle must match")
     require(
         not gate.is_known_upstream_closed_fs_failure(other_log, spec),
         f"{mode} must reject the other validation mode's failure",
     )
+
+    require(retry_command != spec.command, f"{mode} retry must be isolated from the first command")
+    require(retry_command[0] == spec.command[0], f"{mode} retry must use the same Gradle wrapper")
+    require(retry_command[1] == "--no-daemon", f"{mode} retry must force a single-use Gradle daemon")
+    require(retry_command[2:] == spec.command[1:], f"{mode} retry must preserve the requested Gradle task")
 
     for signature in spec.required_signatures:
         require(signature in known_log, f"{mode} signature {signature!r} drifted away from literal oracle")
@@ -72,15 +78,24 @@ def exercise_spec(mode: str, known_log: str, other_log: str) -> None:
 
     recovered = FakeRun([(1, known_log), (0, "BUILD SUCCESSFUL")])
     require(gate.execute(spec, recovered) == 0, f"{mode} exact upstream flake may recover")
-    require(recovered.calls == [spec.command, spec.command], f"{mode} may retry exactly once")
+    require(
+        recovered.calls == [spec.command, retry_command],
+        f"{mode} may retry exactly once and retry must be isolated",
+    )
 
     retry_failed = FakeRun([(1, known_log), (9, ordinary_failure)])
     require(gate.execute(spec, retry_failed) == 9, f"{mode} retry failure must propagate")
-    require(retry_failed.calls == [spec.command, spec.command], f"{mode} failed retry must stop")
+    require(
+        retry_failed.calls == [spec.command, retry_command],
+        f"{mode} failed retry must stop after the isolated attempt",
+    )
 
     repeated_flake = FakeRun([(1, known_log), (1, known_log)])
     require(gate.execute(spec, repeated_flake) == 1, f"{mode} repeated flake remains failure")
-    require(repeated_flake.calls == [spec.command, spec.command], f"{mode} must never receive a third attempt")
+    require(
+        repeated_flake.calls == [spec.command, retry_command],
+        f"{mode} must never receive a third attempt",
+    )
 
 
 def main() -> int:
