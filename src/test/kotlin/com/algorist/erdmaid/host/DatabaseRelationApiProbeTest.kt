@@ -52,7 +52,7 @@ class DatabaseRelationApiProbeTest {
             "com.intellij.database.model.DasForeignKey",
             "com.intellij.database.model.DasConstraint",
             "com.intellij.database.model.DasColumn",
-            "com.intellij.database.model.DasColumn$Attribute",
+            "com.intellij.database.model.DasColumn\$Attribute",
             "com.intellij.database.model.DasTable",
         )
 
