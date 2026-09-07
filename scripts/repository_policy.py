@@ -46,10 +46,29 @@ def api_request(path: str, token: str, method: str = "GET", body=None):
         raise RuntimeError(f"GitHub API {method} {path} failed: {error.reason}") from error
 
 
-def validate_repository(actual, expected):
+def repository_redacted_fields(policy):
+    declaration = policy["manual_live_assertions"]["repository_redacted_fields"]
+    fields = declaration["fields"]
+    if not isinstance(fields, list) or any(not isinstance(field, str) or not field for field in fields):
+        raise TypeError("manual repository redacted fields must be a list of non-empty strings")
+    if len(fields) != len(set(fields)):
+        raise ValueError("manual repository redacted fields must be unique")
+    unknown = sorted(set(fields) - set(policy["repository"]))
+    if unknown:
+        raise ValueError(f"manual repository redacted fields are not policy keys: {unknown!r}")
+    return fields
+
+
+def validate_repository(actual, expected, redacted_fields=()):
     errors = []
+    allowed_redactions = set(redacted_fields)
     for key, value in expected.items():
-        observed = actual.get(key)
+        if key not in actual:
+            if key in allowed_redactions:
+                continue
+            errors.append(f"repository.{key}: expected {value!r}, observed <missing>")
+            continue
+        observed = actual[key]
         if observed != value:
             errors.append(f"repository.{key}: expected {value!r}, observed {observed!r}")
     return errors
@@ -180,8 +199,15 @@ def validate_invocation_repository(policy):
 def audit(policy, token):
     repo = policy["repository"]["full_name"]
     errors = []
+    redacted_fields = repository_redacted_fields(policy)
     repository = api_request(f"/repos/{repo}", token)
-    errors.extend(validate_repository(repository, policy["repository"]))
+    errors.extend(validate_repository(repository, policy["repository"], redacted_fields))
+    missing_redacted_fields = sorted(field for field in redacted_fields if field not in repository)
+    if missing_redacted_fields:
+        print(
+            "repository readback redacted privileged fields: "
+            f"{', '.join(missing_redacted_fields)}; separate privileged live readback remains required"
+        )
 
     rulesets = read_all_repository_rulesets(repo, token)
     errors.extend(validate_ruleset_collection(rulesets, policy["ruleset"]))
@@ -253,9 +279,9 @@ def main():
             print(f"REPOSITORY POLICY ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "repository policy OK: read-visible settings, exact repository ruleset topology, "
-        "required check sources, and canonical labels match; ruleset bypass actors require "
-        "separate privileged live readback"
+        "repository policy OK for read-visible settings, exact repository ruleset topology, "
+        "required check sources, and canonical labels; declared redacted repository fields and "
+        "ruleset bypass actors remain separate privileged live assertions"
     )
     return 0
 
