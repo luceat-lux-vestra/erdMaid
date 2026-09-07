@@ -28,7 +28,7 @@ data class ErdGraphTable(
 data class ErdGraph(
     val origin: OriginId,
     val tables: FrozenList<ErdGraphTable>,
-    val relations: FrozenList<MultiplicitySemanticRelation>,
+    val relations: FrozenList<ErdGraphRelation>,
 ) {
     init {
         require(tables.all { it.snapshot.id.origin == origin }) {
@@ -55,12 +55,13 @@ data class ErdGraph(
 
 /**
  * Composes the already-canonical relation pipeline with canonical table order and qualification
- * intent. No relation fact is recomputed at this boundary.
+ * intent. Relation identification is derived upstream by [RelationIdentificationCompiler]; this
+ * boundary never re-derives relation identity, constraints, multiplicity or identification.
  */
 object ErdGraphCompiler {
 
     fun compile(snapshot: SchemaSnapshot): ExportOutcome<ErdGraph> {
-        val relations = RelationMultiplicityCompiler.compile(snapshot)
+        val relations = RelationIdentificationCompiler.compile(snapshot)
         return when (relations) {
             is ExportOutcome.Complete -> ExportOutcome.Complete(
                 ErdGraph(

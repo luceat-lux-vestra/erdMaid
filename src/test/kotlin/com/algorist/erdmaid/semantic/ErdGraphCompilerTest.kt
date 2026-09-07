@@ -149,7 +149,7 @@ class ErdGraphCompilerTest {
     }
 
     @Test
-    fun `graph preserves exact upstream relation collection including composite multiple self and provenance`() {
+    fun `graph preserves exact upstream relation collection including identification composite multiple self and provenance`() {
         val users = tableId(name = "users")
         val orders = tableId(name = "orders")
         val userTable = table(
@@ -200,8 +200,8 @@ class ErdGraphCompilerTest {
             ),
         )
         val source = snapshot(userTable, orderTable)
-        val upstream = RelationMultiplicityCompiler.compile(source)
-            as ExportOutcome.Complete<FrozenList<MultiplicitySemanticRelation>>
+        val upstream = RelationIdentificationCompiler.compile(source)
+            as ExportOutcome.Complete<FrozenList<ErdGraphRelation>>
         val graph = completeGraph(source)
 
         assertEquals(upstream.value, graph.relations)
@@ -245,7 +245,7 @@ class ErdGraphCompilerTest {
             table(parent, "id"),
         )
 
-        val upstream = RelationMultiplicityCompiler.compile(source)
+        val upstream = RelationIdentificationCompiler.compile(source)
         val graph = ErdGraphCompiler.compile(source)
 
         assertTrue(upstream is ExportOutcome.Degraded)
@@ -272,6 +272,9 @@ class ErdGraphCompilerTest {
     fun `graph semantic type surface is IntelliJ Mermaid and legacy-generator free`() {
         val semanticClasses = listOf(
             TableQualificationIntent::class.java,
+            RelationIdentification::class.java,
+            ErdGraphRelation::class.java,
+            RelationIdentificationCompiler::class.java,
             ErdGraphTable::class.java,
             ErdGraph::class.java,
             ErdGraphCompiler::class.java,
