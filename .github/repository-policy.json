@@ -42,6 +42,16 @@
     }
   },
   "manual_live_assertions": {
+    "repository_redacted_fields": {
+      "fields": [
+        "allow_squash_merge",
+        "allow_merge_commit",
+        "allow_rebase_merge",
+        "allow_auto_merge",
+        "delete_branch_on_merge",
+        "allow_update_branch"
+      ]
+    },
     "ruleset_bypass_actors": {
       "ruleset": "main protection",
       "expected": []

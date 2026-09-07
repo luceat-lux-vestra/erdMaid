@@ -1,7 +1,7 @@
-# Scheduled authoritative-main drift detection. A missing/inaccessible live surface is a
-# failure, not a successful skip. There is intentionally no write/reporting token.
-# GitHub redacts ruleset bypass_actors from callers without ruleset write access,
-# so the no-bypass assertion remains a separate privileged merge/exit-gate readback.
+# Scheduled authoritative-main drift detection. Missing live fields are failures unless
+# repository-policy.json explicitly declares that the read-only GITHUB_TOKEN may redact them.
+# Declared redacted repository fields and ruleset bypass_actors remain separate privileged
+# merge/exit-gate assertions; their absence here is never treated as proof of the expected value.
 #
 # This workflow is schedule-only on purpose: trusted-main label maintenance runs on push,
 # and a concurrent push audit could race that synchronization and report transient false drift.

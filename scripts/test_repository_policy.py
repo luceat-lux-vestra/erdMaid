@@ -21,6 +21,25 @@ def main():
     label_names = [label["name"] for label in policy["labels"]]
     require(len(label_names) == len(set(label_names)), "canonical label names must be unique")
     require(all(label["description"].strip() for label in policy["labels"]), "canonical labels require descriptions")
+
+    redacted_fields = rp.repository_redacted_fields(policy)
+    expected_redacted_fields = [
+        "allow_squash_merge",
+        "allow_merge_commit",
+        "allow_rebase_merge",
+        "allow_auto_merge",
+        "delete_branch_on_merge",
+        "allow_update_branch",
+    ]
+    require(
+        redacted_fields == expected_redacted_fields,
+        "read-only repository redaction contract must remain explicit and ordered",
+    )
+    require(
+        all(field in policy["repository"] for field in redacted_fields),
+        "manual repository redactions must reference repository policy keys",
+    )
+
     manual = policy["manual_live_assertions"]["ruleset_bypass_actors"]
     require(manual["ruleset"] == policy["ruleset"]["name"], "manual bypass assertion must target the governed ruleset")
     require(manual["expected"] == [], "no-bypass assertion must remain explicit and fail closed at the privileged exit gate")
@@ -36,10 +55,64 @@ def main():
         "delete_branch_on_merge": True,
         "allow_update_branch": True,
     }
-    require(rp.validate_repository(dict(expected_repo), expected_repo) == [], "healthy repository fixture must pass")
+    require(
+        rp.validate_repository(dict(expected_repo), expected_repo, redacted_fields) == [],
+        "healthy privileged repository fixture must pass",
+    )
+
+    read_only_repo = {
+        key: value for key, value in expected_repo.items() if key not in redacted_fields
+    }
+    require(
+        rp.validate_repository(read_only_repo, expected_repo, redacted_fields) == [],
+        "exactly declared privileged repository fields may be redacted in read-only mode",
+    )
+
+    for required_field in ("full_name", "default_branch", "private"):
+        missing_read_visible = dict(read_only_repo)
+        missing_read_visible.pop(required_field)
+        require(
+            rp.validate_repository(missing_read_visible, expected_repo, redacted_fields),
+            f"missing read-visible repository field {required_field} must fail",
+        )
+
+    visible_bad_privileged = dict(read_only_repo)
+    visible_bad_privileged["allow_merge_commit"] = True
+    require(
+        rp.validate_repository(visible_bad_privileged, expected_repo, redacted_fields),
+        "visible wrong privileged repository value must fail even when redaction is allowed",
+    )
+
+    incomplete_redaction_contract = redacted_fields[:-1]
+    require(
+        rp.validate_repository(read_only_repo, expected_repo, incomplete_redaction_contract),
+        "undeclared missing repository field must fail",
+    )
+
+    bad_policy = copy.deepcopy(policy)
+    bad_policy["manual_live_assertions"]["repository_redacted_fields"]["fields"].append("not_a_repository_policy_key")
+    try:
+        rp.repository_redacted_fields(bad_policy)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unknown manual repository redaction field must fail policy-shape validation")
+
+    duplicate_policy = copy.deepcopy(policy)
+    duplicate_policy["manual_live_assertions"]["repository_redacted_fields"]["fields"].append(redacted_fields[0])
+    try:
+        rp.repository_redacted_fields(duplicate_policy)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("duplicate manual repository redaction field must fail policy-shape validation")
+
     bad_repo = dict(expected_repo)
     bad_repo["allow_merge_commit"] = True
-    require(rp.validate_repository(bad_repo, expected_repo), "merge-method drift must fail")
+    require(
+        rp.validate_repository(bad_repo, expected_repo, redacted_fields),
+        "merge-method drift must fail",
+    )
 
     expected_ruleset = {
         "name": "main protection",
