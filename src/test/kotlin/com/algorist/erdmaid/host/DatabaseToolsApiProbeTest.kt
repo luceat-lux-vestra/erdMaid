@@ -22,21 +22,40 @@ class DatabaseToolsApiProbeTest {
         val related = linkedSetOf<Class<*>>(relationManager, foreignKey)
 
         listOf(relationManager, foreignKey).forEach { clazz ->
-            clazz.declaredMethods.forEach { method ->
+            clazz.methods.forEach { method ->
                 collectClasses(method.genericReturnType, related)
                 method.genericParameterTypes.forEach { collectClasses(it, related) }
             }
+            collectInterfaces(clazz, related)
         }
 
         val output = buildString {
             appendLine("=== DatabaseTools relation API probe ===")
             appendLine("relationManager=${relationManager.name}")
             appendLine("relationManagerResource=${relationManager.getResource("/${relationManager.name.replace('.', '/')}.class")}")
-            appendLine("relationManagerCodeSource=${relationManager.protectionDomain?.codeSource?.location}")
             appendLine("foreignKey=${foreignKey.name}")
             appendLine("foreignKeyResource=${foreignKey.getResource("/${foreignKey.name.replace('.', '/')}.class")}")
-            appendLine("foreignKeyCodeSource=${foreignKey.protectionDomain?.codeSource?.location}")
-            appendLine("--- reflected signatures ---")
+            appendLine("--- foreign-key interface chain ---")
+            related
+                .filter { it.isInterface && it.name.startsWith("com.intellij.database") }
+                .sortedBy { it.name }
+                .forEach { clazz ->
+                    appendLine("INTERFACE ${clazz.name}")
+                    clazz.interfaces.sortedBy { it.name }.forEach { appendLine("  EXTENDS ${it.name}") }
+                }
+            appendLine("--- foreign-key all public methods including inherited ---")
+            foreignKey.methods
+                .sortedBy { it.toGenericString() }
+                .forEach { appendLine(it.toGenericString()) }
+            appendLine("--- relation-manager public fields ---")
+            relationManager.fields
+                .sortedBy { it.toGenericString() }
+                .forEach { appendLine(it.toGenericString()) }
+            appendLine("--- relation-manager all public methods ---")
+            relationManager.methods
+                .sortedBy { it.toGenericString() }
+                .forEach { appendLine(it.toGenericString()) }
+            appendLine("--- related DatabaseTools public declared signatures ---")
             related
                 .filter { it.name.startsWith("com.intellij.database") }
                 .sortedBy { it.name }
@@ -52,9 +71,18 @@ class DatabaseToolsApiProbeTest {
         throw AssertionError(output)
     }
 
+    private fun collectInterfaces(clazz: Class<*>, target: MutableSet<Class<*>>) {
+        clazz.interfaces.forEach { parent ->
+            if (target.add(parent)) collectInterfaces(parent, target)
+        }
+    }
+
     private fun collectClasses(type: Type, target: MutableSet<Class<*>>) {
         when (type) {
-            is Class<*> -> target += type
+            is Class<*> -> {
+                target += type
+                collectInterfaces(type, target)
+            }
             is ParameterizedType -> {
                 collectClasses(type.rawType, target)
                 type.actualTypeArguments.forEach { collectClasses(it, target) }
