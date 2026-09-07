@@ -1,13 +1,12 @@
 package com.algorist.erdmaid.host
 
+import com.intellij.database.model.DasForeignKey
 import com.intellij.database.model.ModelRelationManager
 import org.junit.Test
 import java.lang.reflect.GenericArrayType
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import java.lang.reflect.WildcardType
-import java.net.JarURLConnection
-import java.util.jar.JarFile
 
 /**
  * Temporary evidence probe for #82. This test intentionally fails so the exact shipped
@@ -18,38 +17,28 @@ class DatabaseToolsApiProbeTest {
 
     @Test
     fun dumpRelationApiSurface() {
-        val root = ModelRelationManager::class.java
-        val related = linkedSetOf<Class<*>>()
-        related += root
+        val relationManager = ModelRelationManager::class.java
+        val foreignKey = DasForeignKey::class.java
+        val related = linkedSetOf<Class<*>>(relationManager, foreignKey)
 
-        root.declaredMethods.forEach { method ->
-            collectClasses(method.genericReturnType, related)
-            method.genericParameterTypes.forEach { collectClasses(it, related) }
-        }
-
-        val resource = root.getResource("/${root.name.replace('.', '/')}.class")
-        val jarClassNames = if (resource?.protocol == "jar") {
-            val connection = resource.openConnection() as JarURLConnection
-            relevantModelClasses(connection.jarFile)
-        } else {
-            emptyList()
-        }
-
-        for (className in jarClassNames) {
-            runCatching {
-                Class.forName(className, false, root.classLoader)
-            }.getOrNull()?.let(related::add)
+        listOf(relationManager, foreignKey).forEach { clazz ->
+            clazz.declaredMethods.forEach { method ->
+                collectClasses(method.genericReturnType, related)
+                method.genericParameterTypes.forEach { collectClasses(it, related) }
+            }
         }
 
         val output = buildString {
             appendLine("=== DatabaseTools relation API probe ===")
-            appendLine("root=${root.name}")
-            appendLine("resource=$resource")
-            appendLine("codeSource=${root.protectionDomain?.codeSource?.location}")
-            appendLine("--- relevant jar classes ---")
-            jarClassNames.forEach(::appendLine)
+            appendLine("relationManager=${relationManager.name}")
+            appendLine("relationManagerResource=${relationManager.getResource("/${relationManager.name.replace('.', '/')}.class")}")
+            appendLine("relationManagerCodeSource=${relationManager.protectionDomain?.codeSource?.location}")
+            appendLine("foreignKey=${foreignKey.name}")
+            appendLine("foreignKeyResource=${foreignKey.getResource("/${foreignKey.name.replace('.', '/')}.class")}")
+            appendLine("foreignKeyCodeSource=${foreignKey.protectionDomain?.codeSource?.location}")
             appendLine("--- reflected signatures ---")
             related
+                .filter { it.name.startsWith("com.intellij.database") }
                 .sortedBy { it.name }
                 .forEach { clazz ->
                     appendLine("CLASS ${clazz.name}")
@@ -62,21 +51,6 @@ class DatabaseToolsApiProbeTest {
 
         throw AssertionError(output)
     }
-
-    private fun relevantModelClasses(jarFile: JarFile): List<String> =
-        jarFile.entries().asSequence()
-            .map { it.name }
-            .filter { it.startsWith("com/intellij/database/model/") }
-            .filter { it.endsWith(".class") && '$' !in it }
-            .filter {
-                it.contains("Relation", ignoreCase = true) ||
-                    it.contains("ForeignKey", ignoreCase = true) ||
-                    it.contains("Reference", ignoreCase = true) ||
-                    it.contains("Constraint", ignoreCase = true)
-            }
-            .map { it.removeSuffix(".class").replace('/', '.') }
-            .sorted()
-            .toList()
 
     private fun collectClasses(type: Type, target: MutableSet<Class<*>>) {
         when (type) {
