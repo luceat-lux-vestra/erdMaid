@@ -14,9 +14,11 @@ import com.algorist.erdmaid.core.frozenListOf
 import com.algorist.erdmaid.semantic.ConstrainedSemanticRelation
 import com.algorist.erdmaid.semantic.ErdGraph
 import com.algorist.erdmaid.semantic.ErdGraphCompiler
+import com.algorist.erdmaid.semantic.ErdGraphRelation
 import com.algorist.erdmaid.semantic.ErdGraphTable
 import com.algorist.erdmaid.semantic.MultiplicitySemanticRelation
 import com.algorist.erdmaid.semantic.RelationConstraintEvidence
+import com.algorist.erdmaid.semantic.RelationIdentification
 import com.algorist.erdmaid.semantic.RelationMultiplicity
 import com.algorist.erdmaid.semantic.RelationMultiplicityBounds
 import com.algorist.erdmaid.semantic.RelationMultiplicityMaximum
@@ -147,7 +149,7 @@ class MermaidTokenCompilerTest {
                 graphTable(child, TableQualificationIntent.UNQUALIFIED),
                 graphTable(parent, TableQualificationIntent.UNQUALIFIED),
             ),
-            relations = frozenListOf(relation),
+            relations = frozenListOf(graphRelation(relation)),
         )
 
         val tokenSet = completeTokens(graph)
@@ -158,6 +160,7 @@ class MermaidTokenCompilerTest {
         assertEquals(entityByTable.getValue(child).id, relationship.childEntityId)
         assertEquals("||", relationship.parentEnd)
         assertEquals("o{", relationship.childEnd)
+        assertEquals(graph.relations.single(), relationship.relation)
         assertTrue("||--o{" !in relationship.parentEnd + relationship.childEnd)
     }
 
@@ -180,7 +183,7 @@ class MermaidTokenCompilerTest {
                 graphTable(child, TableQualificationIntent.UNQUALIFIED),
                 graphTable(parent, TableQualificationIntent.UNQUALIFIED),
             ),
-            relations = frozenListOf(relation),
+            relations = frozenListOf(graphRelation(relation)),
         )
 
         val outcome = MermaidTokenCompiler.compile(graph)
@@ -311,6 +314,12 @@ class MermaidTokenCompilerTest {
         minimum = known(minimum),
         maximum = known(maximum),
     )
+
+    private fun graphRelation(semantic: MultiplicitySemanticRelation): ErdGraphRelation =
+        ErdGraphRelation(
+            semantic = semantic,
+            identification = known(RelationIdentification.NON_IDENTIFYING),
+        )
 
     private fun multiplicityRelation(
         child: TableId,

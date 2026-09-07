@@ -7,8 +7,8 @@ import com.algorist.erdmaid.core.ExportOutcome
 import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.TableId
 import com.algorist.erdmaid.semantic.ErdGraph
+import com.algorist.erdmaid.semantic.ErdGraphRelation
 import com.algorist.erdmaid.semantic.ErdGraphTable
-import com.algorist.erdmaid.semantic.MultiplicitySemanticRelation
 import com.algorist.erdmaid.semantic.RelationMultiplicityBounds
 import com.algorist.erdmaid.semantic.RelationMultiplicityMaximum
 import com.algorist.erdmaid.semantic.RelationMultiplicityMinimum
@@ -25,10 +25,11 @@ data class MermaidEntityToken(
  * Relationship-end tokens prepared from a fully known semantic multiplicity.
  *
  * [parentEnd] is the left-side marker adjacent to the parent entity and [childEnd] is the
- * right-side marker adjacent to the child entity for a future `PARENT <end>--<end> CHILD` edge.
+ * right-side marker adjacent to the child entity for a future Mermaid ER edge. The relationship
+ * identification connector is intentionally not serialized in this token stage.
  */
 data class MermaidRelationshipToken(
-    val relation: MultiplicitySemanticRelation,
+    val relation: ErdGraphRelation,
     val parentEntityId: String,
     val childEntityId: String,
     val parentEnd: String,
@@ -44,7 +45,8 @@ data class MermaidTokenSet(
  * First renderer boundary: canonical semantic identity/multiplicity -> Mermaid-safe textual tokens.
  *
  * This does not serialize a complete erDiagram document. It deliberately stops before attributes,
- * comments, labels, and final line formatting so incomplete renderer output cannot be published.
+ * comments, labels, relationship identification, and final line formatting so incomplete renderer
+ * output cannot be published.
  */
 object MermaidTokenCompiler {
 
