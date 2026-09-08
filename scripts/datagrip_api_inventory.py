@@ -11,20 +11,19 @@ import zipfile
 from pathlib import Path
 from typing import Callable
 
-# These FQCNs are already compile-time consumers in, or canonical model types used by, erdMaid.
+# Exact anchors are grounded in the IU 2026.2.0.1 shipped-binary probe (#81/#82), including the
+# nested provider/extra-relation types that the earlier top-level simple-name assumption missed.
+# DataGrip evidence must prove these exact consumer/model surfaces independently rather than
+# generalizing from the IU patch.
 EXACT_ANCHOR_CLASSES = (
     "com.intellij.database.model.ModelRelationManager",
+    "com.intellij.database.model.ModelRelationManager$ModelRelationProvider",
+    "com.intellij.database.model.ModelRelationManager$ExtraRelation",
     "com.intellij.database.model.DasForeignKey",
+    "com.intellij.database.model.DasConstraint",
+    "com.intellij.database.model.DasTypedObject",
     "com.intellij.database.model.DasColumn",
     "com.intellij.database.model.DasTable",
-)
-
-# JetBrains' extension-point documentation exposes this implementation/interface simple name but
-# does not publish a stable FQCN. Discover it by simple name across every class in the exact
-# DatabaseTools binary set. Do not assume it lives under com.intellij.database.* merely because
-# the extension-point id does.
-DISCOVERED_ANCHOR_SIMPLE_NAMES = (
-    "ModelRelationProvider",
 )
 
 DATABASE_CLASS_PREFIX = "com/intellij/database/"
@@ -69,10 +68,6 @@ def _entry_is_candidate(entry: str) -> bool:
     return RELATION_CANDIDATE.search(simple) is not None
 
 
-def _entry_simple_name(entry: str) -> str:
-    return entry.rsplit("/", 1)[-1][:-6]
-
-
 def _fqcn(entry: str) -> str:
     return entry[:-6].replace("/", ".")
 
@@ -113,7 +108,6 @@ def collect_inventory(
     root = ide_home.resolve()
     jars = _database_tools_jars(root)
     exact_anchors = {fqcn: [] for fqcn in EXACT_ANCHOR_CLASSES}
-    discovered_anchors = {name: [] for name in DISCOVERED_ANCHOR_SIMPLE_NAMES}
     candidates: dict[str, set[str]] = {}
     marker_bytes: dict[tuple[str, str], bytes] = {}
 
@@ -127,25 +121,16 @@ def collect_inventory(
                 for fqcn in EXACT_ANCHOR_CLASSES:
                     entry = class_entry(fqcn)
                     if entry in name_set:
-                        exact_anchors[fqcn].append((fqcn, jar, relative_jar, entry))
+                        exact_anchors[fqcn].append((jar, relative_jar, entry))
                         marker_bytes[(fqcn, relative_jar)] = archive.read(entry)
 
                 for entry in names:
-                    if not entry.endswith(".class"):
-                        continue
-                    simple_name = _entry_simple_name(entry)
-                    if simple_name in discovered_anchors:
-                        fqcn = _fqcn(entry)
-                        discovered_anchors[simple_name].append(
-                            (fqcn, jar, relative_jar, entry)
-                        )
-                        marker_bytes[(fqcn, relative_jar)] = archive.read(entry)
                     if _entry_is_candidate(entry):
                         candidates.setdefault(_fqcn(entry), set()).add(relative_jar)
         except (OSError, KeyError, zipfile.BadZipFile) as exc:
             raise InventoryError(f"Could not inspect DatabaseTools jar {jar}: {exc}") from exc
 
-    resolved: list[tuple[str, Path, str, str, str]] = []
+    resolved: list[tuple[Path, str, str, str]] = []
     for fqcn in EXACT_ANCHOR_CLASSES:
         locations = exact_anchors[fqcn]
         if len(locations) != 1:
@@ -153,21 +138,11 @@ def collect_inventory(
                 f"Expected exactly one {fqcn} class in DatabaseTools jars, found {len(locations)}; "
                 f"relation-candidates={_candidate_summary(candidates)}"
             )
-        anchor_fqcn, jar, relative_jar, entry = locations[0]
-        resolved.append(("exact-fqcn", jar, relative_jar, entry, anchor_fqcn))
-
-    for simple_name in DISCOVERED_ANCHOR_SIMPLE_NAMES:
-        locations = discovered_anchors[simple_name]
-        if len(locations) != 1:
-            raise InventoryError(
-                f"Expected exactly one class with simple name {simple_name} in DatabaseTools jars, "
-                f"found {len(locations)}; relation-candidates={_candidate_summary(candidates)}"
-            )
-        anchor_fqcn, jar, relative_jar, entry = locations[0]
-        resolved.append(("unique-simple-name", jar, relative_jar, entry, anchor_fqcn))
+        jar, relative_jar, entry = locations[0]
+        resolved.append((jar, relative_jar, entry, fqcn))
 
     anchor_output: list[dict[str, object]] = []
-    for resolution, jar, relative_jar, entry, fqcn in resolved:
+    for jar, relative_jar, entry, fqcn in resolved:
         class_bytes = marker_bytes[(fqcn, relative_jar)]
         markers = {
             name: marker in class_bytes
@@ -178,7 +153,7 @@ def collect_inventory(
                 "class": fqcn,
                 "entry": entry,
                 "jar": relative_jar,
-                "resolution": resolution,
+                "resolution": "exact-fqcn",
                 "markers": markers,
                 "javapProtectedSignature": javap_runner(jar, fqcn),
             }
