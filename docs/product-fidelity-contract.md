@@ -84,14 +84,14 @@ failure produces a degraded outcome and therefore no clipboard publication under
 | Relation case | Contract | Required behavior |
 | --- | --- | --- |
 | Database-declared FK between selected tables | **SUPPORTED** | Preserve endpoints, ordered mappings, identity, and physical provenance. |
-| IDE/DataGrip virtual relation between selected tables | **SUPPORTED** | Preserve virtual provenance distinctly from a database-declared FK. Do not merge provenance away merely because endpoints/mappings match. |
+| IDE/DataGrip virtual relation between selected tables | **SUPPORTED semantic fact; Mermaid renderability evidence-bounded** | Preserve virtual provenance distinctly from a database-declared FK and never merge provenance away merely because endpoints/mappings match. If any endpoint cardinality required by the maintained Mermaid renderer is unavailable, the export is **DEGRADED** and unpublished rather than assigning a convenient marker. |
 | Multiple FKs between the same table pair | **SUPPORTED** | Preserve each distinct ordered mapping/relation identity. |
 | Composite FK | **SUPPORTED** | Preserve ordered child/parent column pairs. |
 | Self-reference | **SUPPORTED** | Preserve exact self endpoint and mapping. |
 | Relation whose other endpoint is outside the selected snapshot | **SUPPORTED omission policy** | Omit it from this selected-subgraph diagram. This is deliberate scope filtering, not missing metadata and not permission to auto-include the other table. |
 | Referenced endpoint cannot be resolved uniquely inside the selected snapshot | **UNKNOWN structural fact → DEGRADED** | Never rebind by display name or best guess. Do not publish a complete diagram. |
 | Relation source/provenance cannot be established | **UNKNOWN relation fact → DEGRADED** | Do not present it as definitively physical or virtual and do not publish a complete diagram. |
-| Cardinality/optionality without uniqueness/nullability evidence | **UNKNOWN** | Do not claim a Mermaid cardinality as database truth. Connectivity may still be complete if the renderer uses a representation that does not fabricate cardinality. |
+| Cardinality/optionality required by Mermaid but not proven | **UNKNOWN structural fact → DEGRADED** | The maintained Mermaid `erDiagram` renderer has no unknown-cardinality edge form. Do not fabricate a marker, silently omit the known relation, or publish a complete diagram. |
 
 ### Cardinality rule
 
@@ -99,9 +99,22 @@ Current code renders every relation as `||--o{`. The current relation model does
 sufficient uniqueness/nullability evidence to prove that semantic claim. Therefore
 `||--o{` is **legacy rendering behavior, not an approved product-fidelity contract**.
 
-Tracks #35 and #36 must either derive a Mermaid cardinality only when the required facts are
-known or choose an output representation that does not fabricate cardinality. They may not
-re-label the legacy marker as “good enough” connectivity.
+Tracks #35 and #36 must derive Mermaid cardinality only when the required facts are known. The
+maintained Mermaid `erDiagram` grammar requires explicit cardinality on both relationship ends and
+does not provide an unknown-cardinality edge representation. Consequently, if a selected known
+relation lacks evidence for any required endpoint cardinality, the terminal Mermaid export outcome
+is **DEGRADED** and no diagram is published.
+
+This rule applies in particular to IDE/DataGrip virtual relations. Exact maintained-host evidence
+shows that the aggregate virtual-relation surface can establish relation/mapping facts without, by
+that fact alone, proving database referential-integrity or mandatory-parent semantics. Column
+nullability is a separate fact and must not be reinterpreted as proof that a virtual relationship is
+database-enforced. Until a maintained host supplies the missing semantic evidence, virtual relation
+facts remain representable in the semantic graph but are not promoted to a fabricated complete
+Mermaid edge.
+
+A future truthful representation or stronger maintained-host evidence may widen this rule only
+through another explicit product-contract amendment.
 
 ## Determinism and identity
 

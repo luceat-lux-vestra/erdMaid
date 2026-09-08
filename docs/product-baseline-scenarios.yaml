@@ -198,7 +198,7 @@ scenarios:
         - the omission is policy, not evidence that no FK exists
 
   - id: physical-and-virtual-relation-provenance
-    purpose: Prevent IDE virtual relations from becoming indistinguishable from database FKs.
+    purpose: Preserve provenance while failing closed when a virtual relation cannot supply required Mermaid cardinality.
     selection:
       origins: [ds-a]
       objects:
@@ -207,12 +207,34 @@ scenarios:
     facts:
       relations:
         - {provenance: physical, name: fk_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
-        - {provenance: virtual, name: ide_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+        - {provenance: virtual, name: ide_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id], parents_per_child_minimum_state: unavailable}
     obligations:
-      outcome: complete
+      outcome: degraded
       assertions:
-        - physical and virtual provenance remain representable as distinct facts
+        - physical and virtual provenance remain representable as distinct semantic facts
         - de-duplication does not erase provenance merely because mappings match
+        - no default Mermaid cardinality is assigned to the virtual relation
+        - the complete diagram is not published to the clipboard
+        - the terminal diagnostic identifies unavailable virtual-relation cardinality
+
+  - id: virtual-relation-cardinality-unavailable
+    purpose: Prove a virtual relation alone cannot become a plausible complete Mermaid edge when required endpoint cardinality is unknown.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: sales, name: orders}
+        - {kind: table, schema: sales, name: users}
+    facts:
+      relations:
+        - {provenance: virtual, name: ide_orders_users, child: orders, child_columns: [user_id], parent: users, parent_columns: [id], parents_per_child_minimum_state: unavailable}
+    obligations:
+      outcome: degraded
+      assertions:
+        - the virtual relation endpoints, mappings, and provenance remain semantic facts
+        - unavailable minimum cardinality is not converted to zero or one
+        - no `||--o{` or other fallback relationship marker is fabricated
+        - no diagram is published to the clipboard
+        - the terminal diagnostic identifies unavailable virtual-relation cardinality
 
   - id: structural-metadata-read-failure
     purpose: Block plausible output when keys or relation truth cannot be established.
