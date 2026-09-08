@@ -31,7 +31,7 @@ class DataGripApiInventoryTests(unittest.TestCase):
 
     def _anchor_entries(self) -> dict[str, bytes]:
         entries = {class_entry(fqcn): b"class-bytes" for fqcn in EXACT_ANCHOR_CLASSES}
-        entries["com/intellij/database/relation/ModelRelationProvider.class"] = (
+        entries["org/jetbrains/database/relation/ModelRelationProvider.class"] = (
             b"class-bytes ApiStatus$Internal"
         )
         return entries
@@ -65,14 +65,14 @@ class DataGripApiInventoryTests(unittest.TestCase):
             )
             self.assertEqual("unique-simple-name", provider["resolution"])
             self.assertEqual(
-                "com.intellij.database.relation.ModelRelationProvider",
+                "org.jetbrains.database.relation.ModelRelationProvider",
                 provider["class"],
             )
             self.assertTrue(provider["markers"]["containsApiStatusInternalMarker"])
             candidate_classes = [item["class"] for item in inventory["candidateClasses"]]
             self.assertIn("com.intellij.database.model.VirtualRelation", candidate_classes)
             self.assertIn("com.intellij.database.model.ZForeignKeyImpl", candidate_classes)
-            self.assertIn(provider["class"], candidate_classes)
+            self.assertNotIn(provider["class"], candidate_classes)
 
     def test_missing_exact_anchor_fails_closed_with_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -97,13 +97,13 @@ class DataGripApiInventoryTests(unittest.TestCase):
             with self.assertRaisesRegex(InventoryError, "found 2"):
                 collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
 
-    def test_discovered_anchor_can_live_in_an_unknown_package(self) -> None:
+    def test_discovered_anchor_can_live_outside_com_intellij_database(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             ide = self._ide(Path(temp))
             entries = self._anchor_entries()
-            provider_entry = "com/intellij/database/relation/ModelRelationProvider.class"
+            provider_entry = "org/jetbrains/database/relation/ModelRelationProvider.class"
             entries.pop(provider_entry)
-            entries["com/intellij/database/unknown/ModelRelationProvider.class"] = b"provider"
+            entries["vendor/private/api/ModelRelationProvider.class"] = b"provider"
             _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
             inventory = collect_inventory(
                 ide,
@@ -115,7 +115,7 @@ class DataGripApiInventoryTests(unittest.TestCase):
                 if item["class"].endswith(".ModelRelationProvider")
             )
             self.assertEqual(
-                "com.intellij.database.unknown.ModelRelationProvider",
+                "vendor.private.api.ModelRelationProvider",
                 provider["class"],
             )
 
@@ -123,7 +123,7 @@ class DataGripApiInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ide = self._ide(Path(temp))
             entries = self._anchor_entries()
-            entries.pop("com/intellij/database/relation/ModelRelationProvider.class")
+            entries.pop("org/jetbrains/database/relation/ModelRelationProvider.class")
             _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
             with self.assertRaisesRegex(InventoryError, "simple name ModelRelationProvider.*found 0"):
                 collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
@@ -131,7 +131,7 @@ class DataGripApiInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ide = self._ide(Path(temp))
             entries = self._anchor_entries()
-            entries["com/intellij/database/other/ModelRelationProvider.class"] = b"duplicate"
+            entries["another/package/ModelRelationProvider.class"] = b"duplicate"
             _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
             with self.assertRaisesRegex(InventoryError, "simple name ModelRelationProvider.*found 2"):
                 collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
