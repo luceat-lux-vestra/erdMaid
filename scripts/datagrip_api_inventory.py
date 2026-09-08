@@ -20,8 +20,9 @@ EXACT_ANCHOR_CLASSES = (
 )
 
 # JetBrains' extension-point documentation exposes this implementation/interface simple name but
-# does not publish a stable FQCN. Discover it from the exact maintained binary and require exactly
-# one definition rather than baking an unverified package assumption into the evidence gate.
+# does not publish a stable FQCN. Discover it by simple name across every class in the exact
+# DatabaseTools binary set. Do not assume it lives under com.intellij.database.* merely because
+# the extension-point id does.
 DISCOVERED_ANCHOR_SIMPLE_NAMES = (
     "ModelRelationProvider",
 )
@@ -130,7 +131,7 @@ def collect_inventory(
                         marker_bytes[(fqcn, relative_jar)] = archive.read(entry)
 
                 for entry in names:
-                    if not entry.startswith(DATABASE_CLASS_PREFIX) or not entry.endswith(".class"):
+                    if not entry.endswith(".class"):
                         continue
                     simple_name = _entry_simple_name(entry)
                     if simple_name in discovered_anchors:
