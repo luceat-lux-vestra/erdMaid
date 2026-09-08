@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""Deterministic binary API inventory for the pinned DataGrip relation surface."""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+from typing import Callable
+
+# These FQCNs are already compile-time consumers in, or canonical model types used by, erdMaid.
+EXACT_ANCHOR_CLASSES = (
+    "com.intellij.database.model.ModelRelationManager",
+    "com.intellij.database.model.DasForeignKey",
+    "com.intellij.database.model.DasColumn",
+    "com.intellij.database.model.DasTable",
+)
+
+# JetBrains' extension-point documentation exposes this implementation/interface simple name but
+# does not publish a stable FQCN. Discover it from the exact maintained binary and require exactly
+# one definition rather than baking an unverified package assumption into the evidence gate.
+DISCOVERED_ANCHOR_SIMPLE_NAMES = (
+    "ModelRelationProvider",
+)
+
+DATABASE_CLASS_PREFIX = "com/intellij/database/"
+RELATION_CANDIDATE = re.compile(r"(?:relation|foreign.?key)", re.IGNORECASE)
+API_MARKERS = {
+    "containsApiStatusInternalMarker": b"ApiStatus$Internal",
+    "containsApiStatusExperimentalMarker": b"ApiStatus$Experimental",
+    "containsApiStatusObsoleteMarker": b"ApiStatus$Obsolete",
+    "containsDeprecatedMarker": b"java/lang/Deprecated",
+}
+
+
+class InventoryError(RuntimeError):
+    """The maintained relation API surface could not be inventoried exactly."""
+
+
+def class_entry(fqcn: str) -> str:
+    return fqcn.replace(".", "/") + ".class"
+
+
+def _database_tools_jars(ide_home: Path) -> list[Path]:
+    root = ide_home.resolve()
+    plugin_lib = (root / "plugins" / "DatabaseTools" / "lib").resolve()
+    if not plugin_lib.is_dir() or not plugin_lib.is_relative_to(root):
+        raise InventoryError(
+            f"Expected DatabaseTools lib directory under pinned IDE: {plugin_lib}"
+        )
+    jars = sorted(path for path in plugin_lib.rglob("*.jar") if path.is_file())
+    if not jars:
+        raise InventoryError(f"No DatabaseTools jars found under {plugin_lib}")
+    for jar in jars:
+        resolved = jar.resolve()
+        if not resolved.is_relative_to(root):
+            raise InventoryError(f"DatabaseTools jar escapes IDE root: {jar}")
+    return jars
+
+
+def _entry_is_candidate(entry: str) -> bool:
+    if not entry.startswith(DATABASE_CLASS_PREFIX) or not entry.endswith(".class"):
+        return False
+    simple = entry.rsplit("/", 1)[-1]
+    return RELATION_CANDIDATE.search(simple) is not None
+
+
+def _entry_simple_name(entry: str) -> str:
+    return entry.rsplit("/", 1)[-1][:-6]
+
+
+def _fqcn(entry: str) -> str:
+    return entry[:-6].replace("/", ".")
+
+
+def _default_javap_runner(jar: Path, fqcn: str) -> str:
+    javap = shutil.which("javap")
+    if javap is None:
+        raise InventoryError("javap executable is not available")
+    completed = subprocess.run(
+        [javap, "-protected", "-s", "-classpath", str(jar), fqcn],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise InventoryError(
+            f"javap failed for {fqcn} in {jar}: exit={completed.returncode}: {detail}"
+        )
+    signature = completed.stdout.strip()
+    if not signature:
+        raise InventoryError(f"javap produced empty output for {fqcn} in {jar}")
+    return signature
+
+
+def _candidate_summary(candidates: dict[str, set[str]]) -> str:
+    names = sorted(candidates)
+    if not names:
+        return "<none>"
+    return ",".join(names)
+
+
+def collect_inventory(
+    ide_home: Path,
+    *,
+    javap_runner: Callable[[Path, str], str] = _default_javap_runner,
+) -> dict[str, object]:
+    root = ide_home.resolve()
+    jars = _database_tools_jars(root)
+    exact_anchors = {fqcn: [] for fqcn in EXACT_ANCHOR_CLASSES}
+    discovered_anchors = {name: [] for name in DISCOVERED_ANCHOR_SIMPLE_NAMES}
+    candidates: dict[str, set[str]] = {}
+    marker_bytes: dict[tuple[str, str], bytes] = {}
+
+    for jar in jars:
+        relative_jar = jar.resolve().relative_to(root).as_posix()
+        try:
+            with zipfile.ZipFile(jar) as archive:
+                names = archive.namelist()
+                name_set = set(names)
+
+                for fqcn in EXACT_ANCHOR_CLASSES:
+                    entry = class_entry(fqcn)
+                    if entry in name_set:
+                        exact_anchors[fqcn].append((fqcn, jar, relative_jar, entry))
+                        marker_bytes[(fqcn, relative_jar)] = archive.read(entry)
+
+                for entry in names:
+                    if not entry.startswith(DATABASE_CLASS_PREFIX) or not entry.endswith(".class"):
+                        continue
+                    simple_name = _entry_simple_name(entry)
+                    if simple_name in discovered_anchors:
+                        fqcn = _fqcn(entry)
+                        discovered_anchors[simple_name].append(
+                            (fqcn, jar, relative_jar, entry)
+                        )
+                        marker_bytes[(fqcn, relative_jar)] = archive.read(entry)
+                    if _entry_is_candidate(entry):
+                        candidates.setdefault(_fqcn(entry), set()).add(relative_jar)
+        except (OSError, KeyError, zipfile.BadZipFile) as exc:
+            raise InventoryError(f"Could not inspect DatabaseTools jar {jar}: {exc}") from exc
+
+    resolved: list[tuple[str, Path, str, str, str]] = []
+    for fqcn in EXACT_ANCHOR_CLASSES:
+        locations = exact_anchors[fqcn]
+        if len(locations) != 1:
+            raise InventoryError(
+                f"Expected exactly one {fqcn} class in DatabaseTools jars, found {len(locations)}; "
+                f"relation-candidates={_candidate_summary(candidates)}"
+            )
+        anchor_fqcn, jar, relative_jar, entry = locations[0]
+        resolved.append(("exact-fqcn", jar, relative_jar, entry, anchor_fqcn))
+
+    for simple_name in DISCOVERED_ANCHOR_SIMPLE_NAMES:
+        locations = discovered_anchors[simple_name]
+        if len(locations) != 1:
+            raise InventoryError(
+                f"Expected exactly one class with simple name {simple_name} in DatabaseTools jars, "
+                f"found {len(locations)}; relation-candidates={_candidate_summary(candidates)}"
+            )
+        anchor_fqcn, jar, relative_jar, entry = locations[0]
+        resolved.append(("unique-simple-name", jar, relative_jar, entry, anchor_fqcn))
+
+    anchor_output: list[dict[str, object]] = []
+    for resolution, jar, relative_jar, entry, fqcn in resolved:
+        class_bytes = marker_bytes[(fqcn, relative_jar)]
+        markers = {
+            name: marker in class_bytes
+            for name, marker in sorted(API_MARKERS.items())
+        }
+        anchor_output.append(
+            {
+                "class": fqcn,
+                "entry": entry,
+                "jar": relative_jar,
+                "resolution": resolution,
+                "markers": markers,
+                "javapProtectedSignature": javap_runner(jar, fqcn),
+            }
+        )
+
+    candidate_output = [
+        {
+            "class": fqcn,
+            "jars": sorted(jars_for_class),
+        }
+        for fqcn, jars_for_class in sorted(candidates.items())
+    ]
+
+    return {
+        "scope": "pinned-DataGrip-DatabaseTools-binary-relation-surface",
+        "anchors": anchor_output,
+        "candidateClasses": candidate_output,
+        "candidateClassCount": len(candidate_output),
+    }
+
+
+def write_inventory(path: Path, inventory: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(inventory, indent=2, sort_keys=True, ensure_ascii=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def render_log(inventory: dict[str, object]) -> str:
+    lines = [
+        "Pinned DataGrip relation API inventory:",
+        f"candidateClassCount={inventory['candidateClassCount']}",
+    ]
+    for anchor in inventory["anchors"]:
+        assert isinstance(anchor, dict)
+        lines.append(
+            f"ANCHOR {anchor['class']} @ {anchor['jar']} resolution={anchor['resolution']}"
+        )
+        markers = anchor["markers"]
+        assert isinstance(markers, dict)
+        lines.append(
+            "MARKERS "
+            + " ".join(
+                f"{name}={str(value).lower()}"
+                for name, value in sorted(markers.items())
+            )
+        )
+        lines.append(str(anchor["javapProtectedSignature"]))
+    lines.append("CANDIDATE_CLASSES")
+    for candidate in inventory["candidateClasses"]:
+        assert isinstance(candidate, dict)
+        lines.append(
+            f"{candidate['class']} @ {','.join(candidate['jars'])}"
+        )
+    return "\n".join(lines)

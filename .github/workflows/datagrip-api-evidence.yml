@@ -1,0 +1,70 @@
+# Exact binary API evidence for the maintained DataGrip relation surface.
+#
+# This is deliberately not a required merge context: the repository's required
+# Build/Test/Verify/Workflow Security contexts remain authoritative. This
+# workflow is a bounded evidence probe for Track #37 and only runs when its
+# evidence machinery changes.
+name: DataGrip API Evidence
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/datagrip-api-evidence.yml'
+      - 'scripts/datagrip_api_evidence.py'
+      - 'scripts/datagrip_api_inventory.py'
+      - 'scripts/test_datagrip_api_inventory.py'
+      - 'scripts/datagrip_verifier.py'
+  pull_request:
+    paths:
+      - '.github/workflows/datagrip-api-evidence.yml'
+      - 'scripts/datagrip_api_evidence.py'
+      - 'scripts/datagrip_api_inventory.py'
+      - 'scripts/test_datagrip_api_inventory.py'
+      - 'scripts/datagrip_verifier.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  relation-api-evidence:
+    name: DataGrip Relation API Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          large-packages: true
+
+      - name: Fetch Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Check API inventory negative controls
+        run: python3 scripts/test_datagrip_api_inventory.py
+
+      - name: Collect exact DataGrip relation API evidence
+        run: python3 scripts/datagrip_api_evidence.py
+
+      - name: Upload API evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: datagrip-api-evidence
+          path: build/reports/datagripApiEvidence
+          if-no-files-found: warn
