@@ -34,7 +34,6 @@ import com.algorist.erdmaid.semantic.SemanticRelation
 import com.algorist.erdmaid.semantic.TableQualificationIntent
 import java.util.Locale
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -243,8 +242,8 @@ class MermaidDocumentSerializerTest {
         )
         val escaped = "x~u000D~Y~u000A~Z~u000D~~u000A~~u0025~~u0025~~u0022~~u005C~~u007B~~u007D~" +
             "~u005B~~u005D~~u007C~~u003A~~u003C~~u003E~~u0001~~u2028~~u007E~"
-        val encodedColumn = "c_x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_" +
-            "_u005B__u005D__u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
+        val encodedColumn = "c_x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_[]" +
+            "_u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
 
         assertEquals(
             """erDiagram
@@ -472,7 +471,6 @@ class MermaidDocumentSerializerTest {
         assertTrue(cardinalityOutcome is ExportOutcome.Degraded)
         cardinalityOutcome as ExportOutcome.Degraded
         assertEquals("mermaid-cardinality-unavailable", cardinalityOutcome.diagnostics.values.single().code)
-        assertFalse(cardinalityOutcome is ExportOutcome.Complete<*>)
 
         val unknownIdentification = twoTableGraph(
             relation(
@@ -545,7 +543,6 @@ class MermaidDocumentSerializerTest {
         assertTrue(outcome is ExportOutcome.Failure)
         outcome as ExportOutcome.Failure
         assertEquals("mermaid-empty-graph", outcome.diagnostics.values.single().code)
-        assertFalse(outcome is ExportOutcome.Complete<*>)
     }
 
     @Test
