@@ -8,7 +8,6 @@ import zipfile
 from pathlib import Path
 
 from datagrip_api_inventory import (
-    DISCOVERED_ANCHOR_SIMPLE_NAMES,
     EXACT_ANCHOR_CLASSES,
     InventoryError,
     class_entry,
@@ -30,13 +29,16 @@ class DataGripApiInventoryTests(unittest.TestCase):
         return ide
 
     def _anchor_entries(self) -> dict[str, bytes]:
-        entries = {class_entry(fqcn): b"class-bytes" for fqcn in EXACT_ANCHOR_CLASSES}
-        entries["org/jetbrains/database/relation/ModelRelationProvider.class"] = (
-            b"class-bytes ApiStatus$Internal"
-        )
-        return entries
+        return {
+            class_entry(fqcn): (
+                b"class-bytes ApiStatus$Internal"
+                if fqcn.endswith("$ModelRelationProvider")
+                else b"class-bytes"
+            )
+            for fqcn in EXACT_ANCHOR_CLASSES
+        }
 
-    def test_unique_exact_and_discovered_anchors_are_deterministic(self) -> None:
+    def test_unique_exact_anchors_are_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             ide = self._ide(Path(temp))
             entries = self._anchor_entries()
@@ -54,25 +56,22 @@ class DataGripApiInventoryTests(unittest.TestCase):
                 javap_runner=lambda jar, fqcn: f"signature:{fqcn}",
             )
 
-            self.assertEqual(
-                len(EXACT_ANCHOR_CLASSES) + len(DISCOVERED_ANCHOR_SIMPLE_NAMES),
-                len(inventory["anchors"]),
-            )
+            self.assertEqual(len(EXACT_ANCHOR_CLASSES), len(inventory["anchors"]))
             provider = next(
                 item
                 for item in inventory["anchors"]
-                if item["class"].endswith(".ModelRelationProvider")
+                if item["class"].endswith("$ModelRelationProvider")
             )
-            self.assertEqual("unique-simple-name", provider["resolution"])
+            self.assertEqual("exact-fqcn", provider["resolution"])
             self.assertEqual(
-                "org.jetbrains.database.relation.ModelRelationProvider",
+                "com.intellij.database.model.ModelRelationManager$ModelRelationProvider",
                 provider["class"],
             )
             self.assertTrue(provider["markers"]["containsApiStatusInternalMarker"])
             candidate_classes = [item["class"] for item in inventory["candidateClasses"]]
             self.assertIn("com.intellij.database.model.VirtualRelation", candidate_classes)
             self.assertIn("com.intellij.database.model.ZForeignKeyImpl", candidate_classes)
-            self.assertNotIn(provider["class"], candidate_classes)
+            self.assertIn(provider["class"], candidate_classes)
 
     def test_missing_exact_anchor_fails_closed_with_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -97,43 +96,15 @@ class DataGripApiInventoryTests(unittest.TestCase):
             with self.assertRaisesRegex(InventoryError, "found 2"):
                 collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
 
-    def test_discovered_anchor_can_live_outside_com_intellij_database(self) -> None:
+    def test_nested_provider_exact_name_is_not_replaced_by_top_level_guess(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             ide = self._ide(Path(temp))
             entries = self._anchor_entries()
-            provider_entry = "org/jetbrains/database/relation/ModelRelationProvider.class"
-            entries.pop(provider_entry)
-            entries["vendor/private/api/ModelRelationProvider.class"] = b"provider"
+            nested = "com.intellij.database.model.ModelRelationManager$ModelRelationProvider"
+            entries.pop(class_entry(nested))
+            entries[class_entry("com.intellij.database.model.ModelRelationProvider")] = b"wrong"
             _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
-            inventory = collect_inventory(
-                ide,
-                javap_runner=lambda jar, fqcn: f"signature:{fqcn}",
-            )
-            provider = next(
-                item
-                for item in inventory["anchors"]
-                if item["class"].endswith(".ModelRelationProvider")
-            )
-            self.assertEqual(
-                "vendor.private.api.ModelRelationProvider",
-                provider["class"],
-            )
-
-    def test_missing_or_duplicate_discovered_anchor_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            ide = self._ide(Path(temp))
-            entries = self._anchor_entries()
-            entries.pop("org/jetbrains/database/relation/ModelRelationProvider.class")
-            _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
-            with self.assertRaisesRegex(InventoryError, "simple name ModelRelationProvider.*found 0"):
-                collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
-
-        with tempfile.TemporaryDirectory() as temp:
-            ide = self._ide(Path(temp))
-            entries = self._anchor_entries()
-            entries["another/package/ModelRelationProvider.class"] = b"duplicate"
-            _write_jar(ide / "plugins" / "DatabaseTools" / "lib" / "database.jar", entries)
-            with self.assertRaisesRegex(InventoryError, "simple name ModelRelationProvider.*found 2"):
+            with self.assertRaisesRegex(InventoryError, "ModelRelationManager\\$ModelRelationProvider.*found 0"):
                 collect_inventory(ide, javap_runner=lambda jar, fqcn: f"signature:{fqcn}")
 
     def test_corrupt_jar_and_javap_failure_fail_closed(self) -> None:
