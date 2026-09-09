@@ -80,6 +80,21 @@ class DatabaseSelectionBoundaryTest {
     }
 
     @Test
+    fun `distinct live table objects with the same display identity are never deduplicated`() {
+        val source = source("one", 4L)
+        val first = table(source)
+        val second = table(source)
+
+        val result = JetBrainsDatabaseHost.classifyExpandedSelection(listOf(first, second))
+
+        assertTrue(result is ExportOutcome.Complete)
+        result as ExportOutcome.Complete
+        assertEquals(2, result.value.tables.size)
+        assertTrue(result.value.tables[0] === first)
+        assertTrue(result.value.tables[1] === second)
+    }
+
+    @Test
     fun `same origin changing during selection capture degrades`() {
         val first = table(source("one", 4L))
         val second = table(source("one", 5L))
