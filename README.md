@@ -45,17 +45,19 @@ Output details:
 - Mermaid relationship end markers are compiled from proven multiplicity bounds. Unknown required bounds produce a degraded unpublished result rather than a guessed edge.
 - Identifying and non-identifying relationships use Mermaid's `--` and `..` connectors when that semantic fact is established.
 
-Requirements:
+Maintained host evidence is limited to these exact targets and evidence classes:
 
-- IntelliJ IDEA Ultimate or DataGrip with database tooling. Maintained claims are limited to the exact evidence targets documented below.
-- A database connection whose required table metadata is available in the Database tool window.
+- IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337`: compile/test runtime and exact DatabaseTools Host API Inventory.
+- IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`: Plugin Verifier binary compatibility only; full runtime/Host API Inventory is unverified.
+- DataGrip 2026.2.4 / `DB-262.10315.24`: Plugin Verifier binary compatibility and exact DatabaseTools Host API Inventory; live GUI/database-tool-window integration runtime is unverified.
+
+A database connection whose required table metadata is available in the Database tool window is required. No broader IntelliJ/DataGrip product or version support is implied by plugin descriptor load eligibility.
 
 Notes:
 
 - `classDiagram` is intentionally not supported.
 - Views and other non-table objects are unsupported export targets.
 - Cross-datasource and mixed supported/unsupported selections fail closed instead of being silently filtered.
-- Descriptor load eligibility is not a support guarantee for unverified products or versions.
 <!-- Plugin description end -->
 
 ## Usage
