@@ -41,7 +41,11 @@ def validate_commit(commit: str) -> str:
 
 
 def _safe_names(names: list[str], *, label: str) -> None:
+    seen: set[str] = set()
     for name in names:
+        if name in seen:
+            raise CandidateError(f"{label} contains duplicate path {name!r}")
+        seen.add(name)
         path = Path(name)
         if name.startswith("/") or "\\" in name or ".." in path.parts:
             raise CandidateError(f"{label} contains unsafe path {name!r}")
@@ -140,6 +144,10 @@ def inspect_archive(
     if idea_version is None or idea_version.attrib.get("since-build") != "262":
         observed = None if idea_version is None else idea_version.attrib.get("since-build")
         raise CandidateError(f"packaged since-build mismatch: expected '262', got {observed!r}")
+    if idea_version.attrib.get("until-build") is not None:
+        raise CandidateError(
+            f"packaged until-build must remain absent, got {idea_version.attrib.get('until-build')!r}"
+        )
 
     digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     return {
