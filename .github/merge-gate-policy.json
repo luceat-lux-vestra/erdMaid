@@ -1,7 +1,7 @@
 {
   "$comment": "Required PR contexts for erdMaid. Keep this file synchronized with workflow job names.",
   "version": 1,
-  "repository": "luceat-lux-vestra/erdMaid-private",
+  "repository": "luceat-lux-vestra/erdMaid",
   "protected_branch": "main",
   "required": [
     {
