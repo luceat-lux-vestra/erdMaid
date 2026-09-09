@@ -14,6 +14,7 @@ import marketplace_candidate as candidate
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "marketplace-candidate.yml"
+GRADLE_PROPERTIES = REPOSITORY_ROOT / "gradle.properties"
 
 
 class MarketplaceCandidateTest(unittest.TestCase):
@@ -44,11 +45,17 @@ class MarketplaceCandidateTest(unittest.TestCase):
                 with self.assertRaises(candidate.CandidateError):
                     candidate.validate_commit(value)
 
-    def test_first_upload_workflow_is_manual_read_only_non_publishing_and_secret_free(self):
+    def test_first_upload_workflow_has_only_manual_trigger_and_no_secrets(self):
         text = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("on:\n  workflow_dispatch:\n", text)
-        for forbidden_trigger in ("\n  push:", "\n  pull_request:", "\n  schedule:"):
-            self.assertNotIn(forbidden_trigger, text)
+        lines = text.splitlines()
+        on_index = lines.index("on:")
+        triggers: list[str] = []
+        for line in lines[on_index + 1 :]:
+            if line and not line.startswith(" "):
+                break
+            if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+                triggers.append(line.strip()[:-1])
+        self.assertEqual(["workflow_dispatch"], triggers)
         self.assertIn("permissions:\n  contents: read\n", text)
         self.assertNotIn("secrets.", text)
         self.assertNotIn("PUBLISH_TOKEN", text)
@@ -58,6 +65,20 @@ class MarketplaceCandidateTest(unittest.TestCase):
         self.assertIn('if [ "$GITHUB_REF" != "refs/heads/main" ]; then', text)
         self.assertIn("persist-credentials: false", text)
 
+    def test_repository_source_url_matches_marketplace_contract(self):
+        properties: dict[str, str] = {}
+        for raw_line in GRADLE_PROPERTIES.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            properties[key.strip()] = value.strip()
+        self.assertEqual(candidate.EXPECTED_SOURCE_URL, properties.get("pluginRepositoryUrl"))
+
+    def test_duplicate_archive_entries_are_rejected(self):
+        with self.assertRaises(candidate.CandidateError):
+            candidate._safe_names(["same", "same"], label="fixture")
+
     def _archive(
         self,
         root: Path,
@@ -66,6 +87,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
         plugin_id: str = candidate.EXPECTED_PLUGIN_ID,
         vendor: str = candidate.EXPECTED_VENDOR,
         since_build: str = "262",
+        until_build: str | None = None,
         license_bytes: bytes = b"license\n",
         product_descriptor: bool = False,
         archive_name: str | None = None,
@@ -73,12 +95,13 @@ class MarketplaceCandidateTest(unittest.TestCase):
         license_path = root / "LICENSE"
         license_path.write_bytes(b"license\n")
         product = '<product-descriptor code="NOPE"/>\n' if product_descriptor else ""
+        until = f' until-build="{until_build}"' if until_build is not None else ""
         plugin_xml = f"""<idea-plugin>
   <id>{plugin_id}</id>
   <name>erdMaid</name>
   <version>{version}</version>
   <vendor>{vendor}</vendor>
-  <idea-version since-build="{since_build}"/>
+  <idea-version since-build="{since_build}"{until}/>
   {product}
 </idea-plugin>
 """.encode()
@@ -109,11 +132,12 @@ class MarketplaceCandidateTest(unittest.TestCase):
             self.assertIs(False, evidence["authorSigned"])
             self.assertEqual(64, len(evidence["archiveSha256"]))
 
-    def test_wrong_identity_version_license_and_paid_descriptor_fail_closed(self):
+    def test_wrong_identity_version_license_bounds_and_paid_descriptor_fail_closed(self):
         cases = (
             {"plugin_id": "wrong.id"},
             {"vendor": "wrong"},
             {"since_build": "263"},
+            {"until_build": "262.*"},
             {"license_bytes": b"drifted\n"},
             {"product_descriptor": True},
             {"archive_name": "erdMaid-1.2.3-signed.zip"},
