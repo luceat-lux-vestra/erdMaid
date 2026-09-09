@@ -12,6 +12,10 @@ from pathlib import Path
 import marketplace_candidate as candidate
 
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+CANDIDATE_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "marketplace-candidate.yml"
+
+
 class MarketplaceCandidateTest(unittest.TestCase):
     def test_stable_semver_accepts_only_three_numeric_components(self):
         for version in ("0.1.0", "1.0.0", "10.20.30"):
@@ -39,6 +43,20 @@ class MarketplaceCandidateTest(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(candidate.CandidateError):
                     candidate.validate_commit(value)
+
+    def test_first_upload_workflow_is_manual_read_only_and_non_publishing(self):
+        text = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("on:\n  workflow_dispatch:\n", text)
+        for forbidden_trigger in ("\n  push:", "\n  pull_request:", "\n  schedule:"):
+            self.assertNotIn(forbidden_trigger, text)
+        self.assertIn("permissions:\n  contents: read\n", text)
+        self.assertNotIn("PUBLISH_TOKEN", text)
+        self.assertNotIn("publishPlugin", text)
+        self.assertIn('if [ "$GITHUB_REF" != "refs/heads/main" ]; then', text)
+        self.assertIn("persist-credentials: false", text)
+        for secret in ("CERTIFICATE_CHAIN", "PRIVATE_KEY", "PRIVATE_KEY_PASSWORD"):
+            self.assertIn(f"secrets.{secret}", text)
+        self.assertIn("./gradlew signPlugin verifyPluginSignature", text)
 
     def _archive(
         self,
