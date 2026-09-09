@@ -7,8 +7,8 @@ It does not widen the plugin's maintained IDE support claims; those remain defin
 ## First-publication rule
 
 The first JetBrains Marketplace publication is **manual**. Do not use `publishPlugin` for the first
-upload. The repository's `Marketplace Candidate` workflow prepares and verifies a signed ZIP but has
-no Marketplace publishing token and cannot upload it.
+upload. The repository's `Marketplace Candidate` workflow prepares and verifies the exact ZIP for
+manual upload, but it has no Marketplace publishing credential and cannot upload it.
 
 The initial upload must use:
 
@@ -31,14 +31,11 @@ Run `Marketplace Candidate` manually **from `main`** and provide an explicit sta
 `MAJOR.MINOR.PATCH` form. Development timestamp versions are not release versions and are rejected.
 The workflow refuses non-`main` refs and records the exact `GITHUB_SHA` in its evidence manifest.
 
-The workflow requires these GitHub Actions secrets for signing:
-
-- `CERTIFICATE_CHAIN`
-- `PRIVATE_KEY`
-- `PRIVATE_KEY_PASSWORD`
-
-Signing material must never be committed, uploaded as a plain artifact, printed, or copied into issue
-or PR text. `PUBLISH_TOKEN` is intentionally not used by the first-publication workflow.
+The bootstrap intentionally has no repository or Marketplace secrets. Author-side plugin signing is
+not required for the first Marketplace upload and is not part of this boundary. JetBrains
+Marketplace performs its own signing in the publication/delivery pipeline. If erdMaid later adopts
+an author-signing key lifecycle, that is a separate trust-boundary change requiring independent
+review and recovery evidence.
 
 Before producing the manual-upload artifact, the workflow:
 
@@ -47,20 +44,20 @@ Before producing the manual-upload artifact, the workflow:
 3. runs the repository test gate;
 4. runs the maintained IntelliJ IDEA Plugin Verifier gate;
 5. runs the separately pinned DataGrip verifier gate;
-6. signs the plugin and verifies the resulting signature;
-7. inspects the signed ZIP and nested plugin JAR;
-8. requires the packaged `META-INF/LICENSE` to be byte-identical to root `LICENSE`;
-9. verifies plugin ID, version, vendor, `since-build`, and absence of a paid product descriptor;
-10. emits `build/reports/marketplace-candidate.json` with the exact commit and ZIP SHA-256.
+6. inspects the generated ZIP and nested plugin JAR;
+7. requires packaged `META-INF/LICENSE` to be byte-identical to root `LICENSE`;
+8. verifies plugin ID, version, vendor, `since-build`, and absence of a paid product descriptor;
+9. emits `build/reports/marketplace-candidate.json` with exact commit, ZIP SHA-256,
+   `authorSigned=false`, license/source/channel, and Hidden metadata.
 
-The uploaded Actions artifact contains the signed ZIP, candidate manifest, and verifier reports. It is
-preparation evidence only; artifact creation is not Marketplace publication evidence.
+The uploaded Actions artifact contains the candidate ZIP, candidate manifest, and verifier reports.
+It is preparation evidence only; artifact creation is not Marketplace publication evidence.
 
 ## Manual Marketplace bootstrap
 
 After a candidate workflow run is proven PASS from its raw logs:
 
-1. use the signed ZIP whose SHA-256 matches `marketplace-candidate.json`;
+1. use the ZIP whose SHA-256 matches `marketplace-candidate.json`;
 2. sign in to JetBrains Marketplace using the intended Vendor profile and satisfy the Marketplace
    Developer Agreement requirements;
 3. upload the ZIP as a new plugin manually;
@@ -78,5 +75,6 @@ sufficient authority, its state is UNVERIFIED and #51 remains open.
 Automated Marketplace updates are intentionally out of scope for the first upload. Only after the
 approved listing exists and its identity has been verified may a separate PR establish a publishing
 trust boundary using a permanent Marketplace token. That later change must be separately reviewed
-for least privilege, exact-ref guards, secret handling, signing, channels, failure recovery, and
-proof that repository credentials cannot be used to mutate source/release state unexpectedly.
+for least privilege, exact-ref guards, secret handling, optional author signing if adopted, channels,
+failure recovery, and proof that repository credentials cannot be used to mutate source/release
+state unexpectedly.
