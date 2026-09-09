@@ -115,6 +115,15 @@ jobs:
       - name: Run Tests
         run: python3 scripts/gradle_check_gate.py check
 
+      - name: Show large-workload proof evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== large-selection ==='
+          cat build/reports/proof/large-selection.txt
+          echo '=== large-selection-cancelled ==='
+          cat build/reports/proof/large-selection-cancelled.txt
+
       # #79 grammar evidence is CI-only. The plugin runtime and Gradle graph do
       # not depend on Node/npm/Mermaid. The exact published Mermaid package is
       # downloaded only after production fixture binding has passed above; its

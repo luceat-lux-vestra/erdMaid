@@ -6,6 +6,7 @@ import com.algorist.erdmaid.core.Evidence
 import com.algorist.erdmaid.core.ExportOutcome
 import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.TableId
+import com.algorist.erdmaid.core.WorkCheckpoint
 import com.algorist.erdmaid.semantic.ErdGraph
 import com.algorist.erdmaid.semantic.ErdGraphRelation
 import com.algorist.erdmaid.semantic.ErdGraphTable
@@ -50,13 +51,20 @@ data class MermaidTokenSet(
  */
 object MermaidTokenCompiler {
 
-    fun compile(graph: ErdGraph): ExportOutcome<MermaidTokenSet> {
+    fun compile(graph: ErdGraph): ExportOutcome<MermaidTokenSet> =
+        compile(graph, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        graph: ErdGraph,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<MermaidTokenSet> {
         val entities = ArrayList<MermaidEntityToken>(graph.tables.size)
         val byTable = LinkedHashMap<TableId, MermaidEntityToken>(graph.tables.size)
         val idOwners = LinkedHashMap<String, TableId>(graph.tables.size)
         val aliasOwners = LinkedHashMap<String, TableId>(graph.tables.size)
 
         for (table in graph.tables) {
+            checkpoint.check()
             val token = entityToken(table)
             val priorIdOwner = idOwners.putIfAbsent(token.id, token.tableId)
             if (priorIdOwner != null && priorIdOwner != token.tableId) {
@@ -78,6 +86,7 @@ object MermaidTokenCompiler {
 
         val relationships = ArrayList<MermaidRelationshipToken>(graph.relations.size)
         for (relation in graph.relations) {
+            checkpoint.check()
             val semantic = relation.relation.relation
             val parent = byTable.getValue(semantic.parentTable)
             val child = byTable.getValue(semantic.childTable)

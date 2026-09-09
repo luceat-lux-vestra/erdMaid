@@ -10,6 +10,7 @@ import com.algorist.erdmaid.core.OptionalValue
 import com.algorist.erdmaid.core.RelationProvenance
 import com.algorist.erdmaid.core.SchemaSnapshot
 import com.algorist.erdmaid.core.TableId
+import com.algorist.erdmaid.core.WorkCheckpoint
 
 /** Exact child/parent column pair after the referenced table has been authoritatively resolved. */
 data class ResolvedForeignKeyColumnMapping(
@@ -48,11 +49,19 @@ data class SemanticRelation(
  */
 object RelationSemanticCompiler {
 
-    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<SemanticRelation>> {
+    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<SemanticRelation>> =
+        compile(snapshot, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        snapshot: SchemaSnapshot,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<FrozenList<SemanticRelation>> {
+        checkpoint.check()
         val selectedTables = snapshot.tables.associateBy { it.id }
         val resolved = ArrayList<SemanticRelation>()
 
         for (childTable in snapshot.tables) {
+            checkpoint.check()
             val foreignKeys = when (val evidence = childTable.foreignKeys) {
                 is Evidence.Known -> evidence.value
                 is Evidence.Unavailable -> return degraded(
@@ -62,6 +71,7 @@ object RelationSemanticCompiler {
             }
 
             for (foreignKey in foreignKeys) {
+                checkpoint.check()
                 val parentOrigin = when (val evidence = foreignKey.referencedTable.origin) {
                     is Evidence.Known -> evidence.value
                     is Evidence.Unavailable -> return endpointUnavailable(
@@ -124,6 +134,7 @@ object RelationSemanticCompiler {
 
                 val resolvedMappings = ArrayList<ResolvedForeignKeyColumnMapping>(sourceMappings.size)
                 for (mapping in sourceMappings) {
+                    checkpoint.check()
                     val parentColumn = parentTable.columns.singleOrNull {
                         it.id.name == mapping.referencedColumnName
                     } ?: return degraded("relation-parent-column-missing")
@@ -144,21 +155,24 @@ object RelationSemanticCompiler {
             }
         }
 
-        return canonicalizeRelations(resolved)
+        return canonicalizeRelations(resolved, checkpoint)
     }
 
     private fun canonicalizeRelations(
         relations: List<SemanticRelation>,
+        checkpoint: WorkCheckpoint,
     ): ExportOutcome<FrozenList<SemanticRelation>> {
         if (relations.isEmpty()) {
             return ExportOutcome.Complete(FrozenList.copyOf(relations))
         }
 
+        checkpoint.check()
         val ordered = relations.sortedWith(relationComparator)
         val canonical = ArrayList<SemanticRelation>(ordered.size)
         var groupStart = 0
 
         while (groupStart < ordered.size) {
+            checkpoint.check()
             var groupEnd = groupStart + 1
             while (
                 groupEnd < ordered.size &&
@@ -183,6 +197,7 @@ object RelationSemanticCompiler {
 
             var previousName: String? = null
             for (relation in group) {
+                checkpoint.check()
                 val relationName = (relation.name as OptionalValue.Present).value
                 if (previousName != relationName) {
                     canonical += relation

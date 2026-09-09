@@ -6,6 +6,7 @@ import com.algorist.erdmaid.core.Evidence
 import com.algorist.erdmaid.core.ExportOutcome
 import com.algorist.erdmaid.core.OptionalValue
 import com.algorist.erdmaid.core.RelationProvenance
+import com.algorist.erdmaid.core.WorkCheckpoint
 import com.algorist.erdmaid.semantic.ErdGraph
 import com.algorist.erdmaid.semantic.RelationIdentification
 
@@ -26,12 +27,19 @@ object MermaidDocumentSerializer {
     fun serialize(
         graph: ErdGraph,
         options: MermaidDocumentOptions = MermaidDocumentOptions(),
+    ): ExportOutcome<String> = serialize(graph, options, WorkCheckpoint.NONE)
+
+    internal fun serialize(
+        graph: ErdGraph,
+        options: MermaidDocumentOptions,
+        checkpoint: WorkCheckpoint,
     ): ExportOutcome<String> {
+        checkpoint.check()
         if (graph.tables.isEmpty()) {
             return failure("mermaid-empty-graph")
         }
 
-        val tokens = when (val outcome = MermaidTokenCompiler.compile(graph)) {
+        val tokens = when (val outcome = MermaidTokenCompiler.compile(graph, checkpoint)) {
             is ExportOutcome.Complete -> outcome.value
             ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
@@ -39,7 +47,7 @@ object MermaidDocumentSerializer {
             is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
             ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
         }
-        val attributes = when (val outcome = MermaidAttributeCompiler.compile(graph)) {
+        val attributes = when (val outcome = MermaidAttributeCompiler.compile(graph, checkpoint)) {
             is ExportOutcome.Complete -> outcome.value
             ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
@@ -55,11 +63,13 @@ object MermaidDocumentSerializer {
             return failure("mermaid-renderer-relation-token-mismatch")
         }
 
+        checkpoint.check()
         val graphTablesById = graph.tables.associateBy { it.snapshot.id }
         val attributesByTable = attributes.entities.associateBy { it.tableId }
 
         val document = StringBuilder("erDiagram\n")
         for (entity in tokens.entities) {
+            checkpoint.check()
             val table = graphTablesById[entity.tableId]
                 ?: return failure("mermaid-renderer-entity-token-mismatch", entity.id)
             val entityAttributes = attributesByTable[entity.tableId]
@@ -88,6 +98,7 @@ object MermaidDocumentSerializer {
             document.append(entity.alias)
             document.append("\"] {\n")
             for (attribute in entityAttributes.columns) {
+                checkpoint.check()
                 document.append("        ")
                 document.append(attribute.type)
                 document.append(' ')
@@ -106,6 +117,7 @@ object MermaidDocumentSerializer {
         }
 
         for (relationship in tokens.relationships) {
+            checkpoint.check()
             val relation = relationship.relation.relation.relation
 
             if (options.includeColumnReferences) {
@@ -113,6 +125,7 @@ object MermaidDocumentSerializer {
                 document.append(provenanceLabel(relation.provenance))
                 document.append(' ')
                 relation.mappings.forEachIndexed { index, mapping ->
+                    checkpoint.check()
                     if (index > 0) document.append(", ")
                     document.append(relationship.childEntityId)
                     document.append('.')

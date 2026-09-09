@@ -8,6 +8,7 @@ import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.OptionalValue
 import com.algorist.erdmaid.core.SchemaSnapshot
 import com.algorist.erdmaid.core.TableSnapshot
+import com.algorist.erdmaid.core.WorkCheckpoint
 
 enum class RelationTupleNullability {
     ALL_NON_NULL,
@@ -50,10 +51,16 @@ data class ConstrainedSemanticRelation(
  */
 object RelationConstraintCompiler {
 
-    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<ConstrainedSemanticRelation>> {
-        val relations = RelationSemanticCompiler.compile(snapshot)
+    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<ConstrainedSemanticRelation>> =
+        compile(snapshot, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        snapshot: SchemaSnapshot,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<FrozenList<ConstrainedSemanticRelation>> {
+        val relations = RelationSemanticCompiler.compile(snapshot, checkpoint)
         return when (relations) {
-            is ExportOutcome.Complete -> enrich(snapshot, relations.value)
+            is ExportOutcome.Complete -> enrich(snapshot, relations.value, checkpoint)
             ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(relations.diagnostics)
             is ExportOutcome.Unsupported -> ExportOutcome.Unsupported(relations.diagnostics)
@@ -65,11 +72,14 @@ object RelationConstraintCompiler {
     private fun enrich(
         snapshot: SchemaSnapshot,
         relations: FrozenList<SemanticRelation>,
+        checkpoint: WorkCheckpoint,
     ): ExportOutcome<FrozenList<ConstrainedSemanticRelation>> {
+        checkpoint.check()
         val tables = snapshot.tables.associateBy { it.id }
         val constrained = ArrayList<ConstrainedSemanticRelation>(relations.size)
 
         for (relation in relations) {
+            checkpoint.check()
             val childTable = tables[relation.childTable]
                 ?: return failure("relation-constraint-child-table-missing")
             val parentTable = tables[relation.parentTable]
@@ -81,7 +91,7 @@ object RelationConstraintCompiler {
             constrained += ConstrainedSemanticRelation(
                 relation = relation,
                 constraints = RelationConstraintEvidence(
-                    childNullability = deriveChildNullability(childTable, childColumns),
+                    childNullability = deriveChildNullability(childTable, childColumns, checkpoint),
                     childUniqueness = deriveTupleUniqueness(
                         table = childTable,
                         tupleColumns = childColumns,
@@ -102,11 +112,13 @@ object RelationConstraintCompiler {
     private fun deriveChildNullability(
         table: TableSnapshot,
         tupleColumns: List<ColumnId>,
+        checkpoint: WorkCheckpoint,
     ): Evidence<RelationTupleNullability> {
         val columns = table.columns.associateBy { it.id }
         val unavailable = ArrayList<String>()
 
         for (columnId in tupleColumns) {
+            checkpoint.check()
             val column = columns[columnId]
                 ?: return Evidence.Unavailable(
                     CoreDiagnostic(
