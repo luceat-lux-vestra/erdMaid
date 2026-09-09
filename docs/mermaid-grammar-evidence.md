@@ -11,16 +11,18 @@ The maintained evidence target is Mermaid `11.17.2`.
 - release commit: `dcb694ddb58dc5ad3502e7e903cac05fd812eac3`
 - ER grammar source at that commit: `packages/mermaid/src/diagrams/er/parser/erDiagram.jison`
 - evidence package: `mermaid@11.17.2`
+- package integrity: `sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==`
+- integrity provenance: Mermaid's official `mermaid-js/mermaid-live-editor` lockfile records that integrity for `mermaid@11.17.2`
 - parser bundle: `dist/mermaid.esm.min.mjs` from that published package
 
-The CI evidence path uses `npm pack` only: it downloads the exact published Mermaid package tarball, extracts it, and imports the already-built ESM distribution. It does not run `npm install` or resolve Mermaid's declared dependency graph into this repository. Mermaid's release build bundles the non-core ESM distribution and its split chunks into `dist/`, which is part of the published package.
+The CI evidence path uses `npm pack` only: it downloads the exact published Mermaid package tarball, recomputes SHA-512 over those bytes and requires the pinned integrity above, then extracts and imports the already-built ESM distribution. It does not run `npm install` or resolve Mermaid's declared dependency graph into this repository. Mermaid's release build bundles the non-core ESM distribution and its split chunks into `dist/`, which is part of the published package.
 
 ## Proof chain
 
 The required `Test` context owns both halves of the proof.
 
 1. `MermaidGrammarFixtureBindingTest` serializes semantic graphs through the production `MermaidDocumentSerializer` and requires byte-for-byte equality with the checked-in `production-*.mmd` fixtures.
-2. The same `Test` job fetches the exact `mermaid@11.17.2` package with `npm pack`, asserts package identity/version, and runs `scripts/verify_mermaid_grammar.mjs` against its published ESM bundle.
+2. The same `Test` job fetches the exact `mermaid@11.17.2` package with `npm pack`, recomputes and checks its pinned package integrity, asserts package identity/version, and runs `scripts/verify_mermaid_grammar.mjs` against its published ESM bundle.
 3. The script parses every checked-in `.mmd` fixture with Mermaid's public `parse()` API and requires `diagramType=er`.
 4. A deliberately invalid ER document must return `false` under `suppressErrors`; otherwise the evidence fails. This negative control prevents a missing/no-op parser from being mistaken for acceptance.
 5. The script owns an exact fixture manifest. Adding or removing an `.mmd` file without updating the evidence script fails closed.
@@ -62,4 +64,4 @@ It does **not** prove:
 - syntax that the serializer cannot emit;
 - browser-specific rendering behavior.
 
-Any serializer syntax change, fixture-manifest change, or Mermaid evidence-version change invalidates the previous proof and requires the binding test and parser evidence to pass again on the exact final PR HEAD and post-merge `main`.
+Any serializer syntax change, fixture-manifest change, or Mermaid evidence-version/integrity change invalidates the previous proof and requires the binding test and parser evidence to pass again on the exact final PR HEAD and post-merge `main`.

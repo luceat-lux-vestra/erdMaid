@@ -127,6 +127,7 @@ jobs:
       - name: Verify Mermaid 11.17.2 grammar evidence
         env:
           MERMAID_VERSION: 11.17.2
+          MERMAID_INTEGRITY: sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==
         run: |
           set -euo pipefail
           EVIDENCE_ROOT="$RUNNER_TEMP/mermaid-grammar"
@@ -134,7 +135,14 @@ jobs:
           mkdir -p "$EVIDENCE_ROOT"
           PACKAGE_FILE=$(npm pack --silent --ignore-scripts --pack-destination "$EVIDENCE_ROOT" "mermaid@${MERMAID_VERSION}")
           test -n "$PACKAGE_FILE"
-          tar -xzf "$EVIDENCE_ROOT/$PACKAGE_FILE" -C "$EVIDENCE_ROOT"
+          PACKAGE_PATH="$EVIDENCE_ROOT/$PACKAGE_FILE"
+          ACTUAL_INTEGRITY="sha512-$(node -e 'const fs=require("node:fs"); const crypto=require("node:crypto"); const data=fs.readFileSync(process.argv[1]); process.stdout.write(crypto.createHash("sha512").update(data).digest("base64"));' "$PACKAGE_PATH")"
+          if [ "$ACTUAL_INTEGRITY" != "$MERMAID_INTEGRITY" ]; then
+            echo "::error::Mermaid package integrity mismatch: expected $MERMAID_INTEGRITY, observed $ACTUAL_INTEGRITY"
+            exit 1
+          fi
+          echo "Mermaid package integrity OK: $ACTUAL_INTEGRITY"
+          tar -xzf "$PACKAGE_PATH" -C "$EVIDENCE_ROOT"
           node scripts/verify_mermaid_grammar.mjs \
             "$EVIDENCE_ROOT/package" \
             "$GITHUB_WORKSPACE/src/test/resources/mermaid"
