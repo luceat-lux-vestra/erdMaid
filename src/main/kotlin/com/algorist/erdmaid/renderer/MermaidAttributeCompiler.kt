@@ -170,14 +170,21 @@ object MermaidAttributeCompiler {
         }
     }
 
+    /**
+     * Mermaid 11.17.2's ER block lexer classifies non-whitespace text containing `~...~` as an
+     * attribute word before it can be recognized as a quoted COMMENT token. Quoted attribute
+     * comments therefore use `_uXXXX_` escapes and never emit `~`; literal `_` is escaped too so
+     * the representation remains injective instead of colliding with source text that resembles
+     * an escape sequence.
+     */
     internal fun encodeComment(value: String): String = buildString {
         var index = 0
         while (index < value.length) {
             val codePoint = value.codePointAt(index)
             if (isUnsafeCommentCodePoint(codePoint)) {
-                append("~u")
+                append("_u")
                 appendCodePointHex(codePoint)
-                append('~')
+                append('_')
             } else {
                 appendCodePointValue(codePoint)
             }
@@ -254,6 +261,7 @@ object MermaidAttributeCompiler {
 
     private val HEX = "0123456789ABCDEF".toCharArray()
     private val UNSAFE_COMMENT_ASCII = setOf(
+        '_'.code,
         '~'.code,
         '"'.code,
         '\\'.code,

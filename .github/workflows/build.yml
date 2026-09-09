@@ -115,6 +115,38 @@ jobs:
       - name: Run Tests
         run: python3 scripts/gradle_check_gate.py check
 
+      # #79 grammar evidence is CI-only. The plugin runtime and Gradle graph do
+      # not depend on Node/npm/Mermaid. The exact published Mermaid package is
+      # downloaded only after production fixture binding has passed above; its
+      # prebuilt ESM parser bundle is executed directly without npm install.
+      - name: Setup Node for Mermaid grammar evidence
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.9.0'
+
+      - name: Verify Mermaid 11.17.2 grammar evidence
+        env:
+          MERMAID_VERSION: 11.17.2
+          MERMAID_INTEGRITY: sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==
+        run: |
+          set -euo pipefail
+          EVIDENCE_ROOT="$RUNNER_TEMP/mermaid-grammar"
+          rm -rf "$EVIDENCE_ROOT"
+          mkdir -p "$EVIDENCE_ROOT"
+          PACKAGE_FILE=$(npm pack --silent --ignore-scripts --pack-destination "$EVIDENCE_ROOT" "mermaid@${MERMAID_VERSION}")
+          test -n "$PACKAGE_FILE"
+          PACKAGE_PATH="$EVIDENCE_ROOT/$PACKAGE_FILE"
+          ACTUAL_INTEGRITY="sha512-$(node -e 'const fs=require("node:fs"); const crypto=require("node:crypto"); const data=fs.readFileSync(process.argv[1]); process.stdout.write(crypto.createHash("sha512").update(data).digest("base64"));' "$PACKAGE_PATH")"
+          if [ "$ACTUAL_INTEGRITY" != "$MERMAID_INTEGRITY" ]; then
+            echo "::error::Mermaid package integrity mismatch: expected $MERMAID_INTEGRITY, observed $ACTUAL_INTEGRITY"
+            exit 1
+          fi
+          echo "Mermaid package integrity OK: $ACTUAL_INTEGRITY"
+          tar -xzf "$PACKAGE_PATH" -C "$EVIDENCE_ROOT"
+          node scripts/verify_mermaid_grammar.mjs \
+            "$EVIDENCE_ROOT/package" \
+            "$GITHUB_WORKSPACE/src/test/resources/mermaid"
+
       - name: Collect Tests Result
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

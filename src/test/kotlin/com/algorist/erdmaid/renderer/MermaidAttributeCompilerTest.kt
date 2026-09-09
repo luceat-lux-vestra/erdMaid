@@ -179,6 +179,23 @@ class MermaidAttributeCompilerTest {
     }
 
     @Test
+    fun `comment escape is injective and never emits Mermaid tilde word syntax`() {
+        assertEquals(
+            "safe_u005F__u007E__u0022_",
+            MermaidAttributeCompiler.encodeComment("safe_~\""),
+        )
+        assertEquals(
+            "_u005F_u0022_u005F_",
+            MermaidAttributeCompiler.encodeComment("_u0022_"),
+        )
+        assertNotEquals(
+            MermaidAttributeCompiler.encodeComment("_u0022_"),
+            MermaidAttributeCompiler.encodeComment("\""),
+        )
+        assertTrue('~' !in MermaidAttributeCompiler.encodeComment("~unsafe~"))
+    }
+
+    @Test
     fun `hostile column name and comment cannot create Mermaid structure while Unicode stays readable`() {
         val id = tableId("Users")
         val hostileName = "사용자 id\r\n%%{}[]|:<>_"
@@ -202,10 +219,15 @@ class MermaidAttributeCompilerTest {
                 "_u007C__u003A__u003C__u003E__u005F_",
             token.name,
         )
+        assertEquals(
+            "설명_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D__u005B__u005D_" +
+                "_u007C__u003A__u003C__u003E__u0001__u2028_",
+            token.comment,
+        )
         assertTrue(token.name.none { it == '\r' || it == '\n' || it == '%' || it == '|' || it == ':' || it == '<' || it == '>' })
         assertTrue(token.comment!!.startsWith("설명"))
         assertTrue("\r" !in token.comment!! && "\n" !in token.comment!! && "%%" !in token.comment!! && "\"" !in token.comment!!)
-        assertTrue("{" !in token.comment!! && "}" !in token.comment!! && "|" !in token.comment!!)
+        assertTrue("{" !in token.comment!! && "}" !in token.comment!! && "|" !in token.comment!! && "~" !in token.comment!!)
     }
 
     @Test
