@@ -321,10 +321,12 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - Scheduled repository-drift checks fail when required live policy cannot be verified; lack of
   evidence is not success.
 - Issue #99 owns the separately approved first-distribution boundary. `Marketplace Candidate` may
-  prepare and sign an exact-main release ZIP, but it has read-only repository permissions, has no
-  `PUBLISH_TOKEN`, and must never call `publishPlugin`; the first Marketplace upload remains manual.
+  prepare and verify an exact-main release ZIP, but it has read-only repository permissions, has no
+  repository or Marketplace secrets, and must never call `publishPlugin`; the first Marketplace
+  upload remains manual.
 - Automated Marketplace publishing is not authorized until an approved listing exists and a later,
-  separately reviewed trust-boundary change proves token scope, signing, ref guards, and recovery.
+  separately reviewed trust-boundary change proves token scope, optional author signing if adopted,
+  ref guards, and recovery.
 - Issue #51 (project license selection) is separate repository/distribution hygiene and does not
   change architecture proof obligations.
 
