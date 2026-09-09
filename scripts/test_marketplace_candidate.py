@@ -44,19 +44,19 @@ class MarketplaceCandidateTest(unittest.TestCase):
                 with self.assertRaises(candidate.CandidateError):
                     candidate.validate_commit(value)
 
-    def test_first_upload_workflow_is_manual_read_only_and_non_publishing(self):
+    def test_first_upload_workflow_is_manual_read_only_non_publishing_and_secret_free(self):
         text = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("on:\n  workflow_dispatch:\n", text)
         for forbidden_trigger in ("\n  push:", "\n  pull_request:", "\n  schedule:"):
             self.assertNotIn(forbidden_trigger, text)
         self.assertIn("permissions:\n  contents: read\n", text)
+        self.assertNotIn("secrets.", text)
         self.assertNotIn("PUBLISH_TOKEN", text)
         self.assertNotIn("publishPlugin", text)
+        self.assertNotIn("signPlugin", text)
+        self.assertNotIn("verifyPluginSignature", text)
         self.assertIn('if [ "$GITHUB_REF" != "refs/heads/main" ]; then', text)
         self.assertIn("persist-credentials: false", text)
-        for secret in ("CERTIFICATE_CHAIN", "PRIVATE_KEY", "PRIVATE_KEY_PASSWORD"):
-            self.assertIn(f"secrets.{secret}", text)
-        self.assertIn("./gradlew signPlugin verifyPluginSignature", text)
 
     def _archive(
         self,
@@ -86,12 +86,12 @@ class MarketplaceCandidateTest(unittest.TestCase):
         with zipfile.ZipFile(jar_buffer, "w") as jar:
             jar.writestr("META-INF/plugin.xml", plugin_xml)
             jar.writestr("META-INF/LICENSE", license_bytes)
-        path = root / (archive_name or f"erdMaid-{version}-signed.zip")
+        path = root / (archive_name or f"erdMaid-{version}.zip")
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr(f"erdMaid/lib/erdMaid-{version}.jar", jar_buffer.getvalue())
         return path, license_path
 
-    def test_valid_signed_archive_produces_fixed_marketplace_metadata(self):
+    def test_valid_archive_produces_fixed_marketplace_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             archive, license_path = self._archive(root)
@@ -106,6 +106,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
             self.assertEqual(candidate.EXPECTED_LICENSE, evidence["license"])
             self.assertEqual("default", evidence["releaseChannel"])
             self.assertIs(True, evidence["hiddenInitialUpload"])
+            self.assertIs(False, evidence["authorSigned"])
             self.assertEqual(64, len(evidence["archiveSha256"]))
 
     def test_wrong_identity_version_license_and_paid_descriptor_fail_closed(self):
@@ -115,7 +116,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
             {"since_build": "263"},
             {"license_bytes": b"drifted\n"},
             {"product_descriptor": True},
-            {"archive_name": "erdMaid-1.2.3.zip"},
+            {"archive_name": "erdMaid-1.2.3-signed.zip"},
         )
         for kwargs in cases:
             with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temp:
@@ -135,7 +136,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
             archive, license_path = self._archive(
                 root,
                 version="2.0.0",
-                archive_name="erdMaid-1.2.3-signed.zip",
+                archive_name="erdMaid-1.2.3.zip",
             )
             with self.assertRaises(candidate.CandidateError):
                 candidate.inspect_archive(
@@ -150,7 +151,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
             root = Path(temp)
             license_path = root / "LICENSE"
             license_path.write_text("license\n", encoding="utf-8")
-            path = root / "erdMaid-1.2.3-signed.zip"
+            path = root / "erdMaid-1.2.3.zip"
             with zipfile.ZipFile(path, "w") as archive:
                 archive.writestr("../escape.jar", b"not-a-jar")
             with self.assertRaises(candidate.CandidateError):
