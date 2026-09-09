@@ -3,7 +3,8 @@
 # This workflow is intentionally NOT a publishing workflow. JetBrains requires
 # the first Marketplace publication to be uploaded manually, where license,
 # source-code URL, vendor/profile, and Hidden state are established. There is
-# deliberately no PUBLISH_TOKEN and no publishPlugin invocation here.
+# deliberately no Marketplace upload credential or Gradle publishing-task
+# invocation here.
 
 name: Marketplace Candidate
 
