@@ -1,0 +1,12 @@
+erDiagram
+    e_v6F_n_n_v41["A"] {
+        t_INT c_id PK ""
+    }
+    e_v6F_n_n_v42["B"] {
+        t_INT c_parent_u005F_id
+    }
+    e_v6F_n_n_v41 ||--|| e_v6F_n_n_v42 : "physical:one-one"
+    e_v6F_n_n_v41 |o..o| e_v6F_n_n_v42 : "physical:zero-one"
+    e_v6F_n_n_v41 }|--|{ e_v6F_n_n_v42 : "physical:one-many"
+    e_v6F_n_n_v41 }o..o{ e_v6F_n_n_v42 : "physical:zero-many"
+    e_v6F_n_n_v41 ||..o{ e_v6F_n_n_v42 : "physical:"

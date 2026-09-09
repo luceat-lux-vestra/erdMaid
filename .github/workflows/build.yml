@@ -115,6 +115,30 @@ jobs:
       - name: Run Tests
         run: python3 scripts/gradle_check_gate.py check
 
+      # #79 grammar evidence is CI-only. The plugin runtime and Gradle graph do
+      # not depend on Node/npm/Mermaid. The exact published Mermaid package is
+      # downloaded only after production fixture binding has passed above; its
+      # prebuilt ESM parser bundle is executed directly without npm install.
+      - name: Setup Node for Mermaid grammar evidence
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.9.0'
+
+      - name: Verify Mermaid 11.17.2 grammar evidence
+        env:
+          MERMAID_VERSION: 11.17.2
+        run: |
+          set -euo pipefail
+          EVIDENCE_ROOT="$RUNNER_TEMP/mermaid-grammar"
+          rm -rf "$EVIDENCE_ROOT"
+          mkdir -p "$EVIDENCE_ROOT"
+          PACKAGE_FILE=$(npm pack --silent --ignore-scripts --pack-destination "$EVIDENCE_ROOT" "mermaid@${MERMAID_VERSION}")
+          test -n "$PACKAGE_FILE"
+          tar -xzf "$EVIDENCE_ROOT/$PACKAGE_FILE" -C "$EVIDENCE_ROOT"
+          node scripts/verify_mermaid_grammar.mjs \
+            "$EVIDENCE_ROOT/package" \
+            "$GITHUB_WORKSPACE/src/test/resources/mermaid"
+
       - name: Collect Tests Result
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
