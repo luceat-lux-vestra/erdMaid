@@ -242,6 +242,8 @@ class MermaidDocumentSerializerTest {
         )
         val escaped = "x~u000D~Y~u000A~Z~u000D~~u000A~~u0025~~u0025~~u0022~~u005C~~u007B~~u007D~" +
             "~u005B~~u005D~~u007C~~u003A~~u003C~~u003E~~u0001~~u2028~~u007E~"
+        val attributeComment = "x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_" +
+            "_u005B__u005D__u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
         val encodedColumn = "c_x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_[]" +
             "_u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
 
@@ -249,7 +251,7 @@ class MermaidDocumentSerializerTest {
             """erDiagram
     %% table-comment: $escaped
     $parentId["A"] {
-        t_INT c_id PK "$escaped"
+        t_INT c_id PK "$attributeComment"
     }
     $childId["B"] {
         t_INT $encodedColumn
