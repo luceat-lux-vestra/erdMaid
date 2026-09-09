@@ -36,11 +36,14 @@ class CoreDiagnostics private constructor(
  * Terminal export vocabulary shared by the pure pipeline and host orchestration.
  *
  * [Complete] is deliberately the only variant that can carry a non-null publishable payload.
- * Under the current product contract, degraded/unsupported/failed/cancelled work cannot carry
+ * [NoExport] is a successful UI state with intentionally no export payload, used for cases such as
+ * a legitimate empty selection. Degraded/unsupported/failed/cancelled/no-export work cannot carry
  * partial output to clipboard publication accidentally.
  */
 sealed interface ExportOutcome<out T : Any> {
     data class Complete<T : Any>(val value: T) : ExportOutcome<T>
+
+    data object NoExport : ExportOutcome<Nothing>
 
     data class Degraded(val diagnostics: CoreDiagnostics) : ExportOutcome<Nothing>
 

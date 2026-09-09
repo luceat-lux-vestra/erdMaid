@@ -70,6 +70,7 @@ object ErdGraphCompiler {
                     relations = relations.value,
                 )
             )
+            ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(relations.diagnostics)
             is ExportOutcome.Unsupported -> ExportOutcome.Unsupported(relations.diagnostics)
             is ExportOutcome.Failure -> ExportOutcome.Failure(relations.diagnostics)

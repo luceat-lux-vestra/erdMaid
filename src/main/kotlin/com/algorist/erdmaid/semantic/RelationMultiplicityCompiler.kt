@@ -57,6 +57,7 @@ object RelationMultiplicityCompiler {
             is ExportOutcome.Complete -> ExportOutcome.Complete(
                 FrozenList.copyOf(constrained.value.map(::enrich))
             )
+            ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(constrained.diagnostics)
             is ExportOutcome.Unsupported -> ExportOutcome.Unsupported(constrained.diagnostics)
             is ExportOutcome.Failure -> ExportOutcome.Failure(constrained.diagnostics)
