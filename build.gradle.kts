@@ -98,6 +98,15 @@ changelog {
 }
 
 tasks {
+    // Apache-2.0 object-form distribution must carry the license text. Keep one
+    // canonical root LICENSE and copy it into the plugin JAR at build time so
+    // Marketplace/local-install ZIPs cannot drift from repository licensing.
+    processResources {
+        from(rootProject.file("LICENSE")) {
+            into("META-INF")
+        }
+    }
+
     publishPlugin {
         dependsOn(patchChangelog)
     }
