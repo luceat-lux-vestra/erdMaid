@@ -1,0 +1,125 @@
+# Manual preparation of the first JetBrains Marketplace upload artifact.
+#
+# This workflow is intentionally NOT a publishing workflow. JetBrains requires
+# the first Marketplace publication to be uploaded manually, where license,
+# source-code URL, vendor/profile, and Hidden state are established. There is
+# deliberately no PUBLISH_TOKEN and no publishPlugin invocation here.
+
+name: Marketplace Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable SemVer release version (MAJOR.MINOR.PATCH)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketplace-candidate
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Prepare Marketplace candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      ORG_GRADLE_PROJECT_buildVersion: ${{ inputs.version }}
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          large-packages: true
+
+      - name: Fetch Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate candidate identity and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/marketplace_candidate.py validate-version "$RELEASE_VERSION"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Marketplace candidates may only be prepared from refs/heads/main; got $GITHUB_REF"
+            exit 1
+          fi
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "$ACTUAL_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::Checked-out SHA does not match workflow SHA."
+            exit 1
+          fi
+          echo "candidate_sha=$ACTUAL_SHA"
+
+      - name: Setup Java
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: true
+
+      - name: Build explicit-version plugin
+        run: ./gradlew buildPlugin
+
+      - name: Run tests
+        run: python3 scripts/gradle_check_gate.py check
+
+      - name: Verify IntelliJ IDEA compatibility
+        run: python3 scripts/gradle_check_gate.py verifyPlugin
+
+      - name: Verify DataGrip compatibility
+        run: python3 scripts/datagrip_verifier.py
+
+      - name: Require signing credentials and sign candidate
+        env:
+          CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in CERTIFICATE_CHAIN PRIVATE_KEY PRIVATE_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Required Marketplace signing secret is not configured: $name"
+              exit 1
+            fi
+          done
+          ./gradlew signPlugin verifyPluginSignature
+
+      - name: Inspect signed candidate and write manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGNED_ARCHIVE="build/distributions/erdMaid-${RELEASE_VERSION}-signed.zip"
+          python3 scripts/marketplace_candidate.py inspect \
+            --archive "$SIGNED_ARCHIVE" \
+            --version "$RELEASE_VERSION" \
+            --commit "$GITHUB_SHA" \
+            --output build/reports/marketplace-candidate.json
+          sha256sum "$SIGNED_ARCHIVE"
+          cat build/reports/marketplace-candidate.json
+
+      - name: Upload signed manual-upload candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: marketplace-candidate-${{ inputs.version }}-${{ github.sha }}
+          path: |
+            build/distributions/erdMaid-${{ inputs.version }}-signed.zip
+            build/reports/marketplace-candidate.json
+            build/reports/pluginVerifier
+            build/reports/pluginVerifierDataGrip
+          if-no-files-found: error
+          retention-days: 14
