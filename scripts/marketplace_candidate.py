@@ -78,10 +78,10 @@ def inspect_archive(
     commit = validate_commit(commit)
     if not archive_path.is_file():
         raise CandidateError(f"candidate archive does not exist: {archive_path}")
-    expected_name = f"erdMaid-{version}-signed.zip"
+    expected_name = f"erdMaid-{version}.zip"
     if archive_path.name != expected_name:
         raise CandidateError(
-            f"signed candidate filename mismatch: expected {expected_name!r}, got {archive_path.name!r}"
+            f"candidate filename mismatch: expected {expected_name!r}, got {archive_path.name!r}"
         )
 
     try:
@@ -145,6 +145,7 @@ def inspect_archive(
     return {
         "archive": archive_path.name,
         "archiveSha256": digest,
+        "authorSigned": False,
         "commit": commit,
         "hiddenInitialUpload": True,
         "license": EXPECTED_LICENSE,
