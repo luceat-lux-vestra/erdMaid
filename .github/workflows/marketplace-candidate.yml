@@ -3,8 +3,8 @@
 # This workflow is intentionally NOT a publishing workflow. JetBrains requires
 # the first Marketplace publication to be uploaded manually, where license,
 # source-code URL, vendor/profile, and Hidden state are established. There is
-# deliberately no Marketplace upload credential or Gradle publishing-task
-# invocation here.
+# deliberately no Marketplace upload credential, signing secret, or Gradle
+# publishing-task invocation here.
 
 name: Marketplace Candidate
 
@@ -84,41 +84,25 @@ jobs:
       - name: Verify DataGrip compatibility
         run: python3 scripts/datagrip_verifier.py
 
-      - name: Require signing credentials and sign candidate
-        env:
-          CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
-          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-          PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+      - name: Inspect candidate and write manifest
         shell: bash
         run: |
           set -euo pipefail
-          for name in CERTIFICATE_CHAIN PRIVATE_KEY PRIVATE_KEY_PASSWORD; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::Required Marketplace signing secret is not configured: $name"
-              exit 1
-            fi
-          done
-          ./gradlew signPlugin verifyPluginSignature
-
-      - name: Inspect signed candidate and write manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          SIGNED_ARCHIVE="build/distributions/erdMaid-${RELEASE_VERSION}-signed.zip"
+          CANDIDATE_ARCHIVE="build/distributions/erdMaid-${RELEASE_VERSION}.zip"
           python3 scripts/marketplace_candidate.py inspect \
-            --archive "$SIGNED_ARCHIVE" \
+            --archive "$CANDIDATE_ARCHIVE" \
             --version "$RELEASE_VERSION" \
             --commit "$GITHUB_SHA" \
             --output build/reports/marketplace-candidate.json
-          sha256sum "$SIGNED_ARCHIVE"
+          sha256sum "$CANDIDATE_ARCHIVE"
           cat build/reports/marketplace-candidate.json
 
-      - name: Upload signed manual-upload candidate
+      - name: Upload manual-upload candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: marketplace-candidate-${{ inputs.version }}-${{ github.sha }}
           path: |
-            build/distributions/erdMaid-${{ inputs.version }}-signed.zip
+            build/distributions/erdMaid-${{ inputs.version }}.zip
             build/reports/marketplace-candidate.json
             build/reports/pluginVerifier
             build/reports/pluginVerifierDataGrip
