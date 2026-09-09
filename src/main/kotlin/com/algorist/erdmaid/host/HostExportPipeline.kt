@@ -5,10 +5,13 @@ import com.algorist.erdmaid.core.CoreDiagnostics
 import com.algorist.erdmaid.core.ExportOutcome
 import com.algorist.erdmaid.core.OriginId
 import com.algorist.erdmaid.core.SchemaSnapshot
+import com.algorist.erdmaid.core.WorkCheckpoint
 import com.algorist.erdmaid.renderer.MermaidDocumentOptions
 import com.algorist.erdmaid.renderer.MermaidDocumentSerializer
 import com.algorist.erdmaid.semantic.ErdGraphCompiler
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Plain value proving which datasource model version supplied one immutable export snapshot. */
 data class HostFreshnessToken(
@@ -40,6 +43,21 @@ internal object HostExportPipeline {
         publish: suspend (String, HostFreshnessToken) -> ExportOutcome<Unit>,
         options: MermaidDocumentOptions = MermaidDocumentOptions(),
     ): ExportOutcome<Unit> {
+        val executionContext = currentCoroutineContext()
+        return execute(
+            capturedOutcome = capturedOutcome,
+            publish = publish,
+            options = options,
+            checkpoint = WorkCheckpoint { executionContext.ensureActive() },
+        )
+    }
+
+    internal suspend fun execute(
+        capturedOutcome: ExportOutcome<CapturedHostExport>,
+        publish: suspend (String, HostFreshnessToken) -> ExportOutcome<Unit>,
+        options: MermaidDocumentOptions,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<Unit> {
         val captured = when (val outcome = capturedOutcome) {
             is ExportOutcome.Complete -> outcome.value
             ExportOutcome.NoExport -> return ExportOutcome.NoExport
@@ -49,22 +67,36 @@ internal object HostExportPipeline {
             ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
         }
 
-        val graph = when (val outcome = ErdGraphCompiler.compile(captured.snapshot)) {
-            is ExportOutcome.Complete -> outcome.value
-            ExportOutcome.NoExport -> return ExportOutcome.NoExport
-            is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
-            is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
-            is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
-            ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
+        val graph = try {
+            when (val outcome = ErdGraphCompiler.compile(captured.snapshot, checkpoint)) {
+                is ExportOutcome.Complete -> outcome.value
+                ExportOutcome.NoExport -> return ExportOutcome.NoExport
+                is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
+                is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
+                is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
+                ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
+            }
+        } catch (_: CancellationException) {
+            return ExportOutcome.Cancelled
         }
 
-        val document = when (val outcome = MermaidDocumentSerializer.serialize(graph, options)) {
-            is ExportOutcome.Complete -> outcome.value
-            ExportOutcome.NoExport -> return ExportOutcome.NoExport
-            is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
-            is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
-            is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
-            ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
+        val document = try {
+            when (val outcome = MermaidDocumentSerializer.serialize(graph, options, checkpoint)) {
+                is ExportOutcome.Complete -> outcome.value
+                ExportOutcome.NoExport -> return ExportOutcome.NoExport
+                is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
+                is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
+                is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
+                ExportOutcome.Cancelled -> return ExportOutcome.Cancelled
+            }
+        } catch (_: CancellationException) {
+            return ExportOutcome.Cancelled
+        }
+
+        try {
+            checkpoint.check()
+        } catch (_: CancellationException) {
+            return ExportOutcome.Cancelled
         }
 
         if (document.isEmpty()) {

@@ -6,6 +6,7 @@ import com.algorist.erdmaid.core.ExportOutcome
 import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.RelationProvenance
 import com.algorist.erdmaid.core.SchemaSnapshot
+import com.algorist.erdmaid.core.WorkCheckpoint
 
 enum class RelationMultiplicityMinimum {
     ZERO,
@@ -51,12 +52,23 @@ data class MultiplicitySemanticRelation(
  */
 object RelationMultiplicityCompiler {
 
-    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<MultiplicitySemanticRelation>> {
-        val constrained = RelationConstraintCompiler.compile(snapshot)
+    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<MultiplicitySemanticRelation>> =
+        compile(snapshot, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        snapshot: SchemaSnapshot,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<FrozenList<MultiplicitySemanticRelation>> {
+        val constrained = RelationConstraintCompiler.compile(snapshot, checkpoint)
         return when (constrained) {
-            is ExportOutcome.Complete -> ExportOutcome.Complete(
-                FrozenList.copyOf(constrained.value.map(::enrich))
-            )
+            is ExportOutcome.Complete -> {
+                val result = ArrayList<MultiplicitySemanticRelation>(constrained.value.size)
+                for (relation in constrained.value) {
+                    checkpoint.check()
+                    result += enrich(relation)
+                }
+                ExportOutcome.Complete(FrozenList.copyOf(result))
+            }
             ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(constrained.diagnostics)
             is ExportOutcome.Unsupported -> ExportOutcome.Unsupported(constrained.diagnostics)

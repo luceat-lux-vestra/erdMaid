@@ -10,9 +10,8 @@ import org.junit.Test
  * Fail-closed traceability from the architecture-neutral product baseline to executable evidence.
  *
  * This does not replace the referenced tests. It prevents a scenario from silently becoming
- * unowned when the baseline or test suite changes. The two large-workload scenarios are
- * deliberately delegated to #93 and remain unproven for Track #38 until that task replaces the
- * delegation with executable scale/lifecycle evidence.
+ * unowned when the baseline or test suite changes. Every current baseline scenario is bound to an
+ * exact executable evidence marker; no #93 delegation remains after the large-workload proof.
  */
 class BaselineScenarioEvidenceTest {
 
@@ -36,7 +35,8 @@ class BaselineScenarioEvidenceTest {
                             owner.marker in text,
                         )
                     }
-                    is EvidenceOwner.Delegated -> assertEquals("#93", owner.issue)
+                    is EvidenceOwner.Delegated ->
+                        throw AssertionError("Scenario $scenarioId remains delegated to ${owner.issue}")
                 }
             }
         }
@@ -44,7 +44,7 @@ class BaselineScenarioEvidenceTest {
         val delegated = EVIDENCE
             .filterValues { owners -> owners.any { it is EvidenceOwner.Delegated } }
             .keys
-        assertEquals(setOf("large-selection", "large-selection-cancelled"), delegated)
+        assertTrue("No product baseline scenario may remain delegated", delegated.isEmpty())
     }
 
     private sealed interface EvidenceOwner {
@@ -59,6 +59,8 @@ class BaselineScenarioEvidenceTest {
             "src/test/kotlin/com/algorist/erdmaid/core/SchemaSnapshotTest.kt"
         private const val HOST =
             "src/test/kotlin/com/algorist/erdmaid/host/HostExportPipelineTest.kt"
+        private const val LARGE_HOST =
+            "src/test/kotlin/com/algorist/erdmaid/host/HostLargeWorkloadProofTest.kt"
         private const val SELECTION =
             "src/test/kotlin/com/algorist/erdmaid/host/DatabaseSelectionBoundaryTest.kt"
         private const val GRAPH =
@@ -168,8 +170,18 @@ class BaselineScenarioEvidenceTest {
                 test(SELECTION, "fun `group expansion success and platform failure are different outcomes`"),
                 test(HOST, "fun `non-complete capture outcomes never reach publication`"),
             ),
-            "large-selection" to listOf(EvidenceOwner.Delegated("#93")),
-            "large-selection-cancelled" to listOf(EvidenceOwner.Delegated("#93")),
+            "large-selection" to listOf(
+                test(
+                    LARGE_HOST,
+                    "fun `1000 x 40 and 3000 relations are deterministic with separate scale measurements`",
+                )
+            ),
+            "large-selection-cancelled" to listOf(
+                test(
+                    LARGE_HOST,
+                    "fun `large workload cancellation is observed during pure work and never publishes`",
+                )
+            ),
         )
     }
 }

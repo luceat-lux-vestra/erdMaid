@@ -6,6 +6,7 @@ import com.algorist.erdmaid.core.OriginId
 import com.algorist.erdmaid.core.SchemaSnapshot
 import com.algorist.erdmaid.core.TableId
 import com.algorist.erdmaid.core.TableSnapshot
+import com.algorist.erdmaid.core.WorkCheckpoint
 
 enum class TableQualificationIntent {
     UNQUALIFIED,
@@ -60,13 +61,20 @@ data class ErdGraph(
  */
 object ErdGraphCompiler {
 
-    fun compile(snapshot: SchemaSnapshot): ExportOutcome<ErdGraph> {
-        val relations = RelationIdentificationCompiler.compile(snapshot)
+    fun compile(snapshot: SchemaSnapshot): ExportOutcome<ErdGraph> =
+        compile(snapshot, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        snapshot: SchemaSnapshot,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<ErdGraph> {
+        checkpoint.check()
+        val relations = RelationIdentificationCompiler.compile(snapshot, checkpoint)
         return when (relations) {
             is ExportOutcome.Complete -> ExportOutcome.Complete(
                 ErdGraph(
                     origin = snapshot.origin,
-                    tables = graphTables(snapshot.tables),
+                    tables = graphTables(snapshot.tables, checkpoint),
                     relations = relations.value,
                 )
             )
@@ -78,25 +86,32 @@ object ErdGraphCompiler {
         }
     }
 
-    private fun graphTables(tables: List<TableSnapshot>): FrozenList<ErdGraphTable> {
+    private fun graphTables(
+        tables: List<TableSnapshot>,
+        checkpoint: WorkCheckpoint,
+    ): FrozenList<ErdGraphTable> {
+        checkpoint.check()
         val ordered = tables.sortedWith(tableSnapshotComparator)
-        val intents = qualificationIntents(ordered)
-        return FrozenList.copyOf(
-            ordered.map { table ->
-                ErdGraphTable(
-                    snapshot = table,
-                    qualification = intents.getValue(table.id),
-                )
-            }
-        )
+        val intents = qualificationIntents(ordered, checkpoint)
+        val graphTables = ArrayList<ErdGraphTable>(ordered.size)
+        for (table in ordered) {
+            checkpoint.check()
+            graphTables += ErdGraphTable(
+                snapshot = table,
+                qualification = intents.getValue(table.id),
+            )
+        }
+        return FrozenList.copyOf(graphTables)
     }
 
     private fun qualificationIntents(
         tables: List<TableSnapshot>,
+        checkpoint: WorkCheckpoint,
     ): Map<TableId, TableQualificationIntent> {
         val result = LinkedHashMap<TableId, TableQualificationIntent>(tables.size)
 
         for (sameName in tables.groupBy { it.id.name }.values) {
+            checkpoint.check()
             val intent = when {
                 sameName.size == 1 -> TableQualificationIntent.UNQUALIFIED
                 sameName.map { it.id.schema }.distinct().size == sameName.size ->
@@ -104,6 +119,7 @@ object ErdGraphCompiler {
                 else -> TableQualificationIntent.CATALOG_SCHEMA
             }
             for (table in sameName) {
+                checkpoint.check()
                 result[table.id] = intent
             }
         }

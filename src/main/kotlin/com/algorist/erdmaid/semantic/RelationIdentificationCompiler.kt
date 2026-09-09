@@ -7,6 +7,7 @@ import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.OptionalValue
 import com.algorist.erdmaid.core.SchemaSnapshot
 import com.algorist.erdmaid.core.TableSnapshot
+import com.algorist.erdmaid.core.WorkCheckpoint
 
 enum class RelationIdentification {
     IDENTIFYING,
@@ -41,24 +42,30 @@ data class ErdGraphRelation(
  */
 object RelationIdentificationCompiler {
 
-    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<ErdGraphRelation>> {
-        val multiplicity = RelationMultiplicityCompiler.compile(snapshot)
+    fun compile(snapshot: SchemaSnapshot): ExportOutcome<FrozenList<ErdGraphRelation>> =
+        compile(snapshot, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        snapshot: SchemaSnapshot,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<FrozenList<ErdGraphRelation>> {
+        val multiplicity = RelationMultiplicityCompiler.compile(snapshot, checkpoint)
         return when (multiplicity) {
             is ExportOutcome.Complete -> {
+                checkpoint.check()
                 val tablesById = snapshot.tables.associateBy { it.id }
-                ExportOutcome.Complete(
-                    FrozenList.copyOf(
-                        multiplicity.value.map { semantic ->
-                            val relation = semantic.relation.relation
-                            val child = tablesById.getValue(relation.childTable)
-                            val parent = tablesById.getValue(relation.parentTable)
-                            ErdGraphRelation(
-                                semantic = semantic,
-                                identification = derive(semantic, child, parent),
-                            )
-                        }
+                val relations = ArrayList<ErdGraphRelation>(multiplicity.value.size)
+                for (semantic in multiplicity.value) {
+                    checkpoint.check()
+                    val relation = semantic.relation.relation
+                    val child = tablesById.getValue(relation.childTable)
+                    val parent = tablesById.getValue(relation.parentTable)
+                    relations += ErdGraphRelation(
+                        semantic = semantic,
+                        identification = derive(semantic, child, parent),
                     )
-                )
+                }
+                ExportOutcome.Complete(FrozenList.copyOf(relations))
             }
             ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(multiplicity.diagnostics)

@@ -9,6 +9,7 @@ import com.algorist.erdmaid.core.FrozenList
 import com.algorist.erdmaid.core.OptionalValue
 import com.algorist.erdmaid.core.RawTypeMetadata
 import com.algorist.erdmaid.core.TableId
+import com.algorist.erdmaid.core.WorkCheckpoint
 import com.algorist.erdmaid.semantic.ErdGraph
 import com.algorist.erdmaid.semantic.ErdGraphTable
 
@@ -41,10 +42,17 @@ data class MermaidAttributeTokenSet(
  */
 object MermaidAttributeCompiler {
 
-    fun compile(graph: ErdGraph): ExportOutcome<MermaidAttributeTokenSet> {
+    fun compile(graph: ErdGraph): ExportOutcome<MermaidAttributeTokenSet> =
+        compile(graph, WorkCheckpoint.NONE)
+
+    internal fun compile(
+        graph: ErdGraph,
+        checkpoint: WorkCheckpoint,
+    ): ExportOutcome<MermaidAttributeTokenSet> {
         val entities = ArrayList<MermaidEntityAttributeTokens>(graph.tables.size)
         for (table in graph.tables) {
-            when (val compiled = compileTable(table)) {
+            checkpoint.check()
+            when (val compiled = compileTable(table, checkpoint)) {
                 is ExportOutcome.Complete -> entities += compiled.value
                 ExportOutcome.NoExport -> return ExportOutcome.NoExport
                 is ExportOutcome.Degraded -> return ExportOutcome.Degraded(compiled.diagnostics)
@@ -60,7 +68,14 @@ object MermaidAttributeCompiler {
 
     internal fun compileTable(
         table: ErdGraphTable,
+    ): ExportOutcome<MermaidEntityAttributeTokens> =
+        compileTable(table, WorkCheckpoint.NONE)
+
+    internal fun compileTable(
+        table: ErdGraphTable,
+        checkpoint: WorkCheckpoint,
     ): ExportOutcome<MermaidEntityAttributeTokens> {
+        checkpoint.check()
         val primaryKeyColumns = when (val primaryKey = table.snapshot.primaryKey) {
             is OptionalValue.Present -> primaryKey.value.columns.toSet()
             OptionalValue.Absent -> emptySet()
@@ -72,6 +87,7 @@ object MermaidAttributeCompiler {
 
         val tokens = ArrayList<MermaidAttributeToken>(table.snapshot.columns.size)
         for (column in table.snapshot.columns) {
+            checkpoint.check()
             val rawType = when (val evidence = column.rawType) {
                 is Evidence.Known -> evidence.value
                 is Evidence.Unavailable -> return degraded(
