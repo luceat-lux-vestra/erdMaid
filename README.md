@@ -128,6 +128,12 @@ For local development builds, install the generated ZIP from `build/distribution
 - Architecture-neutral falsification scenarios: [`docs/product-baseline-scenarios.yaml`](docs/product-baseline-scenarios.yaml).
 - Mermaid grammar evidence: [`docs/mermaid-grammar-evidence.md`](docs/mermaid-grammar-evidence.md).
 
+## License
+
+Copyright 2026 luceat-lux-vestra.
+
+erdMaid is licensed under the [Apache License 2.0](LICENSE).
+
 ## Notes
 
 - `classDiagram` is intentionally unsupported.
