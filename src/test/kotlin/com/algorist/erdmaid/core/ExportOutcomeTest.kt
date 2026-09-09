@@ -12,6 +12,7 @@ class ExportOutcomeTest {
     @Test
     fun `complete is the only terminal variant that carries a payload`() {
         val complete: ExportOutcome<String> = ExportOutcome.Complete("erDiagram")
+        val noExport: ExportOutcome<String> = ExportOutcome.NoExport
         val degraded: ExportOutcome<String> = ExportOutcome.Degraded(
             CoreDiagnostics.of(CoreDiagnostic("structural-metadata-unavailable"))
         )
@@ -24,11 +25,12 @@ class ExportOutcomeTest {
         val cancelled: ExportOutcome<String> = ExportOutcome.Cancelled
 
         assertEquals("erDiagram", (complete as ExportOutcome.Complete).value)
-        listOf(degraded, unsupported, failure, cancelled).forEach { outcome ->
+        listOf(noExport, degraded, unsupported, failure, cancelled).forEach { outcome ->
             assertTrue(outcome !is ExportOutcome.Complete)
         }
 
         assertEquals(setOf("value"), instanceFieldNames(ExportOutcome.Complete::class.java))
+        assertTrue(instanceFieldNames(ExportOutcome.NoExport::class.java).isEmpty())
         assertEquals(setOf("diagnostics"), instanceFieldNames(ExportOutcome.Degraded::class.java))
         assertEquals(setOf("diagnostics"), instanceFieldNames(ExportOutcome.Unsupported::class.java))
         assertEquals(setOf("diagnostics"), instanceFieldNames(ExportOutcome.Failure::class.java))
@@ -58,12 +60,16 @@ class ExportOutcomeTest {
 
     @Test
     fun `structural unavailable evidence maps to degraded without becoming absence`() {
-        val unavailable = OptionalValue.Unavailable(CoreDiagnostic("primary-key-unavailable"))
+        val unavailable: OptionalValue<String> =
+            OptionalValue.Unavailable(CoreDiagnostic("primary-key-unavailable"))
+        val diagnostic = when (unavailable) {
+            is OptionalValue.Unavailable -> unavailable.diagnostic
+            else -> error("expected unavailable evidence")
+        }
         val outcome: ExportOutcome<SchemaSnapshot> = ExportOutcome.Degraded(
-            CoreDiagnostics.of(unavailable.diagnostic)
+            CoreDiagnostics.of(diagnostic)
         )
 
-        assertTrue(unavailable is OptionalValue.Unavailable)
         assertNotEquals(OptionalValue.Absent, unavailable)
         assertEquals(
             "primary-key-unavailable",
@@ -72,12 +78,14 @@ class ExportOutcomeTest {
     }
 
     @Test
-    fun `cancellation remains distinct from failure`() {
+    fun `cancellation remains distinct from failure and no-export`() {
         val failure = ExportOutcome.Failure(
             CoreDiagnostics.of(CoreDiagnostic("selection-platform-failure"))
         )
 
         assertNotEquals(ExportOutcome.Cancelled, failure)
+        assertNotEquals(ExportOutcome.Cancelled, ExportOutcome.NoExport)
+        assertNotEquals(ExportOutcome.NoExport, failure)
     }
 
     @Test
@@ -124,6 +132,7 @@ class ExportOutcomeTest {
             CoreDiagnostics::class.java,
             ExportOutcome::class.java,
             ExportOutcome.Complete::class.java,
+            ExportOutcome.NoExport::class.java,
             ExportOutcome.Degraded::class.java,
             ExportOutcome.Unsupported::class.java,
             ExportOutcome.Failure::class.java,

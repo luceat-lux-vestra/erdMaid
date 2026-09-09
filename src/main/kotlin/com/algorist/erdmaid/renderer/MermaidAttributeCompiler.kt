@@ -46,6 +46,7 @@ object MermaidAttributeCompiler {
         for (table in graph.tables) {
             when (val compiled = compileTable(table)) {
                 is ExportOutcome.Complete -> entities += compiled.value
+                ExportOutcome.NoExport -> return ExportOutcome.NoExport
                 is ExportOutcome.Degraded -> return ExportOutcome.Degraded(compiled.diagnostics)
                 is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(compiled.diagnostics)
                 is ExportOutcome.Failure -> return ExportOutcome.Failure(compiled.diagnostics)
@@ -81,6 +82,7 @@ object MermaidAttributeCompiler {
 
             val typeToken = when (val encoded = encodeType(rawType)) {
                 is ExportOutcome.Complete -> encoded.value
+                ExportOutcome.NoExport -> return ExportOutcome.NoExport
                 is ExportOutcome.Degraded -> return ExportOutcome.Degraded(encoded.diagnostics)
                 is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(encoded.diagnostics)
                 is ExportOutcome.Failure -> return ExportOutcome.Failure(encoded.diagnostics)

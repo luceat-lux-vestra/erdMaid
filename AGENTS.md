@@ -4,8 +4,8 @@ Authoritative engineering and review contract for `erdMaid`, an IntelliJ Platfor
 exports database-table metadata from the Database tool window as Mermaid `erDiagram` text.
 
 This document describes correctness and ownership boundaries. It is not a phase checklist and it
-does not make the current implementation an architecture constraint. The original implementation
-plan remains historical only at
+does not make internal classes or package boundaries compatibility contracts. The original
+implementation plan remains historical only at
 [`docs/history/2026-04-initial-implementation-plan.md`](docs/history/2026-04-initial-implementation-plan.md).
 
 The product/fidelity authority is
@@ -42,12 +42,9 @@ indexing, and database mutation are out of scope unless separately approved.
 
 ## 1. Leap architecture
 
-The target architecture under Epic #32 is a **functional core + JetBrains host shell**:
+The maintained export architecture under Epic #32 is a **functional core + JetBrains host shell**:
 
 `JetBrains selection -> immutable schema snapshot -> ER semantic graph -> Mermaid renderer -> typed result -> UI publication`
-
-The current implementation is migration input only. Internal classes and package boundaries are
-not compatibility contracts.
 
 ### Functional core
 
@@ -83,22 +80,24 @@ All IntelliJ/DatabaseTools dependencies belong on this side of the boundary. It 
 Live platform objects are copied into an immutable core snapshot and must not escape that capture
 boundary into semantic or renderer code.
 
-### Migration status
+### Production ownership
 
-Until Tracks #35-#37 replace the production path, these files remain **temporary legacy code**:
+The maintained export path is split by responsibility rather than by legacy generator types:
 
-| Path | Current role | Leap disposition |
+| Path | Current role | Ownership |
 |---|---|---|
-| `src/main/kotlin/.../actions/ErdMaidExportActions.kt` | synchronous action, selection, publication | replace in #37 |
-| `src/main/kotlin/.../generator/MermaidGenerator.kt` | mixed metadata extraction + rendering | replace/delete across #35-#37 |
-| `src/main/kotlin/.../generator/RelationResolver.kt` | legacy FK discovery/resolution | replace/delete in #35/#37 |
-| `src/main/kotlin/.../generator/MermaidSanitizer.kt` | current rendering hardening | retain or replace based on #36 design |
-| `src/main/kotlin/.../core/*` | pure canonical snapshot model | forward architecture from #34 |
+| `src/main/kotlin/.../actions/ErdMaidExportActions.kt` | stateless action entry point, bounded `update()`, invocation coroutine, terminal UI publication/notification | JetBrains host shell |
+| `src/main/kotlin/.../host/JetBrainsDatabaseHost.kt` | DatabaseTools selection compatibility boundary, origin/metadata/relation capture, freshness validation | JetBrains host shell |
+| `src/main/kotlin/.../host/HostExportPipeline.kt` | platform-free outcome orchestration and structural publication gate | host/core handoff |
+| `src/main/kotlin/.../core/*` | immutable canonical snapshot/evidence model | functional core |
+| `src/main/kotlin/.../semantic/*` | relation/constraint/multiplicity semantic compilation | functional core |
+| `src/main/kotlin/.../renderer/*` | deterministic Mermaid compilation and serialization | functional core |
 
-`TableSpec`, `ColumnSpec`, `RelationSpec`, legacy `TableIdentity`, reflection helpers, and current
-method signatures are **not** to be preserved for internal compatibility. Do not make new core
-models implement, wrap, or adapt those obsolete types. Temporary coexistence is allowed only until
-the replacement path owns the behavior.
+The former synchronous `MermaidGenerator`, `RelationResolver`, `MermaidSanitizer`, their
+renderer-internal specs, and their obsolete tests are not parallel authorities and must not be
+reintroduced as compatibility shims. The only tolerated reflective DatabaseTools access is the
+explicitly reviewed compatibility boundary in the host shell; reflection must not leak into the
+action, core, semantic, or renderer layers.
 
 ---
 
@@ -206,13 +205,15 @@ In particular, the host Track must establish rather than assume:
 - nullability/uniqueness/key metadata needed for cardinality;
 - optional type-detail availability versus read failure.
 
-No additional reflection point is accepted merely because the current code already uses reflection.
+No additional reflection point is accepted merely because an earlier implementation used
+reflection. Internal DatabaseTools symbols that remain necessary must stay inside the single host
+compatibility boundary and remain covered by exact-host inventory/verifier evidence.
 
 ---
 
 ## 6. Action lifecycle and threading
 
-The final action is a stateless entry point. Do not introduce a project service just to obtain a
+The action is a stateless entry point. Do not introduce a project service just to obtain a
 coroutine scope; add a service only when real project-lifetime state needs an owner.
 
 For the maintained 2026.2 platform:
@@ -229,8 +230,9 @@ For the maintained 2026.2 platform:
 - never publish after cancellation, disposal, invalidation, or stale completion;
 - no global/static mutable state may couple concurrent projects or exports.
 
-The current synchronous/reflected action is a known migration defect, not a compatibility behavior
-to preserve.
+The maintained action uses the action-owned coroutine scope and delegates DatabaseTools reads to the
+host capture boundary. It must not regain the removed synchronous generator path or invoke the
+reflected group-expansion symbol from `update()`.
 
 ---
 
@@ -364,6 +366,7 @@ When a replacement slice owns a behavior, remove the corresponding legacy implem
 in that Track or its immediately following cleanup Task. Do not leave deprecated aliases, forwarding
 wrappers, old specs, or adapter-on-adapter bridges merely to preserve plugin-internal APIs.
 
-The final #38 deletion gate explicitly removes the legacy synchronous action path,
-`MermaidGenerator`, `RelationResolver`, renderer-internal specs, reflected renderer type probing, and
-obsolete tests unless current evidence independently justifies retaining a specific artifact.
+Track #37 removes the legacy synchronous action/generator relation path and its obsolete tests. The
+final #38 deletion/performance gate must verify that no duplicate semantic authority or dead
+compatibility artifact remains while completing scale, cancellation-responsiveness, EDT-blocking,
+and resource-ownership evidence; it must not reintroduce deleted legacy paths for convenience.

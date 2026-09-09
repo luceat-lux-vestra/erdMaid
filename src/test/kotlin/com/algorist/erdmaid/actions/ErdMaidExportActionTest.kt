@@ -1,76 +1,75 @@
 package com.algorist.erdmaid.actions
 
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.PlatformDataKeys.PSI_ELEMENT_ARRAY
-import com.intellij.database.psi.DbElement
-import com.intellij.database.psi.DbTable
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.project.Project
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.nio.charset.StandardCharsets
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
 
 class ErdMaidExportActionTest {
-
     private val action = ErdMaidExportAction()
 
     @Test
-    fun `uses database selection when it already contains tables`() {
-        val primarySelection = listOf(newDbTable("orders"))
-        val fallbackSelection = arrayOf(newDbTable("customers"))
+    fun `action declares bounded EDT update policy`() {
+        assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
 
-        val result = action.resolveSelectedTables(primarySelection, fallbackSelection)
-
-        assertEquals(listOf("orders"), result.map { it.name })
-    }
-
-    @Test
-    fun `falls back to psi elements when database selection has no tables`() {
-        val primarySelection = listOf(newDbElement())
-        val fallbackSelection = arrayOf<Any>(newDbTable("customers"), "not-a-table")
-
-        val result = action.resolveSelectedTables(primarySelection, fallbackSelection)
-
-        assertEquals(listOf("customers"), result.map { it.name })
-    }
-
-    @Test
-    fun `returns empty list when no tables exist in either selection source`() {
-        val primarySelection = listOf(newDbElement())
-        val fallbackSelection = arrayOf<Any>("plain-string", 42)
-
-        val result = action.resolveSelectedTables(primarySelection, fallbackSelection)
-
-        assertTrue(result.isEmpty())
-    }
-
-    @Test
-    fun `update enables the action when psi selection contains a table`() {
-        val event = createEvent(arrayOf(newDbTable("orders")))
-
+        val project = project(disposed = false)
+        val event = createEvent(project)
         action.update(event)
-
         assertTrue(event.presentation.isEnabledAndVisible)
     }
 
     @Test
-    fun `update hides the action when no tables are selected`() {
-        val event = createEvent(arrayOf<Any>("plain-string"))
+    fun `update hides action without a live project`() {
+        val noProject = createEvent(null)
+        action.update(noProject)
+        assertFalse(noProject.presentation.isEnabledAndVisible)
 
-        action.update(event)
-
-        assertTrue(!event.presentation.isEnabledAndVisible)
+        val disposed = createEvent(project(disposed = true))
+        action.update(disposed)
+        assertFalse(disposed.presentation.isEnabledAndVisible)
     }
 
     @Test
-    fun `default action includes foreign key column references`() {
-        val inspectableAction = object : ErdMaidExportAction() {
-            fun includesColumnReferences(): Boolean = renderOptions.includeColumnReferences
-        }
+    fun `action has no invocation state reflection legacy generator or fatal-error path`() {
+        val instanceFields = ErdMaidExportAction::class.java.declaredFields
+            .filterNot { Modifier.isStatic(it.modifiers) }
+        assertTrue(instanceFields.isEmpty())
 
-        assertTrue(inspectableAction.includesColumnReferences())
+        val source = Files.readString(
+            Path.of("src/main/kotlin/com/algorist/erdmaid/actions/ErdMaidExportActions.kt")
+        )
+        assertTrue(source.contains("e.coroutineScope"))
+        assertTrue(source.contains("withBackgroundProgress"))
+        assertTrue(source.contains("cancellable = true"))
+        assertTrue(source.contains("Dispatchers.EDT"))
+        assertFalse(source.contains("Class.forName"))
+        assertFalse(source.contains("getSelectedDbElementsExpandingGroups"))
+        assertFalse(source.contains("MermaidGenerator"))
+        assertFalse(source.contains("LOG.error"))
+    }
+
+    @Test
+    fun `metadata adapter owns cancellable read actions instead of action`() {
+        val actionSource = Files.readString(
+            Path.of("src/main/kotlin/com/algorist/erdmaid/actions/ErdMaidExportActions.kt")
+        )
+        val hostSource = Files.readString(
+            Path.of("src/main/kotlin/com/algorist/erdmaid/host/JetBrainsDatabaseHost.kt")
+        )
+
+        assertFalse(actionSource.contains("readAction"))
+        assertTrue(hostSource.contains("readAction"))
     }
 
     @Test
@@ -81,24 +80,29 @@ class ErdMaidExportActionTest {
             ?.toString(StandardCharsets.UTF_8)
             ?: error("plugin.xml resource not found")
 
-        assertEquals(1, Regex("""<action id="com\.algorist\.erdmaid\.actions\.ErdMaidExportAction""").findAll(pluginXml).count())
-        assertTrue(!pluginXml.contains("ErdMaidExportActionWithColumnReferences"))
-        assertTrue(!pluginXml.contains("Export as Mermaid ERD with FK details"))
+        assertEquals(
+            1,
+            Regex("""<action id="com\.algorist\.erdmaid\.actions\.ErdMaidExportAction""")
+                .findAll(pluginXml)
+                .count(),
+        )
     }
 
-    private fun newDbTable(name: String): DbTable =
-        proxy(DbTable::class.java) { method, _ ->
-            when (method.name) {
-                "getName" -> name
-                "toString" -> "DbTable($name)"
-                else -> defaultValue(method.returnType)
+    private fun createEvent(project: Project?): AnActionEvent {
+        val dataContext = com.intellij.openapi.actionSystem.DataContext { dataId ->
+            when (dataId) {
+                CommonDataKeys.PROJECT.name -> project
+                else -> null
             }
         }
+        return AnActionEvent.createFromAnAction(action, null, "erdMaid-test", dataContext)
+    }
 
-    private fun newDbElement(): DbElement =
-        proxy(DbElement::class.java) { method, _ ->
+    private fun project(disposed: Boolean): Project =
+        proxy(Project::class.java) { method, _ ->
             when (method.name) {
-                "toString" -> "DbElement"
+                "isDisposed" -> disposed
+                "toString" -> "Project(test)"
                 else -> defaultValue(method.returnType)
             }
         }
@@ -107,9 +111,7 @@ class ErdMaidExportActionTest {
         type: Class<T>,
         handler: (Method, Array<out Any?>?) -> Any?,
     ): T {
-        val invocationHandler = InvocationHandler { _, method, args ->
-            handler(method, args)
-        }
+        val invocationHandler = InvocationHandler { _, method, args -> handler(method, args) }
         return type.cast(Proxy.newProxyInstance(type.classLoader, arrayOf(type), invocationHandler))!!
     }
 
@@ -123,16 +125,5 @@ class ErdMaidExportActionTest {
         java.lang.Double.TYPE -> 0.0
         java.lang.Character.TYPE -> '\u0000'
         else -> null
-    }
-
-    private fun createEvent(psiElements: Array<out Any>): AnActionEvent {
-        val dataContext = com.intellij.openapi.actionSystem.DataContext { dataId ->
-            when (dataId) {
-                PSI_ELEMENT_ARRAY.name -> psiElements
-                else -> null
-            }
-        }
-
-        return AnActionEvent.createFromAnAction(action, null, "erdMaid-test", dataContext)
     }
 }

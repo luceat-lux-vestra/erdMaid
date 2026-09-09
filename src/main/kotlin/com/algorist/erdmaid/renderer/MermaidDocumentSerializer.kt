@@ -33,6 +33,7 @@ object MermaidDocumentSerializer {
 
         val tokens = when (val outcome = MermaidTokenCompiler.compile(graph)) {
             is ExportOutcome.Complete -> outcome.value
+            ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
             is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
             is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)
@@ -40,6 +41,7 @@ object MermaidDocumentSerializer {
         }
         val attributes = when (val outcome = MermaidAttributeCompiler.compile(graph)) {
             is ExportOutcome.Complete -> outcome.value
+            ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
             is ExportOutcome.Unsupported -> return ExportOutcome.Unsupported(outcome.diagnostics)
             is ExportOutcome.Failure -> return ExportOutcome.Failure(outcome.diagnostics)

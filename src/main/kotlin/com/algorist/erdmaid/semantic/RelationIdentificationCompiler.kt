@@ -60,6 +60,7 @@ object RelationIdentificationCompiler {
                     )
                 )
             }
+            ExportOutcome.NoExport -> ExportOutcome.NoExport
             is ExportOutcome.Degraded -> ExportOutcome.Degraded(multiplicity.diagnostics)
             is ExportOutcome.Unsupported -> ExportOutcome.Unsupported(multiplicity.diagnostics)
             is ExportOutcome.Failure -> ExportOutcome.Failure(multiplicity.diagnostics)
