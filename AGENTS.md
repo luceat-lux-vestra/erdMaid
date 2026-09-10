@@ -320,8 +320,13 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - Metadata automation remains a distinct narrowly-permissioned trust boundary.
 - Scheduled repository-drift checks fail when required live policy cannot be verified; lack of
   evidence is not success.
-- erdMaid currently has no release/publishing trust boundary; do not reintroduce release machinery
-  without a separately approved distribution path.
+- Issue #99 owns the separately approved first-distribution boundary. `Marketplace Candidate` may
+  prepare and verify an exact-main release ZIP, but it has read-only repository permissions, has no
+  repository or Marketplace secrets, and must never call `publishPlugin`; the first Marketplace
+  upload remains manual.
+- Automated Marketplace publishing is not authorized until an approved listing exists and a later,
+  separately reviewed trust-boundary change proves token scope, optional author signing if adopted,
+  ref guards, and recovery.
 - Issue #51 (project license selection) is separate repository/distribution hygiene and does not
   change architecture proof obligations.
 

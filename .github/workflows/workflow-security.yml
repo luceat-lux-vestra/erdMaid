@@ -9,8 +9,8 @@
 #   * The actionlint binary is verified against a pinned SHA-256 before it is
 #     executed, and zizmor is installed from a pinned version.
 #   * Negative controls prove unsafe workflow, repository-policy, bounded
-#     Gradle-retry, and standalone DataGrip-verifier fixtures are rejected
-#     instead of being vacuously green.
+#     Gradle-retry, standalone DataGrip-verifier, and Marketplace-candidate
+#     fixtures are rejected instead of being vacuously green.
 
 name: Workflow Security
 
@@ -88,6 +88,9 @@ jobs:
 
       - name: Check DataGrip verifier fixtures
         run: python3 scripts/test_datagrip_verifier.py
+
+      - name: Check Marketplace candidate fixtures
+        run: python3 scripts/test_marketplace_candidate.py
 
       - name: Run zizmor
         env:
