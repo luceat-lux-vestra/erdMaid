@@ -23,6 +23,12 @@ val buildTimestampVersion: String = LocalDateTime.now().format(DateTimeFormatter
 val resolvedPluginVersion = providers.gradleProperty("buildVersion").orElse(buildTimestampVersion)
 version = resolvedPluginVersion.get()
 
+// JetBrains Starter 2026.2 splits product descriptors into dedicated artifacts.
+// Pin the Starter framework and IDEA product descriptor to the exact baseline
+// build instead of LATEST-EAP-SNAPSHOT so integration-test compilation remains
+// reproducible and aligned with the project's minimum supported 2026.2 host.
+val starterBuild = "262.8665.337"
+
 sourceSets {
     create("integrationTest") {
         compileClasspath += sourceSets.main.get().output
@@ -30,17 +36,21 @@ sourceSets {
     }
 }
 
-val integrationTestImplementation by configurations.getting {
-    extendsFrom(configurations.testImplementation.get())
+configurations.getByName("integrationTestImplementation") {
+    extendsFrom(configurations.getByName("testImplementation"))
 }
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
 
-    integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.7.1")
-    integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
-    integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:5.7.1")
+    add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.20.2")
+    add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    add(
+        "integrationTestImplementation",
+        "com.jetbrains.intellij.tools:ide-starter-product-idea-ultimate:$starterBuild",
+    )
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -54,15 +64,20 @@ dependencies {
         bundledPlugins("com.intellij.database")
 
         testFramework(TestFrameworkType.Platform)
-        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
+        testFramework(
+            TestFrameworkType.Starter,
+            starterBuild,
+            configurationName = "integrationTestImplementation",
+        )
     }
 }
 
-val integrationTest by intellijPlatformTesting.testIdeUi.registering {
+intellijPlatformTesting.testIdeUi.register("integrationTest") {
     task {
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
+        jvmArgs("--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
         useJUnitPlatform()
     }
 }
