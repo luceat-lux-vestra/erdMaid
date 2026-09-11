@@ -23,9 +23,24 @@ val buildTimestampVersion: String = LocalDateTime.now().format(DateTimeFormatter
 val resolvedPluginVersion = providers.gradleProperty("buildVersion").orElse(buildTimestampVersion)
 version = resolvedPluginVersion.get()
 
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val integrationTestImplementation by configurations.getting {
+    extendsFrom(configurations.testImplementation.get())
+}
+
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
+
+    integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.7.1")
+    integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
+    integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -39,7 +54,23 @@ dependencies {
         bundledPlugins("com.intellij.database")
 
         testFramework(TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
+}
+
+val integrationTest by intellijPlatformTesting.testIdeUi.registering {
+    task {
+        val integrationTestSourceSet = sourceSets.getByName("integrationTest")
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        useJUnitPlatform()
+    }
+}
+
+// Keep the ordinary required Test gate headless, but require the live-process
+// test sources to compile so Starter/Driver API drift cannot silently rot.
+tasks.named("check") {
+    dependsOn("compileIntegrationTestKotlin")
 }
 
 // Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
