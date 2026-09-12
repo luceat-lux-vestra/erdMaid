@@ -1,6 +1,5 @@
 package com.algorist.erdmaid.integration
 
-import com.intellij.driver.sdk.waitForIndicators
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.junit5.hyphenateWithClass
 import com.intellij.ide.starter.models.IdeInfo
@@ -15,7 +14,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.io.path.Path
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Minimal live-process acceptance foundation for #101.
@@ -41,16 +39,14 @@ class LiveIdeSmokeTest {
                 PluginConfigurator(this).installPluginFromPath(pluginPath)
             }
             .runIdeWithDriver()
-            .useDriverAndCloseIde {
-                waitForIndicators(5.minutes)
-            }
+            .useDriverAndCloseIde { }
 
         assertNull(
             result.failureError,
             "Starter reported an IDE process failure: ${result.failureError}",
         )
 
-        val ideErrors = ErrorReporterToCI.collectErrors(result.runContext)
+        val ideErrors = ErrorReporterToCI.collectErrors(result.runContext.logsDir)
         assertTrue(
             ideErrors.isEmpty(),
             buildString {

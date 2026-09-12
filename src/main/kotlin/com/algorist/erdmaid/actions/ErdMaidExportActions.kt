@@ -132,7 +132,7 @@ open class ErdMaidExportAction : DumbAwareAction() {
         message: String,
         diagnostic: CoreDiagnostic,
     ) {
-        LOG.warn("erdMaid export stopped: ${diagnostic.code}")
+        LOG.warn("erdMaid export stopped: ${diagnostic.code}, detail=${diagnostic.detail}")
         notify(project, "$message (${diagnostic.code})", NotificationType.WARNING)
     }
 

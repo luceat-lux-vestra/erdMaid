@@ -78,6 +78,11 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
         jvmArgs("--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
+        systemProperty(
+            "path.to.build.plugin",
+            tasks.prepareSandbox.get().pluginDirectory.get().asFile,
+        )
+        dependsOn(tasks.prepareSandbox)
         useJUnitPlatform()
     }
 }
