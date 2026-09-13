@@ -12,7 +12,12 @@ import java.util.RandomAccess
  */
 class FrozenList<out T : Any> private constructor(
     private val values: List<T>,
-) : List<T> by values, RandomAccess {
+) : AbstractList<T>(), RandomAccess {
+
+    override val size: Int
+        get() = values.size
+
+    override fun get(index: Int): T = values[index]
 
     override fun equals(other: Any?): Boolean =
         other is List<*> && values == other
