@@ -139,7 +139,7 @@ Support claims are bounded to exact maintained evidence. Compile/test runtime, P
 | --- | --- | --- |
 | IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337` | **SUPPORTED compile/test runtime target; exact Host API Inventory target** | `buildPlugin` + `check`, plus deterministic inspection of the resolved DatabaseTools runtime. |
 | IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125` | **SUPPORTED binary-compatibility target; full Host API Inventory/runtime-test status UNVERIFIED** | IJPGP 2.18.1 Plugin Verifier: `Compatible`. No broader runtime or inventory claim is inferred. |
-| DataGrip 2026.2.4 / `DB-262.10315.24` | **SUPPORTED binary-compatibility target; exact Host API Inventory target; live GUI/database integration runtime UNVERIFIED** | Pinned standalone Plugin Verifier 1.410: `Compatible`, plus deterministic exact-binary DatabaseTools relation/FK inventory. |
+| DataGrip 2026.2.5 / `DB-262.10315.132` | **SUPPORTED binary-compatibility target; exact Host API Inventory target; live GUI/database integration runtime UNVERIFIED** | Pinned standalone Plugin Verifier 1.410: `Compatible`, plus deterministic exact-binary DatabaseTools relation/FK inventory. |
 | Other IntelliJ IDEA Ultimate/DataGrip versions | **UNKNOWN / not maintained** | No exact maintained evidence claim. |
 | Other IntelliJ-based products | **UNKNOWN / not maintained** | Database tooling/load eligibility is not product-specific proof. |
 | Platform builds older than 262 | **UNSUPPORTED by declared load baseline** | Below `since-build="262"`. |

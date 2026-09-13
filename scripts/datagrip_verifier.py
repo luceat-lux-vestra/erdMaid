@@ -33,8 +33,8 @@ from typing import Any
 
 DATAGRIP_FEED_CODE = "DG"
 DATAGRIP_PRODUCT_CODE = "DB"
-DATAGRIP_VERSION = "2026.2.4"
-DATAGRIP_BUILD = "262.10315.24"
+DATAGRIP_VERSION = "2026.2.5"
+DATAGRIP_BUILD = "262.10315.132"
 DATAGRIP_RELEASE_API = (
     "https://data.services.jetbrains.com/products/releases"
     "?code=DG&latest=false&type=release"

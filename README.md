@@ -49,7 +49,7 @@ Maintained host evidence is limited to these exact targets and evidence classes:
 
 - IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337`: compile/test runtime and exact DatabaseTools Host API Inventory.
 - IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`: Plugin Verifier binary compatibility only; full runtime/Host API Inventory is unverified.
-- DataGrip 2026.2.4 / `DB-262.10315.24`: Plugin Verifier binary compatibility and exact DatabaseTools Host API Inventory; live GUI/database-tool-window integration runtime is unverified.
+- DataGrip 2026.2.5 / `DB-262.10315.132`: Plugin Verifier binary compatibility and exact DatabaseTools Host API Inventory; live GUI/database-tool-window integration runtime is unverified.
 
 A database connection whose required table metadata is available in the Database tool window is required. No broader IntelliJ/DataGrip product or version support is implied by plugin descriptor load eligibility.
 
@@ -99,10 +99,10 @@ Evidence classes are deliberately separate. A PASS in one class does not imply t
 | Compile + automated test runtime | IntelliJ IDEA Ultimate | 2026.2.0.1 / `IU-262.8665.337` | Plugin compilation plus repository automated tests on the maintained baseline runtime. |
 | Exact DatabaseTools Host API Inventory | IntelliJ IDEA Ultimate | 2026.2.0.1 / `IU-262.8665.337` | Required DatabaseTools classes/symbols used by the host boundary are present with the reviewed exact-binary shape. |
 | Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.2.2 / `IU-262.10315.125` | Packaged-plugin binary compatibility for this exact target. |
-| Plugin Verifier binary compatibility | DataGrip | 2026.2.4 / `DB-262.10315.24` | Packaged-plugin binary compatibility for this exact target. |
-| Exact DatabaseTools Host API Inventory | DataGrip | 2026.2.4 / `DB-262.10315.24` | Reviewed relation/FK DatabaseTools binary surface for this exact target. |
+| Plugin Verifier binary compatibility | DataGrip | 2026.2.5 / `DB-262.10315.132` | Packaged-plugin binary compatibility for this exact target. |
+| Exact DatabaseTools Host API Inventory | DataGrip | 2026.2.5 / `DB-262.10315.132` | Reviewed relation/FK DatabaseTools binary surface for this exact target. |
 
-The repository does **not** currently claim a live GUI/database-tool-window integration runtime test on DataGrip 2026.2.4. It also does not claim a full Host API Inventory for IntelliJ IDEA Ultimate 2026.2.2. Those states remain unverified rather than being inferred from Plugin Verifier results.
+The repository does **not** currently claim a live GUI/database-tool-window integration runtime test on DataGrip 2026.2.5. It also does not claim a full Host API Inventory for IntelliJ IDEA Ultimate 2026.2.2. Those states remain unverified rather than being inferred from Plugin Verifier results.
 
 The packaged plugin descriptor declares `since-build="262"` and no `until-build`. That controls load eligibility only. It does not establish maintained support for every 262 patch, later platform line, or other IntelliJ-based product.
 

@@ -213,7 +213,7 @@ jobs:
       - name: Verify IntelliJ IDEA compatibility
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
-      # DataGrip 2026.2.4 intentionally does not go through IJPGP's broken native
+      # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
       # resolver. This step selects that exact release/build, verifies archive
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.

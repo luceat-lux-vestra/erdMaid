@@ -20,6 +20,6 @@
 - Consolidated repository/build identity now uses `luceat-lux-vestra/erdMaid` / `erdMaid` instead of the former `erdMaid-private` / `erdMaid-public` split names.
 
 ### Evidence limits
-- DataGrip 2026.2.4 has maintained Plugin Verifier and exact DatabaseTools Host API Inventory evidence, but live GUI/database-tool-window runtime integration remains unverified.
+- DataGrip 2026.2.5 has maintained Plugin Verifier and exact DatabaseTools Host API Inventory evidence, but live GUI/database-tool-window runtime integration remains unverified.
 - IntelliJ IDEA Ultimate 2026.2.2 has maintained Plugin Verifier evidence, but a full Host API Inventory/runtime-test claim is not inferred from it.
 - Invocation-owned heap/GC retention after terminal completion remains unverified because no deterministic hosted-CI observation mechanism is claimed.

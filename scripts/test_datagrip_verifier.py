@@ -17,8 +17,8 @@ def release_payload(
     *,
     version: str = gate.DATAGRIP_VERSION,
     build: str = gate.DATAGRIP_BUILD,
-    link: str = "https://download.jetbrains.com/datagrip/datagrip-2026.2.4.tar.gz",
-    checksum_link: str = "https://download.jetbrains.com/datagrip/datagrip-2026.2.4.tar.gz.sha256",
+    link: str = "https://download.jetbrains.com/datagrip/datagrip-2026.2.5.tar.gz",
+    checksum_link: str = "https://download.jetbrains.com/datagrip/datagrip-2026.2.5.tar.gz.sha256",
     size: int = 123,
 ) -> dict:
     return {
@@ -40,7 +40,7 @@ def release_payload(
 
 
 def write_verdict(root: Path, verdict: str) -> Path:
-    result = root / "DB-262.10315.24" / "plugins" / "erdMaid" / "1"
+    result = root / "DB-262.10315.132" / "plugins" / "erdMaid" / "1"
     result.mkdir(parents=True)
     (result / "verification-verdict.txt").write_text(verdict, encoding="utf-8")
     return result
@@ -59,7 +59,7 @@ class DataGripVerifierPolicyTests(unittest.TestCase):
 
     def test_wrong_version_is_rejected(self) -> None:
         with self.assertRaises(gate.GateError):
-            gate.select_datagrip_release(release_payload(version="2026.2.5"))
+            gate.select_datagrip_release(release_payload(version="2026.2.4"))
 
     def test_duplicate_exact_release_is_rejected(self) -> None:
         payload = release_payload()
@@ -107,7 +107,7 @@ class DataGripVerifierPolicyTests(unittest.TestCase):
 
             for key, wrong in (
                 ("productCode", "IU"),
-                ("version", "2026.2.5"),
+                ("version", "2026.2.4"),
                 ("buildNumber", "262.0.0"),
             ):
                 modified = dict(info)
