@@ -24,7 +24,7 @@ Do not rebuild between evidence collection steps. If the artifact changes, previ
 At minimum execute the user flow on:
 
 1. IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`;
-2. DataGrip 2026.2.4 / `DB-262.10315.24`.
+2. DataGrip 2026.2.5 / `DB-262.10315.132`.
 
 Passing one host must not be generalized to the other.
 
