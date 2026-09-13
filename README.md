@@ -1,5 +1,10 @@
 # erdMaid - Mermaid ERD Export for Database Tables
 
+[![Build](https://github.com/luceat-lux-vestra/erdMaid/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/luceat-lux-vestra/erdMaid/actions/workflows/build.yml)
+[![Marketplace Version](https://img.shields.io/jetbrains/plugin/v/com.algorist.erdmaid)](https://plugins.jetbrains.com/plugin/index?xmlId=com.algorist.erdmaid)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/com.algorist.erdmaid)](https://plugins.jetbrains.com/plugin/index?xmlId=com.algorist.erdmaid)
+[![License](https://img.shields.io/github/license/luceat-lux-vestra/erdMaid)](LICENSE)
+
 erdMaid exports database-table metadata from the IntelliJ Database tool window as Mermaid `erDiagram` text.
 
 ## What it does
@@ -108,7 +113,7 @@ The packaged plugin descriptor declares `since-build="262"` and no `until-build`
 
 ## Installation
 
-When the plugin is published to JetBrains Marketplace:
+Install erdMaid from [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/index?xmlId=com.algorist.erdmaid):
 
 - <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd>
 - Search for `erdMaid`
