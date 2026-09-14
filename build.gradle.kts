@@ -14,7 +14,7 @@ repositories {
 }
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.10"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.18.1"
     id("org.jetbrains.changelog") version "2.5.0"
 }
@@ -44,9 +44,9 @@ configurations.getByName("integrationTestImplementation") {
 dependencies {
     testImplementation("junit:junit:4.13.2")
 
-    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:5.7.1")
-    add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.20.2")
-    add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
+    add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.33.0")
+    add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
     add(
         "integrationTestImplementation",
         "com.jetbrains.intellij.tools:ide-starter-product-idea-ultimate:$starterBuild",
