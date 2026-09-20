@@ -27,7 +27,8 @@
     {
       "context": "failure-triage",
       "workflow": ".github/workflows/failure-triage.yml",
-      "job": "failure-triage"
+      "job": "failure-triage",
+      "trigger": "pull_request_target"
     }
   ]
 }
