@@ -23,6 +23,11 @@
       "context": "Workflow Static Analysis",
       "workflow": ".github/workflows/workflow-security.yml",
       "job": "static-analysis"
+    },
+    {
+      "context": "failure-triage",
+      "workflow": ".github/workflows/failure-triage.yml",
+      "job": "failure-triage"
     }
   ]
 }
