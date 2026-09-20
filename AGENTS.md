@@ -295,8 +295,6 @@ Tests are never weakened, skipped, or made lenient merely to make CI green. If a
 an obsolete internal API rather than a product invariant, replace/delete it when the corresponding
 legacy path is removed and state why.
 
----
-
 ## 8.1 Failure classification before remediation
 
 A failing plugin test, JetBrains Database API observation, Plugin Verifier
