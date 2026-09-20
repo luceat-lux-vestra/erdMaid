@@ -37,16 +37,20 @@ def read_jobs(text):
     return jobs
 
 
-def workflow_triggered_on_pull_request(text):
+def workflow_triggered_on_pr_event(text, event):
     trigger = re.search(r"^on:\s*$", text, re.MULTILINE)
     if not trigger:
         raise ValueError("workflow has no explicit `on:` mapping")
     end = re.search(r"^[^ \t#\r\n].*$", text[trigger.end():], re.MULTILINE)
     block = text[trigger.end(): trigger.end() + end.start() if end else len(text)]
-    if not re.search(r"^  pull_request:\s*(?:#.*)?$", block, re.MULTILINE):
+    if not re.search(rf"^  {re.escape(event)}:\s*(?:#.*)?$", block, re.MULTILINE):
         return False
-    if re.search(r"^    paths(?:-ignore)?:", block, re.MULTILINE):
-        raise ValueError("required workflow uses a path-filtered pull_request trigger")
+    event_match = re.search(rf"^  {re.escape(event)}:\s*(?:#.*)?$", block, re.MULTILINE)
+    event_tail = block[event_match.end():] if event_match else ""
+    next_event = re.search(r"^  [A-Za-z0-9_-]+:\s*(?:#.*)?$", event_tail, re.MULTILINE)
+    event_block = event_tail[:next_event.start()] if next_event else event_tail
+    if re.search(r"^    paths(?:-ignore)?:", event_block, re.MULTILINE):
+        raise ValueError(f"required workflow uses a path-filtered {event} trigger")
     return True
 
 
@@ -66,8 +70,13 @@ def check_required(root, policy):
             raise ValueError(f"{entry['context']!r} does not match job name {observed!r}")
         if re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE):
             raise ValueError(f"{entry['context']!r} can be skipped or greened by job policy")
-        if not workflow_triggered_on_pull_request(text):
-            raise ValueError(f"{entry['context']!r} is not emitted on pull_request")
+        event = entry.get("trigger", "pull_request")
+        if event not in {"pull_request", "pull_request_target"}:
+            raise ValueError(f"{entry['context']!r} declares unsupported trigger {event!r}")
+        if event == "pull_request_target" and entry["workflow"] != ".github/workflows/failure-triage.yml":
+            raise ValueError("pull_request_target is allowed only for the audited failure-triage producer")
+        if not workflow_triggered_on_pr_event(text, event):
+            raise ValueError(f"{entry['context']!r} is not emitted on {event}")
 
 
 def check_workflow_security(root):
