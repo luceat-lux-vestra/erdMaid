@@ -297,6 +297,59 @@ legacy path is removed and state why.
 
 ---
 
+## 8.1 Failure classification before remediation
+
+A failing plugin test, JetBrains Database API observation, Plugin Verifier
+result, evidence gate, workflow check, or other red signal is an
+**observation**, not a remediation instruction. Before a non-trivial
+remediation, classify the observed failure as exactly one of:
+
+- `implementation defect` — erdMaid product/host/core/semantic/renderer
+  implementation violates the accepted product or platform contract;
+- `test defect` — a fixture, harness, oracle, assertion, verifier setup, or
+  baseline scenario is wrong for the intended contract;
+- `evidence defect` — Database Tools/runtime/API evidence capture, provenance,
+  attribution, freshness, parsing, or proof construction is wrong or
+  insufficient;
+- `workflow-policy drift` — CI, verifier wiring, checked-in hardening/merge
+  policy, or live repository settings have diverged;
+- `environment failure` — JetBrains distribution/service, Database Tools
+  runtime, Gradle/JDK, runner, database service, network, or another execution
+  environment caused the failure;
+- `UNKNOWN` — available evidence does not justify any of the five classes.
+
+`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain fail-closed.
+Classification is itself a proof obligation. Preserve at least:
+
+```text
+Observed:
+Classification:
+Basis:
+Root cause:
+Remediation:
+Proof:
+```
+
+The `Basis` must justify the selected responsibility layer and identify
+plausible alternatives that were rejected or remain unresolved. A Database
+Tools/API or verifier observation is not automatically an erdMaid
+implementation defect: first separate product code, fixture/harness, platform
+evidence, workflow-policy, and toolchain/platform environment.
+
+A deterministic/reproducible failure does not become an
+`environment failure` merely because a rerun later passes. Never weaken,
+skip, delete, or make lenient a valid product test, baseline scenario, verifier,
+evidence obligation, negative control, or repository hardening policy merely to
+obtain green.
+
+If remediation changes implementation, a test/oracle, Database Tools/platform
+evidence premise, verifier/toolchain configuration, workflow/policy, or another
+premise of the exact-final-HEAD proof, invalidate the affected evidence.
+Re-run the relevant targeted validation and required CI on the new exact final
+PR HEAD before merge.
+
+---
+
 ## 9. Performance and resource ownership
 
 Do not add caching, background indexing, or preloading speculatively.
