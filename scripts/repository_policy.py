@@ -59,6 +59,25 @@ def repository_redacted_fields(policy):
     return fields
 
 
+def manual_security_features(policy):
+    declaration = policy["manual_live_assertions"].get("security_features")
+    if not isinstance(declaration, dict):
+        raise TypeError("manual security features must be a mapping")
+    expected = {
+        "dependency_graph": True,
+        "dependabot_alerts": True,
+        "dependabot_security_updates": "enabled",
+        "secret_scanning": "enabled",
+        "secret_scanning_push_protection": "enabled",
+        "private_vulnerability_reporting": True,
+    }
+    if declaration != expected:
+        raise ValueError(
+            f"manual security feature assertions must equal {expected!r}; observed {declaration!r}"
+        )
+    return declaration
+
+
 def validate_repository(actual, expected, redacted_fields=()):
     errors = []
     allowed_redactions = set(redacted_fields)
@@ -200,6 +219,7 @@ def audit(policy, token):
     repo = policy["repository"]["full_name"]
     errors = []
     redacted_fields = repository_redacted_fields(policy)
+    manual_security_features(policy)
     repository = api_request(f"/repos/{repo}", token)
     errors.extend(validate_repository(repository, policy["repository"], redacted_fields))
     missing_redacted_fields = sorted(field for field in redacted_fields if field not in repository)
