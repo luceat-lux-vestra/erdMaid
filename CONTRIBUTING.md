@@ -24,4 +24,6 @@ The required `Test` and `Verify plugin` contexts still mean successful `./gradle
 
 Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Release/tag/branch mutation is not part of the current repository contract.
 
+Issue metadata automation owns only explicit repository title protocol. `bug|fix` maps to `type:bug`, `feat|feature` maps to `type:feature`, and repository/maintenance prefixes including `task|track|epic|build|ci|test|refactor|chore|perf|release|docs|security|audit|design|architecture|maintenance|hardening|governance` map to `type:maintenance`. Titles outside that protocol are left unchanged; issue body text and area ownership are never inferred heuristically.
+
 The scheduled drift audit verifies only policy surfaces visible to a read-only GitHub token. GitHub deliberately redacts ruleset `bypass_actors` unless the caller has write access to the ruleset, so the no-bypass assertion is never inferred from a missing field; it remains a separate privileged live readback at the merge/exit gate.
