@@ -49,6 +49,19 @@ The reassessment therefore keeps stable Actions analysis, removes the persistent
 
 Build, Test, Plugin Verifier, Workflow Static Analysis, and failure-triage remain authoritative.
 
+## MACHINE-READABLE MANUAL ASSERTIONS — live security features
+
+The reassessment does not treat prose or a green repository-owned workflow as proof of GitHub-hosted security settings. The checked-in policy now declares the exact privileged live assertions that must hold:
+
+- Dependency Graph: enabled;
+- Dependabot vulnerability alerts: enabled;
+- Dependabot security updates: enabled;
+- secret scanning: enabled;
+- secret scanning push protection: enabled;
+- private vulnerability reporting: enabled.
+
+These assertions are schema-tested fail-closed. They are intentionally not inferred by a low-privilege scheduled audit when GitHub withholds admin-only fields. Final reassessment evidence requires an administrator-authorized readback of the actual repository settings/endpoints; missing or unavailable evidence remains UNVERIFIED.
+
 ## Distribution provenance
 
 erdMaid has a real Marketplace distribution path, but the existing repository contract still treats Marketplace publication as a separate boundary. Artifact attestations are not added mechanically in this pass. Reassess provenance/attestation if repository automation becomes the authority that produces and publishes end-user release artifacts.
