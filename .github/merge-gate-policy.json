@@ -29,17 +29,15 @@
       "workflow": ".github/workflows/failure-triage.yml",
       "job": "failure-triage",
       "trigger": "pull_request_target"
-    }
-  ],
-  "staged": [
+    },
     {
       "context": "Dependency Review",
       "workflow": ".github/workflows/dependency-review.yml",
       "job": "review",
-      "disposition": "staged-required-candidate",
-      "promotion": "Require ordinary-PR reliability and live Dependency Graph support before promotion. Dependency Review is PR-diff-scoped and has no merged-main producer; post-merge proof is an atomic checked-in/live ruleset readback."
+      "promotion_evidence": "PR #112 exact HEAD d2f7b2a22047a51c3628c30a16ba36109086220b produced a successful Dependency Review after live Dependency Graph enablement. Final promotion still requires atomic live main-ruleset mutation/readback."
     }
   ],
+  "staged": [],
   "advisory": [
     {
       "context": "CodeQL (actions)",
