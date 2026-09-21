@@ -20,6 +20,20 @@ def main():
     canonical = {entry["name"] for entry in repository["labels"]}
     managed = set(policy["managed_types"])
     failures = []
+    workflow = (ROOT / ".github" / "workflows" / "issue-metadata.yml").read_text()
+    if not re.search(r"(?ms)^      dry_run:\n.*?^        default: true\s*$", workflow):
+        failures.append("manual issue reconciliation must default dry_run=true")
+    if not re.search(r"(?ms)^      backfill:\n.*?^        default: false\s*$", workflow):
+        failures.append("manual issue reconciliation must default backfill=false")
+    for fragment in (
+        "const defaultBranchRef = `refs/heads/${context.payload.repository.default_branch}`;",
+        'context.eventName === "workflow_dispatch" && backfill && !dryRun && context.ref !== defaultBranchRef',
+        "Mutating backfill must run from",
+        "persist-credentials: false",
+        "ref: ${{ github.event.repository.default_branch }}",
+    ):
+        if fragment not in workflow:
+            failures.append(f"issue metadata mutation boundary missing: {fragment}")
 
     if not managed <= canonical:
         failures.append(f"managed types missing from repository label catalog: {sorted(managed - canonical)}")
