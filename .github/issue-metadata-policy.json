@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "managed_types": [
+    "type:bug",
+    "type:feature",
+    "type:maintenance"
+  ],
+  "rules": [
+    {"pattern": "^(fix|bug)(\\([^)]*\\))?:", "label": "type:bug"},
+    {"pattern": "^(feat|feature)(\\([^)]*\\))?:", "label": "type:feature"},
+    {"pattern": "^(task|track|epic|build|ci|test|refactor|chore|perf|release|docs|security|audit|design|architecture|maintenance|hardening)(\\([^)]*\\))?:", "label": "type:maintenance"}
+  ],
+  "body_inference": false,
+  "area_inference": false
+}

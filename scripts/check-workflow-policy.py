@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Fail-closed checks for erdMaid's required workflow contexts.
-
-This intentionally parses only the small, documented workflow shape used by
-this repository. An unfamiliar shape is an error, not an implicit pass.
-"""
+"""Fail-closed checks for erdMaid's required and staged workflow contexts."""
 
 import argparse
 import json
 import os
 import re
 import sys
-
 
 SHA = re.compile(r"@[0-9a-f]{40}(?:\s+#.*)?$")
 JOB = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
@@ -43,10 +38,10 @@ def workflow_triggered_on_pr_event(text, event):
         raise ValueError("workflow has no explicit `on:` mapping")
     end = re.search(r"^[^ \t#\r\n].*$", text[trigger.end():], re.MULTILINE)
     block = text[trigger.end(): trigger.end() + end.start() if end else len(text)]
-    if not re.search(rf"^  {re.escape(event)}:\s*(?:#.*)?$", block, re.MULTILINE):
-        return False
     event_match = re.search(rf"^  {re.escape(event)}:\s*(?:#.*)?$", block, re.MULTILINE)
-    event_tail = block[event_match.end():] if event_match else ""
+    if not event_match:
+        return False
+    event_tail = block[event_match.end():]
     next_event = re.search(r"^  [A-Za-z0-9_-]+:\s*(?:#.*)?$", event_tail, re.MULTILINE)
     event_block = event_tail[:next_event.start()] if next_event else event_tail
     if re.search(r"^    paths(?:-ignore)?:", event_block, re.MULTILINE):
@@ -54,27 +49,34 @@ def workflow_triggered_on_pr_event(text, event):
     return True
 
 
-def check_required(root, policy):
-    for entry in policy["required"]:
+def check_entries(root, entries, classification):
+    for entry in entries:
         workflow_path = os.path.join(root, entry["workflow"])
         if not os.path.isfile(workflow_path):
-            raise ValueError(f"{entry['context']!r} names missing workflow {entry['workflow']}")
+            raise ValueError(f"{classification} {entry['context']!r} names missing workflow {entry['workflow']}")
         text = open(workflow_path, encoding="utf-8").read()
         jobs = read_jobs(text)
         job = jobs.get(entry["job"])
         if job is None:
-            raise ValueError(f"{entry['context']!r} names missing job {entry['job']!r}")
+            raise ValueError(f"{classification} {entry['context']!r} names missing job {entry['job']!r}")
         name = re.search(r"^    name:\s*(.+?)\s*$", job, re.MULTILINE)
         if not name or name.group(1).strip("\"'") != entry["context"]:
             observed = name.group(1).strip() if name else "<missing>"
             raise ValueError(f"{entry['context']!r} does not match job name {observed!r}")
         if re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE):
             raise ValueError(f"{entry['context']!r} can be skipped or greened by job policy")
+
         event = entry.get("trigger", "pull_request")
         if event not in {"pull_request", "pull_request_target"}:
             raise ValueError(f"{entry['context']!r} declares unsupported trigger {event!r}")
-        if event == "pull_request_target" and entry["workflow"] != ".github/workflows/failure-triage.yml":
-            raise ValueError("pull_request_target is allowed only for the audited failure-triage producer")
+        if event == "pull_request_target":
+            trusted = (
+                entry["context"] == "failure-triage"
+                and entry["workflow"] == ".github/workflows/failure-triage.yml"
+                and entry["job"] == "failure-triage"
+            )
+            if not trusted:
+                raise ValueError("pull_request_target is allowed only for the audited failure-triage producer")
         if not workflow_triggered_on_pr_event(text, event):
             raise ValueError(f"{entry['context']!r} is not emitted on {event}")
 
@@ -117,11 +119,15 @@ def main():
             policy = json.load(handle)
         if not policy.get("required"):
             raise ValueError("policy declares no required contexts")
-        check_required(args.root, policy)
+        check_entries(args.root, policy["required"], "required")
+        check_entries(args.root, policy.get("staged", []), "staged")
         check_workflow_security(args.root)
     except (OSError, json.JSONDecodeError, ValueError) as error:
         return fail(str(error))
-    print(f"workflow policy OK: {len(policy['required'])} required context(s)")
+    print(
+        f"workflow policy OK: {len(policy['required'])} required + "
+        f"{len(policy.get('staged', []))} staged context(s)"
+    )
     return 0
 
 
