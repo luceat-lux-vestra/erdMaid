@@ -63,3 +63,30 @@ erdMaid has a real Marketplace distribution path, but the existing repository co
 - issue backfill is reviewed in dry-run before mutation.
 
 `UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain FAIL for claimed controls.
+
+
+## LIVE BLOCKER — GitHub pull_request_target event policy
+
+GitHub's public-repository default Actions event policy is currently evaluating
+`pull_request_target` and is scheduled for enforcement on 2026-11-02.
+
+This repository still deliberately uses that trigger on the following audited
+trusted-base / metadata-only workflows:
+
+- `.github/workflows/pr-metadata.yml`
+- `.github/workflows/failure-triage.yml`
+
+The workflows must not be migrated to ordinary `pull_request` merely to avoid
+the platform policy: doing so would move governance/metadata execution authority
+onto PR-controlled workflow definitions. Instead, issue #120 owns one
+administrative live prerequisite:
+
+- read the repository Actions policies;
+- add an active workflow-path-scoped event policy for only the audited paths;
+- allow only `pull_request_target` for those paths;
+- read the policy back and retain its id, path condition, enforcement, and event set;
+- exercise the workflow on a real PR after activation.
+
+A repository-wide `pull_request_target` allow rule is not accepted.
+Any future checkout or execution of PR-controlled code under these workflows
+invalidates the allow decision and requires a new security review.
