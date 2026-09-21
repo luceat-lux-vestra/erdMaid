@@ -53,6 +53,7 @@ def main():
         "security: tighten workflow": "type:maintenance",
         "docs: clarify contract": "type:maintenance",
         "hardening(reassessment): refresh controls": "type:maintenance",
+        "governance: classify failure signals": "type:maintenance",
         "Investigate DataGrip behavior": None,
     }
     for title, expected in cases.items():
