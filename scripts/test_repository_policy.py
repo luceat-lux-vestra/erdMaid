@@ -40,6 +40,35 @@ def main():
         "manual repository redactions must reference repository policy keys",
     )
 
+    security = rp.manual_security_features(policy)
+    require(
+        security == {
+            "dependency_graph": True,
+            "dependabot_alerts": True,
+            "dependabot_security_updates": "enabled",
+            "secret_scanning": "enabled",
+            "secret_scanning_push_protection": "enabled",
+            "private_vulnerability_reporting": True,
+        },
+        "manual live security assertions must stay complete and explicit",
+    )
+    bad_security_policy = copy.deepcopy(policy)
+    bad_security_policy["manual_live_assertions"]["security_features"]["secret_scanning"] = "disabled"
+    try:
+        rp.manual_security_features(bad_security_policy)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("weakened manual security assertion must fail policy validation")
+    missing_security_policy = copy.deepcopy(policy)
+    del missing_security_policy["manual_live_assertions"]["security_features"]["private_vulnerability_reporting"]
+    try:
+        rp.manual_security_features(missing_security_policy)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("missing manual security assertion must fail policy validation")
+
     manual = policy["manual_live_assertions"]["ruleset_bypass_actors"]
     require(manual["ruleset"] == policy["ruleset"]["name"], "manual bypass assertion must target the governed ruleset")
     require(manual["expected"] == [], "no-bypass assertion must remain explicit and fail closed at the privileged exit gate")

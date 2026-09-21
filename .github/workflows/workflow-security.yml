@@ -83,6 +83,11 @@ jobs:
       - name: Check repository policy fixtures
         run: python3 scripts/test_repository_policy.py
 
+      - name: Check issue metadata policy
+        run: |
+          python3 scripts/test_issue_metadata.py
+          node --test scripts/issue-metadata.test.cjs
+
       - name: Check bounded Gradle retry fixtures
         run: python3 scripts/test_gradle_check_gate.py
 

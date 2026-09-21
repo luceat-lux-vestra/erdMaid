@@ -55,6 +55,14 @@
     "ruleset_bypass_actors": {
       "ruleset": "main protection",
       "expected": []
+    },
+    "security_features": {
+      "dependency_graph": true,
+      "dependabot_alerts": true,
+      "dependabot_security_updates": "enabled",
+      "secret_scanning": "enabled",
+      "secret_scanning_push_protection": "enabled",
+      "private_vulnerability_reporting": true
     }
   },
   "labels": [

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """Negative fixtures proving the erdMaid workflow policy fails closed."""
 
-import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -78,6 +76,24 @@ def main():
             "  pull_request:\n    paths:\n      - 'src/**'\n",
         ),
         "path-filtered",
+    )
+    expect_failure(
+        "missing staged job",
+        lambda root: replace(
+            os.path.join(root, ".github/merge-gate-policy.json"),
+            '"job": "review"',
+            '"job": "missing-staged"',
+        ),
+        "staged",
+    )
+    expect_failure(
+        "unaudited target trigger",
+        lambda root: replace(
+            os.path.join(root, ".github/merge-gate-policy.json"),
+            '"job": "review",',
+            '"job": "review",\n      "trigger": "pull_request_target",',
+        ),
+        "allowed only for the audited failure-triage producer",
     )
     expect_failure(
         "mutable action ref",

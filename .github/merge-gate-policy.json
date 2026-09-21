@@ -30,5 +30,22 @@
       "job": "failure-triage",
       "trigger": "pull_request_target"
     }
+  ],
+  "staged": [
+    {
+      "context": "Dependency Review",
+      "workflow": ".github/workflows/dependency-review.yml",
+      "job": "review",
+      "disposition": "staged-required-candidate",
+      "promotion": "Require ordinary-PR reliability and live Dependency Graph support before promotion. Dependency Review is PR-diff-scoped and has no merged-main producer; post-merge proof is an atomic checked-in/live ruleset readback."
+    }
+  ],
+  "advisory": [
+    {
+      "context": "CodeQL (actions)",
+      "workflow": ".github/workflows/codeql.yml",
+      "disposition": "pull-request/main/scheduled security analysis",
+      "reason": "Stable GitHub Actions CodeQL analysis on PR/main/schedule. Java/Kotlin analysis is tracked in #114 because the stable extractor rejects Kotlin 2.4.20 despite the published support table; required Build/Test/Plugin Verifier remain authoritative."
+    }
   ]
 }
