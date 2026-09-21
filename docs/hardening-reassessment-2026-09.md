@@ -28,16 +28,11 @@ The reconciler reuses those existing labels:
 
 Unknown titles are left unchanged. No body/NLP or area inference is performed. Backfill defaults to dry-run.
 
-## STAGED — Dependency Review
+## PASS — Dependency Review required
 
-Dependency Review is added as a staged required-context candidate. It is not part of the live required list until:
+PR #112 proved Dependency Review on the exact candidate after live Dependency Graph enablement. PR #122 promoted the checked-in gate, and authoritative 2026-09-22 readback confirmed live ruleset `22024076` requires `Dependency Review` with GitHub Actions integration id `15368` and no bypass actors.
 
-1. ordinary PR execution is proven;
-2. Dependency Graph support is verified live;
-3. the checked-in required list and live ruleset are updated together;
-4. authoritative policy/ruleset readback passes.
-
-Dependency Review is PR-diff-scoped and therefore has no merged-main execution proof.
+Dependency Review is PR-diff-scoped and therefore has no merged-main execution proof; its post-promotion proof is the checked-in/live ruleset reconciliation.
 
 ## ADVISORY — CodeQL Actions; Kotlin upstream-blocked
 
@@ -72,7 +67,7 @@ erdMaid has a real Marketplace distribution path, but the existing repository co
 - Workflow Static Analysis proves the new workflows and issue policy;
 - Dependency Review support is classified from live evidence, not assumed;
 - merged-main behavior is read back;
-- any required-context promotion is atomic with live ruleset state;
+- the completed Dependency Review promotion remains synchronized with live ruleset state, and any future required-context promotion is atomic with live state;
 - issue backfill is reviewed in dry-run before mutation.
 
 `UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain FAIL for claimed controls.
