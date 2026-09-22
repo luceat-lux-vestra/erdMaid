@@ -64,6 +64,11 @@ class MarketplaceReleaseTest(unittest.TestCase):
 
     def test_recovery_is_fail_closed(self):
         self.assertIn("Pending Marketplace publication identity exists", self.workflow)
+        self.assertIn("Published identity requires its original pending identity", self.workflow)
+        self.assertIn("Pending and published release identities conflict", self.workflow)
+        self.assertIn('[ "$pending_canonical" = "$published_canonical" ]', self.workflow)
+        self.assertIn('.marketplace_channel == "default"', self.workflow)
+        self.assertIn(".author_signed == true", self.workflow)
         self.assertIn("Published signed asset digest does not match release identity", self.workflow)
         self.assertIn("Signed GitHub Release asset exists without a completed publication identity", self.workflow)
         self.assertIn('publication_state: "pending"', self.workflow)
