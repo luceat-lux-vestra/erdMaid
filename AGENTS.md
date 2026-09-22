@@ -372,19 +372,18 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - Scheduled repository-drift checks fail when required live policy cannot be verified; lack of
   evidence is not success.
 - Issue #99 completed the first public Marketplace distribution boundary. `Marketplace Candidate`
-  may prepare and verify an exact-main update ZIP for the existing public listing, but it remains
-  read-only, has no repository or Marketplace publishing/signing secrets, and must never call
-  `publishPlugin`; Marketplace updates remain manual unless a later trust-boundary review changes
-  that authority.
-- Automated Marketplace publishing is not authorized. Any future automation must separately prove
-  Marketplace token scope, exact-main/ref guards, secret isolation, recovery, and that PR/fork
-  execution cannot reach publication authority.
-- Issue #134 owns the optional author-signing decision. Do not introduce a signing private key,
-  certificate-chain secret, `signPlugin`, or signature claim until the owner accepts a custody,
-  rotation, revocation, and recovery model and the release-only boundary is proven.
-- GitHub artifact attestation is not a checklist control for the current Marketplace-only path.
-  Reassess it only if a stable GitHub-built digest is a consumer-verifiable input to Marketplace
-  delivery or GitHub Releases becomes a distribution surface.
+  remains a read-only exact-main staging/evidence path with no Marketplace or signing secrets and
+  must never publish.
+- Automated Marketplace updates are authorized only through `.github/workflows/release.yml` on the
+  GitHub `release: released` event for a stable protected `vMAJOR.MINOR.PATCH` tag reachable from
+  reviewed `main`. PR/fork/main validation must never reach Marketplace authority.
+- Issue #134 owns this release-authority transition. Production publication requires the
+  `jetbrains-marketplace` environment and `PUBLISH_TOKEN`, `CERTIFICATE_CHAIN`, `PRIVATE_KEY`,
+  and `PRIVATE_KEY_PASSWORD`; missing credentials fail before publication. Author signing,
+  `verifyPluginSignature`, and signed-artifact digest identity are mandatory for automated release.
+- The automated release uploads the same signature-verified ZIP to GitHub Releases and covers it
+  with GitHub build-provenance attestation before Marketplace mutation. Because GitHub Releases is
+  now a consumer distribution surface, attestation is part of the release provenance contract.
 - Issue #51 completed the Apache-2.0 license/source-metadata reconciliation; those Marketplace and
   repository metadata remain part of the distribution contract.
 

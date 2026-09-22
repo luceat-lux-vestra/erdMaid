@@ -22,7 +22,7 @@ The required `Test` and `Verify plugin` contexts still mean successful `./gradle
 
 ## Repository automation
 
-Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Release/tag/branch mutation is not part of the current repository contract.
+Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Marketplace/GitHub Release mutation is isolated to the release-event-only `Marketplace Release` workflow, which executes an immutable reviewed tag, uses the `jetbrains-marketplace` environment, and is never reachable from pull-request or ordinary main validation.
 
 Issue metadata automation owns only explicit repository title protocol. `bug|fix` maps to `type:bug`, `feat|feature` maps to `type:feature`, and repository/maintenance prefixes including `task|track|epic|build|ci|test|refactor|chore|perf|release|docs|security|audit|design|architecture|maintenance|hardening|governance` map to `type:maintenance`. Titles outside that protocol are left unchanged; issue body text and area ownership are never inferred heuristically.
 
