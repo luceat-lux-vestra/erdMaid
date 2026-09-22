@@ -56,6 +56,8 @@ dependencies {
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
     add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
+    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
+    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.1.5"))
     constraints {
         add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
             because("Starter tooling currently resolves a security-affected 1.84")
