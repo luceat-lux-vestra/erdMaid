@@ -45,7 +45,7 @@ class MarketplaceCandidateTest(unittest.TestCase):
                 with self.assertRaises(candidate.CandidateError):
                     candidate.validate_commit(value)
 
-    def test_first_upload_workflow_has_only_manual_trigger_and_no_secrets(self):
+    def test_manual_update_workflow_has_only_manual_trigger_and_no_secrets(self):
         text = CANDIDATE_WORKFLOW.read_text(encoding="utf-8")
         lines = text.splitlines()
         on_index = lines.index("on:")
@@ -128,7 +128,9 @@ class MarketplaceCandidateTest(unittest.TestCase):
             self.assertEqual(candidate.EXPECTED_SOURCE_URL, evidence["sourceCodeUrl"])
             self.assertEqual(candidate.EXPECTED_LICENSE, evidence["license"])
             self.assertEqual("default", evidence["releaseChannel"])
-            self.assertIs(True, evidence["hiddenInitialUpload"])
+            self.assertEqual("manual", evidence["publicationMode"])
+            self.assertEqual("existing-public", evidence["listingState"])
+            self.assertEqual("deferred-owner-decision", evidence["authorSigningDisposition"])
             self.assertIs(False, evidence["authorSigned"])
             self.assertEqual(64, len(evidence["archiveSha256"]))
 

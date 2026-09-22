@@ -2,7 +2,7 @@
 
 ## Supported code
 
-Security fixes target the current `main` branch. erdMaid has no maintained release/distribution channel, so this repository does not claim security support for historical tags or published binaries.
+Security fixes target the current `main` branch. erdMaid is distributed through the public JetBrains Marketplace listing established by #99. The repository does not promise security support for historical tags or older Marketplace versions; fixes are prepared from exact reviewed `main` and enter the distribution channel only through the separately reviewed Marketplace publication boundary.
 
 ## Reporting
 
@@ -14,4 +14,4 @@ A report should include the affected commit/build, the trust boundary involved, 
 
 ## Relevant trust boundaries
 
-High-risk areas include database-controlled metadata rendered as Mermaid, qualified table/relation identity, IntelliJ/DataGrip platform/reflection failures, GitHub Actions permissions and untrusted-PR handling, and any future publication path. Validation must fail closed when a security scanner or authoritative live readback cannot run.
+High-risk areas include database-controlled metadata rendered as Mermaid, qualified table/relation identity, IntelliJ/DataGrip platform/reflection failures, GitHub Actions permissions and untrusted-PR handling, and the Marketplace publication/signing/update path. Validation must fail closed when a security scanner or authoritative live readback cannot run.
