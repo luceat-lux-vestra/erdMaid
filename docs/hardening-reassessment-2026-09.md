@@ -59,9 +59,20 @@ These assertions are schema-tested fail-closed. They are intentionally not infer
 
 ## Distribution provenance
 
-erdMaid has an approved public JetBrains Marketplace distribution channel. The repository prepares exact-main candidates, but Marketplace upload remains a separate manual authority with no repository-held publishing token. Author signing is intentionally not claimed; #134 owns the private-key custody/rotation/revocation decision before any `signPlugin` or `verifyPluginSignature` boundary is introduced.
+erdMaid has an approved public JetBrains Marketplace channel. The read-only `Marketplace Candidate`
+workflow remains a staging/evidence path, while production updates are authorized only by the
+release-event-only `Marketplace Release` workflow.
 
-GitHub artifact attestations are not added mechanically. They remain deferred while the GitHub Actions ZIP is short-lived staging evidence and consumers install the Marketplace-hosted artifact. Reassess provenance/attestation if GitHub Releases becomes a consumer distribution surface or a stable digest-verification chain is established from the GitHub-built ZIP to the Marketplace-delivered artifact.
+The automated path requires a stable protected `vMAJOR.MINOR.PATCH` tag reachable from reviewed
+`main`, release-only Marketplace/signing secrets, explicit `signPlugin` followed by
+`verifyPluginSignature`, a digest-identified signed ZIP, GitHub build-provenance attestation, a
+pending publication lock, Marketplace publication without re-signing, and upload of that exact signed
+ZIP to the GitHub Release. PR/fork/main validation remains unable to access publication authority.
+
+Because GitHub Releases becomes a consumer distribution surface for the same verified signed ZIP,
+artifact attestation is now applicable rather than a checklist-only control. Ambiguous pending
+publication fails closed and requires recovery rather than blind rerun.
+
 
 ## Exit criteria
 
