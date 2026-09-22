@@ -15,9 +15,13 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 3
     groups:
-      gradle:
+      gradle-minor-and-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Keeps the full-length commit SHA pins in `.github/workflows/` current.
   # Those pins rely on the trailing `# vX.Y.Z` comment next to each SHA.
@@ -27,6 +31,10 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 3
     groups:
-      github-actions:
+      github-actions-minor-and-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
