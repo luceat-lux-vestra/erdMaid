@@ -45,6 +45,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
     testImplementation(platform("tools.jackson:jackson-bom:3.1.5"))
+    testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
     add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.33.0")
@@ -60,6 +61,7 @@ dependencies {
     add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
     add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
     add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.1.5"))
+    add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
     constraints {
         add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
             because("Starter tooling currently resolves a security-affected 1.84")
