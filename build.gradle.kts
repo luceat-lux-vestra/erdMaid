@@ -48,7 +48,6 @@ dependencies {
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
-    add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.33.0")
     add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
     add(
         "integrationTestImplementation",
