@@ -155,7 +155,7 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
 // Keep the ordinary required Test gate headless, but require the live-process
 // test sources to compile so Starter/Driver API drift cannot silently rot.
 tasks.named("check") {
-    dependsOn("compileIntegrationTestKotlin")
+    dependsOn("compileIntegrationTestKotlin", verifyStarterSecurityGraph)
 }
 
 // Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
