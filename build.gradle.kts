@@ -15,7 +15,7 @@ repositories {
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
-    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.changelog") version "2.5.0"
 }
 
@@ -66,7 +66,7 @@ dependencies {
         add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.86") {
             because("keep Bouncy Castle Starter tooling modules version-aligned")
         }
-        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.11.1") {
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.11.3") {
             because("1.11.1 fixes the native XXHash range-validation vulnerability")
         }
     }
