@@ -59,7 +59,9 @@ These assertions are schema-tested fail-closed. They are intentionally not infer
 
 ## Distribution provenance
 
-erdMaid has a real Marketplace distribution path, but the existing repository contract still treats Marketplace publication as a separate boundary. Artifact attestations are not added mechanically in this pass. Reassess provenance/attestation if repository automation becomes the authority that produces and publishes end-user release artifacts.
+erdMaid has an approved public JetBrains Marketplace distribution channel. The repository prepares exact-main candidates, but Marketplace upload remains a separate manual authority with no repository-held publishing token. Author signing is intentionally not claimed; #134 owns the private-key custody/rotation/revocation decision before any `signPlugin` or `verifyPluginSignature` boundary is introduced.
+
+GitHub artifact attestations are not added mechanically. They remain deferred while the GitHub Actions ZIP is short-lived staging evidence and consumers install the Marketplace-hosted artifact. Reassess provenance/attestation if GitHub Releases becomes a consumer distribution surface or a stable digest-verification chain is established from the GitHub-built ZIP to the Marketplace-delivered artifact.
 
 ## Exit criteria
 
