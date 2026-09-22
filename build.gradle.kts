@@ -52,6 +52,25 @@ dependencies {
         "com.jetbrains.intellij.tools:ide-starter-product-idea-ultimate:$starterBuild",
     )
 
+    // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
+    // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
+    // equivalent-or-newer fixed versions natively.
+    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
+    constraints {
+        add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
+            because("Starter tooling currently resolves a security-affected 1.84")
+        }
+        add("integrationTestImplementation", "org.bouncycastle:bcpkix-jdk18on:1.86") {
+            because("keep Bouncy Castle Starter tooling modules version-aligned")
+        }
+        add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.86") {
+            because("keep Bouncy Castle Starter tooling modules version-aligned")
+        }
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.11.1") {
+            because("1.11.1 fixes the native XXHash range-validation vulnerability")
+        }
+    }
+
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
         // Run compilation and the IntelliJ test framework against the earliest
