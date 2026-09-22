@@ -1,110 +1,117 @@
 # JetBrains Marketplace publication
 
 This document is the distribution authority for erdMaid's public JetBrains Marketplace channel.
-It does not widen the plugin's maintained IDE support claims; those remain defined by
-`docs/product-fidelity-contract.md` and exact CI/runtime/verifier evidence.
 
 ## Current state
 
-The first Marketplace publication completed under #99:
-
 - plugin ID: `com.algorist.erdmaid`;
-- public version established: `1.0.0`;
+- public Marketplace listing: existing and approved;
+- first public version: `1.0.0`;
 - license: Apache-2.0;
-- source code: `https://github.com/luceat-lux-vestra/erdMaid`;
-- channel: default / Stable;
-- listing: approved and public.
+- source: `https://github.com/luceat-lux-vestra/erdMaid`;
+- production channel: default / Stable.
 
-The initial Hidden bootstrap is historical. Future candidates target the existing public listing and
-must not claim `Hidden initial upload` evidence.
+The historical first-upload bootstrap is complete. Repository automation may publish updates, but only
+through the release-only authority defined below.
 
-## Current publication authority
+## Publication authorities
 
-Marketplace updates are **manual**.
+There are two deliberately separate workflows.
 
-The repository's `Marketplace Candidate` workflow may prepare an uploadable candidate only from
-exact `main`. It has read-only repository permissions and deliberately has:
+### Marketplace Candidate
 
-- no Marketplace publishing token;
-- no author-signing private key or certificate-chain secret;
-- no `publishPlugin` invocation;
-- no `signPlugin` / `verifyPluginSignature` authority.
+`.github/workflows/marketplace-candidate.yml` remains a read-only, manually dispatched staging and
+diagnostic path. It:
 
-A green candidate workflow is preparation evidence, not publication evidence.
+- runs only from exact `main`;
+- accepts an explicit stable SemVer;
+- builds, tests, verifies IDEA/DataGrip compatibility, and inspects the ZIP;
+- has no Marketplace token or signing secrets;
+- never invokes `publishPlugin`, `signPlugin`, or `verifyPluginSignature`;
+- emits `publicationMode=candidate-only`, `authorSigned=false`, and
+  `authorSigningDisposition=required-for-automated-release`.
 
-## Candidate preparation
+A green candidate is evidence only. It is not production publication authority.
 
-Run `Marketplace Candidate` manually from `main` and provide an explicit stable SemVer version in
-`MAJOR.MINOR.PATCH` form. Development timestamp versions are rejected.
+### Marketplace Release
 
-Before producing the manual-upload artifact, the workflow:
+`.github/workflows/release.yml` is the only automated production publication authority.
 
-1. validates stable SemVer and exact `refs/heads/main` / `GITHUB_SHA` identity;
-2. builds the plugin with the requested version;
-3. runs the repository test gate;
-4. runs the maintained IntelliJ IDEA Plugin Verifier gate;
-5. runs the separately pinned DataGrip verifier gate;
-6. inspects the generated ZIP and nested plugin JAR;
-7. requires packaged `META-INF/LICENSE` to be byte-identical to root `LICENSE`;
-8. verifies plugin ID, version, vendor, `since-build`, and absence of a paid product descriptor;
-9. emits `build/reports/marketplace-candidate.json` containing the exact commit, ZIP SHA-256,
-   license/source/channel, `publicationMode=manual`, `listingState=existing-public`,
-   `authorSigned=false`, and `authorSigningDisposition=deferred-owner-decision`.
+It runs only for a published GitHub Release whose tag is stable `vMAJOR.MINOR.PATCH`. The effective
+plugin version is the tag with the leading `v` removed. The tag commit must be reachable from
+reviewed `main`.
 
-The uploaded Actions artifact contains the candidate ZIP, candidate manifest, and verifier reports
-for 14 days. It is evidence/staging only.
+For a new publication the workflow, in order:
 
-## Manual Marketplace update
+1. proves release/tag identity and reviewed-main ancestry;
+2. proves no completed/pending publication identity conflicts with the release;
+3. rebuilds the exact tagged source with the exact SemVer;
+4. runs the repository test gate and IDEA/DataGrip verifier gates;
+5. inspects the unsigned candidate identity and packaged license;
+6. requires all Marketplace/signing credentials before any signing or publication mutation;
+7. author-signs the exact ZIP;
+8. runs `verifyPluginSignature`;
+9. captures one exact `*-signed.zip` and SHA-256;
+10. creates a GitHub build-provenance attestation for that signed ZIP;
+11. uploads a pending publication-identity lock to the GitHub Release;
+12. invokes `publishPlugin -x signPlugin`, so the already-verified signed artifact is not re-signed;
+13. rechecks the signed SHA-256 after Marketplace publication;
+14. uploads the same signed ZIP as the GitHub Release asset;
+15. uploads a completed publication identity.
 
-For each update:
+Ordinary PR/main workflows have no Marketplace or signing credentials and cannot publish.
 
-1. use the ZIP whose SHA-256 matches `marketplace-candidate.json`;
-2. upload it manually to the existing erdMaid Marketplace listing on the default/Stable channel;
-3. verify the submitted version and listing identity before release;
-4. wait for Marketplace verification/review as applicable;
-5. confirm the public Marketplace version/metadata after approval.
+## Release environment and secrets
 
-If candidate identity, digest, license/source metadata, Marketplace version, or approval state cannot
-be verified with sufficient authority, the update is UNVERIFIED rather than PASS.
+The release job uses the GitHub environment `jetbrains-marketplace`. That environment must contain:
 
-## Author signing — owner decision (#134)
+- `PUBLISH_TOKEN` — JetBrains Marketplace publication token;
+- `CERTIFICATE_CHAIN` — author-signing certificate chain;
+- `PRIVATE_KEY` — author-signing private key;
+- `PRIVATE_KEY_PASSWORD` — private-key password.
 
-JetBrains supports author signing in addition to Marketplace signing. erdMaid does **not** currently
-author-sign Marketplace candidates.
+The private key and password are release-only secrets. They must not be copied into repository files,
+PR workflows, logs, artifacts, issue comments, or local fixtures.
 
-Do not add a long-lived private key or GitHub secret merely to satisfy a checklist. Author signing may
-be adopted only after the owner accepts and documents:
+Key lifecycle:
 
-1. certificate/private-key generation and custody;
-2. release-only secret/environment scope;
-3. rotation, revocation, and recovery;
-4. `signPlugin` on the exact candidate;
-5. `verifyPluginSignature` before the ZIP is uploadable;
-6. evidence that PR/fork-controlled execution cannot access signing authority.
+- custody: GitHub environment secret storage plus the owner's offline backup;
+- rotation: create a new signing identity deliberately, update all four release secrets atomically,
+  then prove signature verification before publishing;
+- revocation/compromise: stop releases, revoke/replace the affected identity where supported, rotate
+  secrets, and use a new plugin version rather than rewriting an already published artifact;
+- loss: do not bypass signing. Recover from the offline backup or establish a replacement signing
+  identity before the next release.
 
-Until those conditions are accepted and implemented, `authorSigned=false` is the truthful evidence
-state.
+## Tag governance
 
-## GitHub artifact attestation
+Before the automated path is considered production-ready, the live repository must protect
+`refs/tags/v*` against update and deletion with no routine bypass while allowing new release-tag
+creation. A release workflow run also checks that the tag resolves to reviewed `main`, but that
+runtime ancestry check is not a substitute for tag immutability.
 
-Artifact attestation is **deferred / not the primary Marketplace control**. The current consumer
-installs the Marketplace-hosted artifact, which JetBrains signs in its delivery pipeline; the
-short-lived GitHub Actions artifact is staging evidence.
+## Recovery
 
-Reassess GitHub provenance attestation if:
+The workflow intentionally distinguishes three states:
 
-- GitHub Releases becomes a consumer distribution surface; or
-- the release architecture establishes a stable digest/verification chain from the GitHub-built ZIP
-  to the Marketplace-delivered artifact that consumers or operators actually verify.
+- no identity: a new publication may proceed;
+- `erdmaid-release-identity.json` only: publication is ambiguous/pending and automatic rerun stops;
+- `erdmaid-release-published.json`: rerun is a verified no-op only after the recorded signed
+  GitHub Release asset digest is revalidated.
 
-## Future automated publishing
+A pending identity may mean Marketplace publication succeeded before a later workflow step failed.
+Do not rerun or republish blindly. Check Marketplace version state and the GitHub Release assets
+authoritatively. If the Marketplace version exists, complete/reconcile the GitHub evidence without
+re-uploading the same Marketplace version. If publication did not occur, determine why before any
+new attempt. Never move/reuse the existing tag to different source.
 
-Automated Marketplace publishing is not authorized by the current boundary. A future PR introducing
-`publishPlugin` must separately prove Marketplace-token least privilege, trusted exact-main/ref
-guards, secret non-exposure, failure/recovery behavior, and any adopted author-signing lifecycle.
+## Release procedure
 
-## Historical bootstrap
+1. choose the next stable SemVer greater than the current Marketplace version;
+2. require the target commit to be reviewed and present on `main`;
+3. create protected tag `vMAJOR.MINOR.PATCH` on that exact commit;
+4. create/publish the GitHub Release for that tag;
+5. the Marketplace Release workflow performs the signed automated publication;
+6. verify the Marketplace update and the GitHub Release signed asset after the workflow completes.
 
-The first publication used an exact reviewed `1.0.0` candidate, was uploaded manually, passed
-Marketplace compatibility/review, was initially Hidden, and was then made public. #99 and #51 retain
-that bootstrap and license/source consistency evidence.
+Do not manufacture a production release solely as CI evidence.
