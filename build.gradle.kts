@@ -43,8 +43,8 @@ configurations.getByName("integrationTestImplementation") {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
-    testImplementation(platform("tools.jackson:jackson-bom:3.1.5"))
+    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.21.6"))
+    testImplementation(platform("tools.jackson:jackson-bom:3.1.6"))
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
@@ -59,8 +59,8 @@ dependencies {
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
     add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
-    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
-    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.1.5"))
+    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.21.6"))
+    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.1.6"))
     add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
     constraints {
         add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
@@ -100,6 +100,43 @@ dependencies {
     }
 }
 
+val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
+    group = "verification"
+    description = "Fail if the executable Starter/E2E runtime resolves security-stale tooling dependencies."
+
+    doLast {
+        val expected = mapOf(
+            "org.jsoup:jsoup" to "1.23.2",
+            "com.fasterxml.jackson.core:jackson-core" to "2.21.6",
+            "com.fasterxml.jackson.core:jackson-databind" to "2.21.6",
+            "tools.jackson.core:jackson-core" to "3.1.6",
+            "tools.jackson.core:jackson-databind" to "3.1.6",
+            "io.netty:netty-handler" to "4.2.18.Final",
+            "io.netty:netty-codec-compression" to "4.2.18.Final",
+            "org.bouncycastle:bcprov-jdk18on" to "1.86",
+            "org.bouncycastle:bcpkix-jdk18on" to "1.86",
+            "org.bouncycastle:bcutil-jdk18on" to "1.86",
+            "at.yawk.lz4:lz4-java" to "1.11.3",
+        )
+        val resolved = configurations.getByName("integrationTestRuntimeClasspath")
+            .incoming.resolutionResult.allComponents
+            .mapNotNull { component ->
+                component.moduleVersion?.let { id -> "${id.group}:${id.name}" to id.version }
+            }
+            .toMap()
+
+        expected.forEach { (module, version) ->
+            val actual = resolved[module]
+                ?: throw GradleException("Starter security graph is missing expected module $module")
+            if (actual != version) {
+                throw GradleException(
+                    "Starter security graph drift for $module: expected $version, resolved $actual",
+                )
+            }
+        }
+    }
+}
+
 intellijPlatformTesting.testIdeUi.register("integrationTest") {
     task {
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")
@@ -110,7 +147,7 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
             "path.to.build.plugin",
             tasks.prepareSandbox.get().pluginDirectory.get().asFile,
         )
-        dependsOn(tasks.prepareSandbox)
+        dependsOn(tasks.prepareSandbox, verifyStarterSecurityGraph)
         useJUnitPlatform()
     }
 }
