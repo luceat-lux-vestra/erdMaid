@@ -63,7 +63,7 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.assertIn('providers.environmentVariable("PRIVATE_KEY_PASSWORD")', self.build)
 
     def test_recovery_is_fail_closed(self):
-        self.assertIn("pending Marketplace publication identity exists", self.workflow)
+        self.assertIn("Pending Marketplace publication identity exists", self.workflow)
         self.assertIn("Published signed asset digest does not match release identity", self.workflow)
         self.assertIn("Signed GitHub Release asset exists without a completed publication identity", self.workflow)
         self.assertIn('publication_state: "pending"', self.workflow)
