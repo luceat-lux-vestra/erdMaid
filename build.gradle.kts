@@ -24,10 +24,10 @@ val resolvedPluginVersion = providers.gradleProperty("buildVersion").orElse(buil
 version = resolvedPluginVersion.get()
 
 // JetBrains Starter 2026.2 splits product descriptors into dedicated artifacts.
-// Pin the Starter framework and IDEA product descriptor to the exact baseline
-// build instead of LATEST-EAP-SNAPSHOT so integration-test compilation remains
-// reproducible and aligned with the project's minimum supported 2026.2 host.
-val starterBuild = "262.8665.337"
+// Keep Starter independently pinned to a current stable 2026.2 build so process-level
+// integration tooling can receive security fixes without moving the plugin's minimum
+// supported compile/test host away from 2026.2.0.1.
+val starterBuild = "262.10968.63"
 
 sourceSets {
     create("integrationTest") {
