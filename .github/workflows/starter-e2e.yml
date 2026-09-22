@@ -1,0 +1,100 @@
+name: Starter E2E
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'build.gradle.kts'
+      - 'src/integrationTest/**'
+      - '.github/workflows/starter-e2e.yml'
+  pull_request:
+    paths:
+      - 'build.gradle.kts'
+      - 'src/integrationTest/**'
+      - '.github/workflows/starter-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  starter-e2e:
+    name: Starter E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+
+      - name: Fetch exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup Java 25
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: true
+
+      - name: Build exact plugin artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew buildPlugin
+          tested_commit="$(git rev-parse HEAD)"
+          test "$tested_commit" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          mapfile -t archives < <(find build/distributions -maxdepth 1 -type f -name '*.zip' -print)
+          if [[ ${#archives[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one plugin distribution, found ${#archives[@]}"
+            printf '%s\n' "${archives[@]}"
+            exit 1
+          fi
+          artifact="${archives[0]}"
+          {
+            echo "tested_commit=$tested_commit"
+            echo "plugin_artifact=$artifact"
+            echo "plugin_sha256=$(sha256sum "$artifact" | awk '{print $1}')"
+            echo "ide_release=2026.2.2"
+          } | tee starter-e2e-artifact-manifest.txt
+
+      - name: Run Starter E2E
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew integrationTest --stacktrace 2>&1 | tee starter-e2e.log
+
+      - name: Upload Starter E2E artifact identity
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: starter-e2e-artifact-identity
+          path: starter-e2e-artifact-manifest.txt
+          if-no-files-found: error
+
+      - name: Upload Starter E2E failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: starter-e2e-failure-diagnostics
+          path: |
+            starter-e2e.log
+            build/reports/tests/integrationTest
+            build/test-results/integrationTest
+            out/ide-tests/tests
+          if-no-files-found: warn
