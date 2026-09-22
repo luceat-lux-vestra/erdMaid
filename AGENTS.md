@@ -371,15 +371,22 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - Metadata automation remains a distinct narrowly-permissioned trust boundary.
 - Scheduled repository-drift checks fail when required live policy cannot be verified; lack of
   evidence is not success.
-- Issue #99 owns the separately approved first-distribution boundary. `Marketplace Candidate` may
-  prepare and verify an exact-main release ZIP, but it has read-only repository permissions, has no
-  repository or Marketplace secrets, and must never call `publishPlugin`; the first Marketplace
-  upload remains manual.
-- Automated Marketplace publishing is not authorized until an approved listing exists and a later,
-  separately reviewed trust-boundary change proves token scope, optional author signing if adopted,
-  ref guards, and recovery.
-- Issue #51 (project license selection) is separate repository/distribution hygiene and does not
-  change architecture proof obligations.
+- Issue #99 completed the first public Marketplace distribution boundary. `Marketplace Candidate`
+  may prepare and verify an exact-main update ZIP for the existing public listing, but it remains
+  read-only, has no repository or Marketplace publishing/signing secrets, and must never call
+  `publishPlugin`; Marketplace updates remain manual unless a later trust-boundary review changes
+  that authority.
+- Automated Marketplace publishing is not authorized. Any future automation must separately prove
+  Marketplace token scope, exact-main/ref guards, secret isolation, recovery, and that PR/fork
+  execution cannot reach publication authority.
+- Issue #134 owns the optional author-signing decision. Do not introduce a signing private key,
+  certificate-chain secret, `signPlugin`, or signature claim until the owner accepts a custody,
+  rotation, revocation, and recovery model and the release-only boundary is proven.
+- GitHub artifact attestation is not a checklist control for the current Marketplace-only path.
+  Reassess it only if a stable GitHub-built digest is a consumer-verifiable input to Marketplace
+  delivery or GitHub Releases becomes a distribution surface.
+- Issue #51 completed the Apache-2.0 license/source-metadata reconciliation; those Marketplace and
+  repository metadata remain part of the distribution contract.
 
 ---
 
