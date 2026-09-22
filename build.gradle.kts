@@ -43,6 +43,8 @@ configurations.getByName("integrationTestImplementation") {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.21.5"))
+    testImplementation(platform("tools.jackson:jackson-bom:3.1.5"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
     add("integrationTestImplementation", "org.kodein.di:kodein-di-jvm:7.33.0")
