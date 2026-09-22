@@ -80,17 +80,54 @@ jobs:
           pending_id="$(printf '%s\n' "$pending_ids" | sed -n '1p')"
 
           if [ -n "$published_id" ]; then
+            [ -n "$pending_id" ] || {
+              echo "::error::Published identity requires its original pending identity."
+              exit 1
+            }
+
+            pending_identity="$RUNNER_TEMP/existing-pending.json"
             identity="$RUNNER_TEMP/existing-published.json"
-            gh api -H 'Accept: application/octet-stream'               "repos/${GITHUB_REPOSITORY}/releases/assets/${published_id}" > "$identity"
-            jq -e               --arg tag "$RELEASE_TAG"               --arg version "$RELEASE_VERSION"               --arg commit "$RELEASE_COMMIT" '
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${pending_id}" > "$pending_identity"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${published_id}" > "$identity"
+
+            jq -e \
+              --arg tag "$RELEASE_TAG" \
+              --arg version "$RELEASE_VERSION" \
+              --arg commit "$RELEASE_COMMIT" '
+                .schema == 1 and
+                .publication_state == "pending" and
+                .tag == $tag and
+                .version == $version and
+                .commit == $commit and
+                .marketplace_channel == "default" and
+                .author_signed == true and
+                (.artifact | endswith("-" + $version + "-signed.zip")) and
+                (.artifact_sha256 | test("^[0-9a-f]{64}$"))
+              ' "$pending_identity" >/dev/null
+
+            jq -e \
+              --arg tag "$RELEASE_TAG" \
+              --arg version "$RELEASE_VERSION" \
+              --arg commit "$RELEASE_COMMIT" '
                 .schema == 1 and
                 .publication_state == "published" and
                 .tag == $tag and
                 .version == $version and
                 .commit == $commit and
+                .marketplace_channel == "default" and
+                .author_signed == true and
                 (.artifact | endswith("-" + $version + "-signed.zip")) and
                 (.artifact_sha256 | test("^[0-9a-f]{64}$"))
               ' "$identity" >/dev/null
+
+            pending_canonical="$(jq -S 'del(.publication_state)' "$pending_identity")"
+            published_canonical="$(jq -S 'del(.publication_state)' "$identity")"
+            [ "$pending_canonical" = "$published_canonical" ] || {
+              echo "::error::Pending and published release identities conflict."
+              exit 1
+            }
 
             artifact_name="$(jq -r '.artifact' "$identity")"
             expected_sha="$(jq -r '.artifact_sha256' "$identity")"
@@ -100,7 +137,8 @@ jobs:
               exit 1
             }
             asset_id="$(printf '%s\n' "$asset_ids" | sed -n '1p')"
-            gh api -H 'Accept: application/octet-stream'               "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "$RUNNER_TEMP/existing-signed.zip"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "$RUNNER_TEMP/existing-signed.zip"
             actual_sha="$(sha256sum "$RUNNER_TEMP/existing-signed.zip" | awk '{print $1}')"
             [ "$actual_sha" = "$expected_sha" ] || {
               echo "::error::Published signed asset digest does not match release identity."
