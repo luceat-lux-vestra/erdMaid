@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed validation for manually uploaded JetBrains Marketplace candidates."""
+"""Fail-closed validation for JetBrains Marketplace staging candidates."""
 
 from __future__ import annotations
 
@@ -154,11 +154,11 @@ def inspect_archive(
         "archive": archive_path.name,
         "archiveSha256": digest,
         "authorSigned": False,
-        "authorSigningDisposition": "deferred-owner-decision",
+        "authorSigningDisposition": "required-for-automated-release",
         "commit": commit,
         "listingState": "existing-public",
         "license": EXPECTED_LICENSE,
-        "publicationMode": "manual",
+        "publicationMode": "candidate-only",
         "pluginJar": jar_name,
         "pluginXmlId": EXPECTED_PLUGIN_ID,
         "releaseChannel": "default",
