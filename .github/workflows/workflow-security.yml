@@ -97,6 +97,9 @@ jobs:
       - name: Check Marketplace candidate fixtures
         run: python3 scripts/test_marketplace_candidate.py
 
+      - name: Check Marketplace release fixtures
+        run: python3 scripts/test_marketplace_release.py
+
       - name: Run zizmor
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
