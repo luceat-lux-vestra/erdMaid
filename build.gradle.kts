@@ -48,7 +48,9 @@ dependencies {
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.62.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
-    add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
+    // The custom integrationTest source set needs Kotlin stdlib explicitly; do not rely on
+    // an unrelated library such as kotlinx-coroutines to pull it in transitively.
+    add("integrationTestImplementation", kotlin("stdlib"))
     add(
         "integrationTestImplementation",
         "com.jetbrains.intellij.tools:ide-starter-product-idea-ultimate:$starterBuild",
