@@ -1,10 +1,10 @@
-# Manual preparation of the first JetBrains Marketplace upload artifact.
+# Manual preparation of a JetBrains Marketplace update artifact for the
+# existing public erdMaid listing.
 #
-# This workflow is intentionally NOT a publishing workflow. JetBrains requires
-# the first Marketplace publication to be uploaded manually, where license,
-# source-code URL, vendor/profile, and Hidden state are established. There is
-# deliberately no Marketplace upload credential, signing secret, or Gradle
-# publishing-task invocation here.
+# This workflow is intentionally NOT a publishing or signing workflow. It
+# prepares an exact-main candidate for manual Marketplace upload and deliberately
+# has no Marketplace upload credential, author-signing secret, or Gradle
+# publishing-task invocation. Optional author signing remains owned by #134.
 
 name: Marketplace Candidate
 
