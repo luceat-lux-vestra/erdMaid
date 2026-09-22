@@ -128,9 +128,9 @@ class MarketplaceCandidateTest(unittest.TestCase):
             self.assertEqual(candidate.EXPECTED_SOURCE_URL, evidence["sourceCodeUrl"])
             self.assertEqual(candidate.EXPECTED_LICENSE, evidence["license"])
             self.assertEqual("default", evidence["releaseChannel"])
-            self.assertEqual("manual", evidence["publicationMode"])
+            self.assertEqual("candidate-only", evidence["publicationMode"])
             self.assertEqual("existing-public", evidence["listingState"])
-            self.assertEqual("deferred-owner-decision", evidence["authorSigningDisposition"])
+            self.assertEqual("required-for-automated-release", evidence["authorSigningDisposition"])
             self.assertIs(False, evidence["authorSigned"])
             self.assertEqual(64, len(evidence["archiveSha256"]))
 
