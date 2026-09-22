@@ -66,7 +66,7 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.assertIn("pending Marketplace publication identity exists", self.workflow)
         self.assertIn("Published signed asset digest does not match release identity", self.workflow)
         self.assertIn("Signed GitHub Release asset exists without a completed publication identity", self.workflow)
-        self.assertIn('"publication_state": "pending"', self.workflow.replace(" ", ""))
+        self.assertIn('publication_state: "pending"', self.workflow)
 
 
 if __name__ == "__main__":
