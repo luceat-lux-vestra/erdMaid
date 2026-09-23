@@ -70,13 +70,7 @@ def check_entries(root, entries, classification):
         if event not in {"pull_request", "pull_request_target"}:
             raise ValueError(f"{entry['context']!r} declares unsupported trigger {event!r}")
         if event == "pull_request_target":
-            trusted = (
-                entry["context"] == "failure-triage"
-                and entry["workflow"] == ".github/workflows/failure-triage.yml"
-                and entry["job"] == "failure-triage"
-            )
-            if not trusted:
-                raise ValueError("pull_request_target is allowed only for the audited failure-triage producer")
+            raise ValueError("required and staged PR gates must use unprivileged pull_request")
         if not workflow_triggered_on_pr_event(text, event):
             raise ValueError(f"{entry['context']!r} is not emitted on {event}")
 

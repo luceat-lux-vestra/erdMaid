@@ -26,9 +26,9 @@
     },
     {
       "context": "failure-triage",
-      "workflow": ".github/workflows/failure-triage.yml",
+      "workflow": ".github/workflows/failure-declaration.yml",
       "job": "failure-triage",
-      "trigger": "pull_request_target"
+      "trigger": "pull_request"
     },
     {
       "context": "Dependency Review",

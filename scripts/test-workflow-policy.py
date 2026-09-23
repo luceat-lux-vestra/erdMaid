@@ -87,13 +87,13 @@ def main():
         "staged",
     )
     expect_failure(
-        "unaudited target trigger",
+        "pull_request_target required gate",
         lambda root: replace(
             os.path.join(root, ".github/merge-gate-policy.json"),
             '"job": "review",',
             '"job": "review",\n      "trigger": "pull_request_target",',
         ),
-        "allowed only for the audited failure-triage producer",
+        "must use unprivileged pull_request",
     )
     expect_failure(
         "mutable action ref",
