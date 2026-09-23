@@ -1,7 +1,7 @@
 name: Failure classification
 
 on:
-  workflow_run: # trusted reporter only; never checkout/execute PR code or artifacts
+  workflow_run: # zizmor: ignore[dangerous-triggers] trusted reporter only; never checkout/execute PR code or artifacts
     workflows:
       - Starter E2E
       - Build
@@ -12,7 +12,8 @@ on:
       - Host API Evidence
     types: [completed]
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: failure-classification-${{ github.event.workflow_run.head_sha }}
