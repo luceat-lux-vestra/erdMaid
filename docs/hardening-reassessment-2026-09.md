@@ -13,7 +13,7 @@ The repository was reassessed against current external GitHub/OpenSSF guidance a
 - actionlint + zizmor with negative controls;
 - Dependabot for Gradle and GitHub Actions;
 - trusted-base PR metadata automation;
-- required trusted-base `failure-triage` gate for classification-before-remediation;
+- required unprivileged `failure-triage` declaration gate plus a trusted default-branch failure-classification reporter;
 - Marketplace candidate boundary and current manual publication authority.
 
 ## GAP — issue metadata

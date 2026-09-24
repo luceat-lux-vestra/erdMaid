@@ -70,13 +70,7 @@ def check_entries(root, entries, classification):
         if event not in {"pull_request", "pull_request_target"}:
             raise ValueError(f"{entry['context']!r} declares unsupported trigger {event!r}")
         if event == "pull_request_target":
-            trusted = (
-                entry["context"] == "failure-triage"
-                and entry["workflow"] == ".github/workflows/failure-triage.yml"
-                and entry["job"] == "failure-triage"
-            )
-            if not trusted:
-                raise ValueError("pull_request_target is allowed only for the audited failure-triage producer")
+            raise ValueError(f"{entry['context']!r} must not use pull_request_target")
         if not workflow_triggered_on_pr_event(text, event):
             raise ValueError(f"{entry['context']!r} is not emitted on {event}")
 
@@ -92,8 +86,8 @@ def check_workflow_security(root):
         raise ValueError("no workflow files found")
     for path in paths:
         text = open(path, encoding="utf-8").read()
-        if not re.search(r"^permissions:\s*$", text, re.MULTILINE):
-            raise ValueError(f"{os.path.basename(path)} has no top-level permissions block")
+        if not re.search(r"^permissions:(?:\s*\{\})?\s*$", text, re.MULTILINE):
+            raise ValueError(f"{os.path.basename(path)} has no supported top-level permissions block")
         for line in text.splitlines():
             if re.search(r"\buses:\s*", line):
                 ref = line.split("uses:", 1)[1].split("#", 1)[0].strip()
@@ -107,6 +101,40 @@ def check_workflow_security(root):
                 raise ValueError(f"{os.path.basename(path)}:{job_id} has no timeout-minutes")
         if not re.search(r"^concurrency:\s*$", text, re.MULTILINE):
             raise ValueError(f"{os.path.basename(path)} has no concurrency control")
+
+    classifier_path = os.path.join(workflow_dir, "failure-classification.yml")
+    if os.path.isfile(classifier_path):
+        classifier = open(classifier_path, encoding="utf-8").read()
+        if not re.search(r"^permissions:\s*\{\}\s*$", classifier, re.MULTILINE):
+            raise ValueError("Failure classification must use top-level permissions: {}")
+        classifier_jobs = read_jobs(classifier)
+        classify = classifier_jobs.get("classify")
+        if classify is None:
+            raise ValueError("Failure classification has no classify job")
+        permission_block = re.search(
+            r"(?ms)^    permissions:\s*$\n(?P<body>(?:      [^\n]*(?:\n|$))*)",
+            classify,
+        )
+        if permission_block is None:
+            raise ValueError("Failure classification classify job has no permissions block")
+        observed = {}
+        for raw in permission_block.group("body").splitlines():
+            code = raw.split("#", 1)[0].strip()
+            if not code:
+                continue
+            match = re.fullmatch(r"([A-Za-z-]+):\s*(read|write)", code)
+            if match is None:
+                raise ValueError(f"Failure classification has unsupported permission entry {code!r}")
+            observed[match.group(1)] = match.group(2)
+        expected = {"actions": "read", "pull-requests": "write"}
+        if observed != expected:
+            raise ValueError(
+                f"Failure classification has unexpected job permissions: {observed!r}"
+            )
+        if "actions/checkout@" in classifier:
+            raise ValueError("Failure classification must not checkout repository content")
+        if "actions/download-artifact@" in classifier or "gh run download" in classifier:
+            raise ValueError("Failure classification must not download workflow artifacts")
 
 
 def main():

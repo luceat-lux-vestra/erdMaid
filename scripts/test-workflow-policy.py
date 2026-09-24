@@ -93,7 +93,25 @@ def main():
             '"job": "review",',
             '"job": "review",\n      "trigger": "pull_request_target",',
         ),
-        "allowed only for the audited failure-triage producer",
+        "must not use pull_request_target",
+    )
+    expect_failure(
+        "classifier workflow-level permission regression",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/failure-classification.yml"),
+            "permissions: {}\n",
+            "permissions:\n  contents: read\n",
+        ),
+        "must use top-level permissions: {}",
+    )
+    expect_failure(
+        "classifier extra write permission",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/failure-classification.yml"),
+            "      pull-requests: write # Upsert the single sticky classification report on the PR conversation.\n",
+            "      pull-requests: write # Upsert the single sticky classification report on the PR conversation.\n      issues: write\n",
+        ),
+        "unexpected job permissions",
     )
     expect_failure(
         "mutable action ref",
