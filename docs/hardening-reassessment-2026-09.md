@@ -91,23 +91,44 @@ publication fails closed and requires recovery rather than blind rerun.
 GitHub's public-repository default Actions event policy is currently evaluating
 `pull_request_target` and is scheduled for enforcement on 2026-11-02.
 
-This repository still deliberately uses that trigger on the following audited
-trusted-base / metadata-only workflows:
+The remaining audited trusted-base / metadata-only use is:
 
 - `.github/workflows/pr-metadata.yml`
-- `.github/workflows/failure-triage.yml`
 
-The workflows must not be migrated to ordinary `pull_request` merely to avoid
-the platform policy: doing so would move governance/metadata execution authority
-onto PR-controlled workflow definitions. Instead, issue #120 owns one
-administrative live prerequisite:
+The required failure-remediation declaration is **not** part of this exception.
+It now runs as the unprivileged `.github/workflows/failure-declaration.yml`
+`pull_request` gate and delegates validation to the immutable central
+`failure-declaration` action.
+
+The PR-metadata workflow must not be migrated to ordinary `pull_request` merely
+to avoid the platform policy: doing so would move metadata execution authority
+onto a PR-controlled workflow definition. Issue #120 owns the corresponding
+administrative live prerequisite for that audited workflow path:
 
 - read the repository Actions policies;
-- add an active workflow-path-scoped event policy for only the audited paths;
-- allow only `pull_request_target` for those paths;
+- add an active workflow-path-scoped event policy for only the audited path;
+- allow only `pull_request_target` for that path;
 - read the policy back and retain its id, path condition, enforcement, and event set;
 - exercise the workflow on a real PR after activation.
 
 A repository-wide `pull_request_target` allow rule is not accepted.
-Any future checkout or execution of PR-controlled code under these workflows
-invalidates the allow decision and requires a new security review.
+Any future checkout or execution of PR-controlled code under the trusted-base
+workflow invalidates the allow decision and requires a new security review.
+
+## Failure-classification rollout proof
+
+The trusted `Failure classification` reporter is loaded from the default branch
+through `workflow_run`. Therefore the PR that first introduces the reporter
+cannot prove that reporter against its own pull-request runs.
+
+A repository is considered fully rolled out only after a later PR, with the
+reporter already present on `main`, proves all of the following on one exact
+final HEAD:
+
+- the ordinary required contexts, including `failure-triage`, succeed;
+- the default-branch reporter creates or updates exactly one sticky
+  `CI Failure Classification` comment for that same HEAD;
+- the report reaches `CLEAR` when no tracked workflow is pending or failed;
+- no PR code or downloaded artifact is executed by the trusted reporter.
+
+`CANDIDATE` and `UNKNOWN` never authorize remediation.
