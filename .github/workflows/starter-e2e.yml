@@ -8,6 +8,7 @@ on:
       - 'src/integrationTest/**'
       - '.github/workflows/starter-e2e.yml'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'build.gradle.kts'
       - 'src/integrationTest/**'
@@ -23,6 +24,7 @@ concurrency:
 
 jobs:
   starter-e2e:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Starter E2E
     runs-on: ubuntu-latest
     timeout-minutes: 75

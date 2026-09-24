@@ -15,6 +15,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # Least privilege by default. Jobs that need more must opt in explicitly.
 permissions:
@@ -178,6 +179,7 @@ jobs:
   # pinned standalone gate because IJPGP 2.18.1 still has the DB/DG catalog-code
   # mismatch. Either step failing fails this same required context.
   verify:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Verify plugin
     needs: [ build ]
     runs-on: ubuntu-latest

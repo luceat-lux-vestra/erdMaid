@@ -15,6 +15,7 @@ on:
       - 'src/test/kotlin/com/algorist/erdmaid/actions/**'
       - 'src/test/kotlin/com/algorist/erdmaid/host/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '.github/workflows/host-api-evidence.yml'
       - 'scripts/database_host_api_inventory.py'
@@ -35,6 +36,7 @@ concurrency:
 
 jobs:
   idea-host-api-evidence:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: IDEA Host API Evidence
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -86,6 +88,7 @@ jobs:
           if-no-files-found: warn
 
   datagrip-host-api-evidence:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: DataGrip Host API Evidence
     runs-on: ubuntu-latest
     timeout-minutes: 45
