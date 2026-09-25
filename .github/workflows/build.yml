@@ -33,8 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      # Read prior exact-SHA check results for Fast evidence reuse.
-      checks: read
+      checks: read # Needed to inspect prior exact-SHA check results for Fast evidence reuse.
       contents: read
     steps:
       - name: Reuse exact-SHA Fast evidence
@@ -122,7 +121,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      checks: read
+      checks: read # Needed to inspect prior exact-SHA check results for Fast evidence reuse.
       contents: read
     steps:
       - name: Reuse exact-SHA Fast evidence
