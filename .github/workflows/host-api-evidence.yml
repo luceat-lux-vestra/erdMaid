@@ -2,18 +2,6 @@
 name: Host API Evidence
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - '.github/workflows/host-api-evidence.yml'
-      - 'scripts/database_host_api_inventory.py'
-      - 'scripts/test_database_host_api_inventory.py'
-      - 'scripts/datagrip_host_api_evidence.py'
-      - 'scripts/datagrip_verifier.py'
-      - 'src/main/kotlin/com/algorist/erdmaid/actions/**'
-      - 'src/main/kotlin/com/algorist/erdmaid/host/**'
-      - 'src/test/kotlin/com/algorist/erdmaid/actions/**'
-      - 'src/test/kotlin/com/algorist/erdmaid/host/**'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
