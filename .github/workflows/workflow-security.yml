@@ -15,8 +15,6 @@
 name: Workflow Security
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
 
 permissions:
