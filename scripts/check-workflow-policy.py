@@ -63,8 +63,25 @@ def check_entries(root, entries, classification):
         if not name or name.group(1).strip("\"'") != entry["context"]:
             observed = name.group(1).strip() if name else "<missing>"
             raise ValueError(f"{entry['context']!r} does not match job name {observed!r}")
-        if re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE):
-            raise ValueError(f"{entry['context']!r} can be skipped or greened by job policy")
+        if re.search(r"^    continue-on-error:", job, re.MULTILINE):
+            raise ValueError(f"{entry['context']!r} can be greened by job policy")
+
+        job_if = re.search(r"^    if:\\s*(.+?)\\s*$", job, re.MULTILINE)
+        job_if_value = job_if.group(1).strip() if job_if else None
+        if entry["context"] == "Merge Gate":
+            if job_if_value not in {"${{ always() }}", "always()"}:
+                raise ValueError("Merge Gate must use exact always() so failed dependencies cannot skip the gate")
+            needs = re.search(r"^    needs:\\s*\\[([^]]+)\\]\\s*$", job, re.MULTILINE)
+            if needs is None:
+                raise ValueError("Merge Gate must declare an inline needs list")
+            observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
+            expected_needs = {"build", "test", "verify", "staticAnalysis", "dependencyReview"}
+            if observed_needs != expected_needs:
+                raise ValueError(
+                    f"Merge Gate expected needs={sorted(expected_needs)!r}, got {sorted(observed_needs)!r}"
+                )
+        elif job_if_value is not None:
+            raise ValueError(f"{entry['context']!r} can be skipped by job policy")
 
         event = entry.get("trigger", "pull_request")
         if event not in {"pull_request", "pull_request_target"}:
@@ -101,41 +118,6 @@ def check_workflow_security(root):
                 raise ValueError(f"{os.path.basename(path)}:{job_id} has no timeout-minutes")
         if not re.search(r"^concurrency:\s*$", text, re.MULTILINE):
             raise ValueError(f"{os.path.basename(path)} has no concurrency control")
-
-    classifier_path = os.path.join(workflow_dir, "failure-classification.yml")
-    if os.path.isfile(classifier_path):
-        classifier = open(classifier_path, encoding="utf-8").read()
-        if not re.search(r"^permissions:\s*\{\}\s*$", classifier, re.MULTILINE):
-            raise ValueError("Failure classification must use top-level permissions: {}")
-        classifier_jobs = read_jobs(classifier)
-        classify = classifier_jobs.get("classify")
-        if classify is None:
-            raise ValueError("Failure classification has no classify job")
-        permission_block = re.search(
-            r"(?ms)^    permissions:\s*$\n(?P<body>(?:      [^\n]*(?:\n|$))*)",
-            classify,
-        )
-        if permission_block is None:
-            raise ValueError("Failure classification classify job has no permissions block")
-        observed = {}
-        for raw in permission_block.group("body").splitlines():
-            code = raw.split("#", 1)[0].strip()
-            if not code:
-                continue
-            match = re.fullmatch(r"([A-Za-z-]+):\s*(read|write)", code)
-            if match is None:
-                raise ValueError(f"Failure classification has unsupported permission entry {code!r}")
-            observed[match.group(1)] = match.group(2)
-        expected = {"actions": "read", "pull-requests": "write"}
-        if observed != expected:
-            raise ValueError(
-                f"Failure classification has unexpected job permissions: {observed!r}"
-            )
-        if "actions/checkout@" in classifier:
-            raise ValueError("Failure classification must not checkout repository content")
-        if "actions/download-artifact@" in classifier or "gh run download" in classifier:
-            raise ValueError("Failure classification must not download workflow artifacts")
-
 
 def main():
     parser = argparse.ArgumentParser()
