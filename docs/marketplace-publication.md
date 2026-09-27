@@ -85,10 +85,10 @@ Key lifecycle:
 
 ## Tag governance
 
-Before the automated path is considered production-ready, the live repository must protect
-`refs/tags/v*` against update and deletion with no routine bypass while allowing new release-tag
-creation. A release workflow run also checks that the tag resolves to reviewed `main`, but that
-runtime ancestry check is not a substitute for tag immutability.
+The live repository now has an active `publication tags` ruleset scoped to `refs/tags/v*` that blocks
+update and deletion with no bypass actors. New release-tag creation remains allowed. This live rule
+must remain part of the publication contract. A release workflow run also checks that the tag resolves
+to reviewed `main`, but that runtime ancestry check is not a substitute for tag immutability.
 
 ## Recovery
 

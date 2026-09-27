@@ -1,12 +1,12 @@
 # Live Runtime Acceptance
 
-This document defines the pre-publication acceptance gate for proving that erdMaid works in an actual maintained JetBrains IDE process. Build, unit/integration tests, Plugin Verifier, archive inspection, and host API inventory are necessary but do not by themselves prove the end-user flow.
+This document defines the manual live-runtime acceptance protocol for proving that erdMaid works in an actual maintained JetBrains IDE process. Build, unit/integration tests, Plugin Verifier, archive inspection, and host API inventory are necessary but do not by themselves prove the end-user flow.
 
-## Release gate
+## Live-runtime evidence gate
 
-The first Marketplace publication remains blocked until the live runtime scenarios below are executed against an exact reviewed plugin artifact and the observed evidence is recorded.
+The first public Marketplace publication has already occurred. This document no longer represents an unmet gate for that historical publication. It remains the authority for promoting currently unverified live GUI/database-tool-window runtime claims on the maintained hosts: those claims stay `UNVERIFIED` until the scenarios below are executed against an exact reviewed plugin artifact and the observed evidence is recorded.
 
-`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` are failures for this gate.
+`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` are failures for any claimed live-runtime PASS.
 
 ## Authority
 
@@ -97,4 +97,4 @@ Screenshots or a short screen recording are useful corroboration but are not sub
 
 Where practical, mirror this acceptance flow with JetBrains Starter + Driver / `testIdeUi` so an actual IDE process installs the plugin and exercises UI behavior. Automated UI evidence supplements, but does not retroactively convert an unexecuted maintained-host scenario into PASS.
 
-The first Marketplace publication must not proceed while either maintained host's positive user flow is UNVERIFIED.
+Do not promote either maintained host's live GUI/database-tool-window runtime status from `UNVERIFIED` to a supported/PASS claim until its positive user flow is executed against an exact reviewed artifact.

@@ -127,11 +127,14 @@ For local development builds, install the generated ZIP from `build/distribution
 - Tests: `./gradlew check`
 - Plugin compatibility: `./gradlew verifyPlugin` plus the repository's pinned DataGrip verifier gate.
 - Development builds use a timestamp-based plugin version by default.
-- Release builds can set `-PbuildVersion=x.y.z`.
+- Production publication uses stable SemVer from a protected `vMAJOR.MINOR.PATCH` GitHub Release tag; `release.yml` derives the effective version from that tag, passes it through `-PbuildVersion=x.y.z`, and validates source/artifact identity before publication.
 - CI uses Java 25 for the IntelliJ Platform 2026.2 baseline.
 - Product/fidelity authority: [`docs/product-fidelity-contract.md`](docs/product-fidelity-contract.md).
 - Architecture-neutral falsification scenarios: [`docs/product-baseline-scenarios.yaml`](docs/product-baseline-scenarios.yaml).
 - Mermaid grammar evidence: [`docs/mermaid-grammar-evidence.md`](docs/mermaid-grammar-evidence.md).
+- Live-runtime acceptance protocol: [`docs/live-runtime-acceptance.md`](docs/live-runtime-acceptance.md).
+- Marketplace publication/recovery authority: [`docs/marketplace-publication.md`](docs/marketplace-publication.md).
+- Historical hardening reassessment: [`docs/hardening-reassessment-2026-09.md`](docs/hardening-reassessment-2026-09.md).
 
 ## License
 

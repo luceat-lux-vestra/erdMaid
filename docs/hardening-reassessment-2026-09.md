@@ -1,6 +1,8 @@
 # Hardening Reassessment — 2026-09-20
 
-Owning issue: #111
+Owning issue: #111 (completed)
+
+> **Historical reassessment record.** This file records the 2026-09-20 reassessment and later closure notes. Current merge/release authority lives in `AGENTS.md`, the active repository rulesets, and `docs/marketplace-publication.md`; point-in-time wording below is not a current backlog.
 
 The repository was reassessed against current external GitHub/OpenSSF guidance and current operating practice. Existing hardening remains authoritative where evidence still applies; this pass closes only demonstrated gaps.
 
@@ -14,7 +16,7 @@ The repository was reassessed against current external GitHub/OpenSSF guidance a
 - Dependabot for Gradle and GitHub Actions;
 - trusted-base PR metadata automation;
 - required unprivileged `failure-triage` declaration gate plus a trusted default-branch failure-classification reporter;
-- Marketplace candidate boundary and current manual publication authority.
+- Marketplace candidate boundary and the manual publication authority that existed at reassessment time; completed #134 later established release-only automated publication.
 
 ## GAP — issue metadata
 
@@ -86,10 +88,10 @@ publication fails closed and requires recovery rather than blind rerun.
 `UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain FAIL for claimed controls.
 
 
-## LIVE BLOCKER — GitHub pull_request_target event policy
+## RESOLVED — GitHub pull_request_target event policy
 
-GitHub's public-repository default Actions event policy is currently evaluating
-`pull_request_target` and is scheduled for enforcement on 2026-11-02.
+GitHub's public-repository default Actions event policy is scheduled for enforcement on 2026-11-02.
+Completed issue #120 established the required audited workflow-path-scoped exception before that enforcement boundary.
 
 The remaining audited trusted-base / metadata-only use is:
 
@@ -102,8 +104,7 @@ It now runs as the unprivileged `.github/workflows/failure-declaration.yml`
 
 The PR-metadata workflow must not be migrated to ordinary `pull_request` merely
 to avoid the platform policy: doing so would move metadata execution authority
-onto a PR-controlled workflow definition. Issue #120 owns the corresponding
-administrative live prerequisite for that audited workflow path:
+onto a PR-controlled workflow definition. Completed issue #120 established the corresponding administrative live prerequisite for that audited workflow path. The completed proof covered:
 
 - read the repository Actions policies;
 - add an active workflow-path-scoped event policy for only the audited path;

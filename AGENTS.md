@@ -42,7 +42,7 @@ indexing, and database mutation are out of scope unless separately approved.
 
 ## 1. Leap architecture
 
-The maintained export architecture under Epic #32 is a **functional core + JetBrains host shell**:
+The maintained export architecture established by completed Epic #32 is a **functional core + JetBrains host shell**:
 
 `JetBrains selection -> immutable schema snapshot -> ER semantic graph -> Mermaid renderer -> typed result -> UI publication`
 
@@ -103,7 +103,7 @@ action, core, semantic, or renderer layers.
 
 ## 2. Canonical snapshot boundary
 
-The #34 core model preserves facts before semantic interpretation or Mermaid formatting.
+Completed Track #34 established the core model that preserves facts before semantic interpretation or Mermaid formatting.
 
 Rules:
 
@@ -139,7 +139,7 @@ guess.
 
 ## 3. Semantic ER boundary
 
-Track #35 converts the canonical snapshot into the minimal pure ER semantic graph needed by the
+Completed Track #35 established conversion of the canonical snapshot into the minimal pure ER semantic graph needed by the
 product. This boundary exists for correctness, not hypothetical alternate renderers.
 
 Requirements:
@@ -161,7 +161,7 @@ not fabricate the promise inside an adapter or semantic heuristic.
 
 ## 4. Mermaid rendering boundary
 
-Track #36 owns only Mermaid presentation and serialization from pure semantic input.
+Completed Track #36 established the Mermaid presentation and serialization boundary from pure semantic input.
 
 Requirements:
 
@@ -352,7 +352,7 @@ PR HEAD before merge.
 
 Do not add caching, background indexing, or preloading speculatively.
 
-Scale evidence under #38 separates snapshot extraction, semantic compilation, Mermaid rendering,
+Scale evidence completed under #38 separates snapshot extraction, semantic compilation, Mermaid rendering,
 string size, cancellation responsiveness, and EDT blocking. Optimize measured bottlenecks only.
 
 No `Project`, `DbElement`, `Das*`, PSI object, action context, large snapshot, or generated string is
@@ -362,7 +362,7 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 
 ## 10. CI and repository policy
 
-- `Build`, `Test`, `Verify plugin`, and `Workflow Static Analysis` are authoritative required gates.
+- `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, `failure-triage`, and `Dependency Review` are authoritative required gates.
 - CI green is necessary but not sufficient for merge.
 - Third-party actions remain pinned to full commit SHAs.
 - Validation workflows remain read-only and fail closed.
@@ -377,7 +377,7 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - Automated Marketplace updates are authorized only through `.github/workflows/release.yml` on the
   GitHub `release: released` event for a stable protected `vMAJOR.MINOR.PATCH` tag reachable from
   reviewed `main`. PR/fork/main validation must never reach Marketplace authority.
-- Issue #134 owns this release-authority transition. Production publication requires the
+- Completed issue #134 established this release-authority transition. Production publication requires the
   `jetbrains-marketplace` environment and `PUBLISH_TOKEN`, `CERTIFICATE_CHAIN`, `PRIVATE_KEY`,
   and `PRIVATE_KEY_PASSWORD`; missing credentials fail before publication. Author signing,
   `verifyPluginSignature`, and signed-artifact digest identity are mandatory for automated release.
@@ -428,7 +428,7 @@ When a replacement slice owns a behavior, remove the corresponding legacy implem
 in that Track or its immediately following cleanup Task. Do not leave deprecated aliases, forwarding
 wrappers, old specs, or adapter-on-adapter bridges merely to preserve plugin-internal APIs.
 
-Track #37 removes the legacy synchronous action/generator relation path and its obsolete tests. The
-final #38 deletion/performance gate must verify that no duplicate semantic authority or dead
-compatibility artifact remains while completing scale, cancellation-responsiveness, EDT-blocking,
-and resource-ownership evidence; it must not reintroduce deleted legacy paths for convenience.
+Completed Track #37 removed the legacy synchronous action/generator relation path and its obsolete tests. Completed
+Track #38 verified the final deletion/performance boundary, including duplicate-authority/dead-compatibility checks,
+scale, cancellation responsiveness, EDT blocking, and resource-ownership evidence. Future work must not reintroduce
+deleted legacy paths for convenience.
