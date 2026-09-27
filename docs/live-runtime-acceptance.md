@@ -1,12 +1,14 @@
 # Live Runtime Acceptance
 
-This document defines the pre-publication acceptance gate for proving that erdMaid works in an actual maintained JetBrains IDE process. Build, unit/integration tests, Plugin Verifier, archive inspection, and host API inventory are necessary but do not by themselves prove the end-user flow.
+This document defines the live-runtime acceptance protocol for proving that erdMaid works in an actual maintained JetBrains IDE process. Build, unit/integration tests, Plugin Verifier, archive inspection, and host API inventory are necessary but do not by themselves prove the end-user flow.
+
+The first-publication gate was completed under [issue #101](https://github.com/luceat-lux-vestra/erdMaid/issues/101) on exact reviewed `main` evidence, after which the Marketplace bootstrap tracked by [issue #99](https://github.com/luceat-lux-vestra/erdMaid/issues/99) completed. This document remains the reusable protocol for later releases or support-claim changes that require fresh live-runtime evidence.
 
 ## Release gate
 
-The first Marketplace publication remains blocked until the live runtime scenarios below are executed against an exact reviewed plugin artifact and the observed evidence is recorded.
+For the first Marketplace publication, this gate was satisfied by the evidence recorded in issue #101 before issue #99 completed. Future releases or support-claim changes that invoke this protocol must execute the required scenarios against an exact reviewed plugin artifact and record the observed evidence.
 
-`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` are failures for this gate.
+`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain failures whenever this gate is required.
 
 ## Authority
 
@@ -97,4 +99,4 @@ Screenshots or a short screen recording are useful corroboration but are not sub
 
 Where practical, mirror this acceptance flow with JetBrains Starter + Driver / `testIdeUi` so an actual IDE process installs the plugin and exercises UI behavior. Automated UI evidence supplements, but does not retroactively convert an unexecuted maintained-host scenario into PASS.
 
-The first Marketplace publication must not proceed while either maintained host's positive user flow is UNVERIFIED.
+A future release or support-claim change that requires this live gate must not proceed while either required maintained host's positive user flow is `UNVERIFIED`.
