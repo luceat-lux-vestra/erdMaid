@@ -1,4 +1,4 @@
-# Pull request and `main` validation for the erdMaid plugin.
+# Pull-request validation for the erdMaid plugin.
 #
 # This workflow is validation only. It must never mutate repository state
 # (releases, tags, labels, branches). Release execution, if it is ever
@@ -11,7 +11,7 @@
 name: Build
 
 on:
-  # Pushes to `main` only, so Dependabot branches are not validated twice.
+  # Pull-request validation only; ordinary main pushes do not rerun product CI.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
