@@ -295,56 +295,25 @@ Tests are never weakened, skipped, or made lenient merely to make CI green. If a
 an obsolete internal API rather than a product invariant, replace/delete it when the corresponding
 legacy path is removed and state why.
 
-## 8.1 Failure classification before remediation
+## 8.1 Failure handling before remediation
 
-A failing plugin test, JetBrains Database API observation, Plugin Verifier
-result, evidence gate, workflow check, or other red signal is an
-**observation**, not a remediation instruction. Before a non-trivial
-remediation, classify the observed failure as exactly one of:
+A failing plugin test, JetBrains Database API observation, Plugin Verifier result,
+evidence gate, workflow check, or other red signal is an observation, not a
+remediation instruction. Establish the root cause far enough to justify the
+owning layer before changing implementation, tests, evidence, workflow policy,
+or the execution environment.
 
-- `implementation defect` — erdMaid product/host/core/semantic/renderer
-  implementation violates the accepted product or platform contract;
-- `test defect` — a fixture, harness, oracle, assertion, verifier setup, or
-  baseline scenario is wrong for the intended contract;
-- `evidence defect` — Database Tools/runtime/API evidence capture, provenance,
-  attribution, freshness, parsing, or proof construction is wrong or
-  insufficient;
-- `workflow-policy drift` — CI, verifier wiring, checked-in hardening/merge
-  policy, or live repository settings have diverged;
-- `environment failure` — JetBrains distribution/service, Database Tools
-  runtime, Gradle/JDK, runner, database service, network, or another execution
-  environment caused the failure;
-- `UNKNOWN` — available evidence does not justify any of the five classes.
+UNKNOWN, UNVERIFIED, and INSUFFICIENT EVIDENCE remain fail-closed where the
+unresolved point is material to the proposed remediation or merge judgment.
+Never weaken, skip, delete, or make lenient valid product tests, baseline
+scenarios, verifier findings, evidence obligations, negative controls, or
+repository hardening merely to obtain green CI. A deterministic failure should
+be fixed rather than hidden by reruns; a suspected transient/environment
+failure may be rerun only when evidence makes that hypothesis credible.
 
-`UNKNOWN`, `UNVERIFIED`, and `INSUFFICIENT EVIDENCE` remain fail-closed.
-Classification is itself a proof obligation. Preserve at least:
-
-```text
-Observed:
-Classification:
-Basis:
-Root cause:
-Remediation:
-Proof:
-```
-
-The `Basis` must justify the selected responsibility layer and identify
-plausible alternatives that were rejected or remain unresolved. A Database
-Tools/API or verifier observation is not automatically an erdMaid
-implementation defect: first separate product code, fixture/harness, platform
-evidence, workflow-policy, and toolchain/platform environment.
-
-A deterministic/reproducible failure does not become an
-`environment failure` merely because a rerun later passes. Never weaken,
-skip, delete, or make lenient a valid product test, baseline scenario, verifier,
-evidence obligation, negative control, or repository hardening policy merely to
-obtain green.
-
-If remediation changes implementation, a test/oracle, Database Tools/platform
-evidence premise, verifier/toolchain configuration, workflow/policy, or another
-premise of the exact-final-HEAD proof, invalidate the affected evidence.
-Re-run the relevant targeted validation and required CI on the new exact final
-PR HEAD before merge.
+If remediation changes a premise of exact-final-HEAD proof, invalidate the
+affected evidence and re-run the relevant validation on the new exact final PR
+HEAD before merge.
 
 ---
 
@@ -362,7 +331,7 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 
 ## 10. CI and repository policy
 
-- `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, `failure-triage`, and `Dependency Review` are authoritative required gates.
+- The live ruleset requires one `Merge Gate`. It succeeds only when the internal `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, and `Dependency Review` component jobs all succeed.
 - CI green is necessary but not sufficient for merge.
 - Third-party actions remain pinned to full commit SHAs.
 - Validation workflows remain read-only and fail closed.
