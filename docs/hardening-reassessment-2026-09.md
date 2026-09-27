@@ -135,3 +135,7 @@ final HEAD:
 - no PR code or downloaded artifact is executed by the trusted reporter.
 
 `CANDIDATE` and `UNKNOWN` never authorize remediation.
+
+## 2026-09-27 — Documentation-only CI fast-path proof
+
+The bounded documentation-only fast path is considered complete only after this documentation-only PR proves the live behavior on an exact HEAD: Build/Test/Plugin Verifier runtime work is skipped, Workflow Static Analysis and Dependency Review still execute, the required Merge Gate succeeds, and CodeQL / path-scoped Host API / Starter E2E workflows are not scheduled for the documentation-only diff. Mixed or unprovable scope continues to fall back to full validation.
