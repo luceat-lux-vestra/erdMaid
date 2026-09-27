@@ -54,8 +54,8 @@ def main():
         "renamed required job",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    name: Merge Gate\\n",
-            "    name: Merge Gate renamed\\n",
+            "    name: Merge Gate\n",
+            "    name: Merge Gate renamed\n",
         ),
         "does not match job name",
     )
@@ -72,8 +72,8 @@ def main():
         "path-filtered required workflow",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "  pull_request:\\n",
-            "  pull_request:\\n    paths:\\n      - 'src/**'\\n",
+            "  pull_request:\n",
+            "  pull_request:\n    paths:\n      - 'src/**'\n",
         ),
         "path-filtered",
     )
@@ -81,8 +81,8 @@ def main():
         "merge gate without always",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    if: ${{ always() }}\\n",
-            "    if: ${{ github.event_name == 'pull_request' }}\\n",
+            "    if: ${{ always() }}\n",
+            "    if: ${{ github.event_name == 'pull_request' }}\n",
         ),
         "must use exact always()",
     )
@@ -90,8 +90,8 @@ def main():
         "merge gate missing component",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    needs: [ build, test, verify, staticAnalysis, dependencyReview ]\\n",
-            "    needs: [ build, test, verify, staticAnalysis ]\\n",
+            "    needs: [ build, test, verify, staticAnalysis, dependencyReview ]\n",
+            "    needs: [ build, test, verify, staticAnalysis ]\n",
         ),
         "expected needs",
     )
@@ -100,7 +100,7 @@ def main():
         lambda root: replace(
             os.path.join(root, ".github/merge-gate-policy.json"),
             '"job": "mergeGate"',
-            '"job": "mergeGate",\\n      "trigger": "pull_request_target"',
+            '"job": "mergeGate",\n      "trigger": "pull_request_target"',
         ),
         "must not use pull_request_target",
     )
