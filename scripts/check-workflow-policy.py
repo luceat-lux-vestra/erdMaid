@@ -66,12 +66,12 @@ def check_entries(root, entries, classification):
         if re.search(r"^    continue-on-error:", job, re.MULTILINE):
             raise ValueError(f"{entry['context']!r} can be greened by job policy")
 
-        job_if = re.search(r"^    if:\\s*(.+?)\\s*$", job, re.MULTILINE)
+        job_if = re.search(r"^    if:\s*(.+?)\s*$", job, re.MULTILINE)
         job_if_value = job_if.group(1).strip() if job_if else None
         if entry["context"] == "Merge Gate":
             if job_if_value not in {"${{ always() }}", "always()"}:
                 raise ValueError("Merge Gate must use exact always() so failed dependencies cannot skip the gate")
-            needs = re.search(r"^    needs:\\s*\\[([^]]+)\\]\\s*$", job, re.MULTILINE)
+            needs = re.search(r"^    needs:\s*\[([^]]+)\]\s*$", job, re.MULTILINE)
             if needs is None:
                 raise ValueError("Merge Gate must declare an inline needs list")
             observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
