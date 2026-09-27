@@ -16,7 +16,7 @@
       "context": "CodeQL (actions)",
       "workflow": ".github/workflows/codeql.yml",
       "disposition": "pull-request/main/scheduled security analysis",
-      "reason": "Stable GitHub Actions CodeQL analysis on PR/main/schedule. Java/Kotlin analysis is tracked in #114 because the stable extractor rejects Kotlin 2.4.20 despite the published support table; required Build/Test/Plugin Verifier remain authoritative."
+      "reason": "Stable GitHub Actions CodeQL analysis on PR/main/schedule. Java/Kotlin analysis is tracked in #114 because the stable extractor rejects Kotlin 2.4.20 despite the published support table; the required Merge Gate aggregates the authoritative Build/Test/Plugin Verifier/workflow-policy/dependency evidence."
     }
   ]
 }
