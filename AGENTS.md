@@ -332,6 +332,7 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 ## 10. CI and repository policy
 
 - The live ruleset requires one `Merge Gate`. It succeeds only when the internal `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, and `Dependency Review` component jobs all succeed.
+- Documentation-only CI uses a narrow syntactic fast path only when every changed file is `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, or a Markdown file under `docs/**`. This is not semantic classification. Build/Test/Plugin Verifier runtime work is skipped, Workflow Static Analysis and Dependency Review still run, and `Merge Gate` remains required. Any mixed, empty, or unreadable changed-file set falls back to full validation.
 - CI green is necessary but not sufficient for merge.
 - Third-party actions remain pinned to full commit SHAs.
 - Validation workflows remain read-only and fail closed.
