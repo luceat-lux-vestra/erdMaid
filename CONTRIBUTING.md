@@ -16,6 +16,8 @@ Merges are squash-only. Merge-time PR HEAD and fresh `main` are re-read before m
 
 ## Tests
 
+Documentation-only changes use the bounded CI fast path only when every changed file is `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, or a Markdown file under `docs/**`. The scope check is syntactic, not semantic: reviewers remain responsible for validating behavioral/contract claims. Build/Test/Plugin Verifier runtime work is skipped, while Workflow Static Analysis, Dependency Review, and the required `Merge Gate` remain active. Mixed or unprovable scope runs full validation.
+
 Use full deterministic output assertions for rendering/identity behavior. Add literal hostile fixtures for sanitization defects. Do not weaken or skip a test to obtain green CI.
 
 The internal `Test` and `Verify plugin` component jobs still mean successful `./gradlew check` and `./gradlew verifyPlugin` commands, and the required `Merge Gate` fails if either component fails. The CI wrapper may repeat either command **once** only for the known JetBrains IJ Platform Gradle Plugin 2.18.1 bundled-plugin failure where the log contains that command's complete erdMaid-specific `ClosedFileSystemException` / DatabaseTools / `com.intellij.database` dependency-resolution signature. `Test` and `Verify plugin` use different configuration signatures and cannot authorize each other's retry. A partial signature, another bundled plugin, an ordinary test failure, a real Plugin Verifier finding, or any failed second attempt remains a hard failure. This exception exists for the upstream jar-FileSystem lifecycle bug tracked as JetBrains `intellij-platform-gradle-plugin#2192` / `MP-8217`; it is not a general flaky-test retry policy.

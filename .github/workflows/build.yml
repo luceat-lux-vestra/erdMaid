@@ -25,18 +25,71 @@ concurrency:
 
 jobs:
 
+  scope:
+    name: Validation scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+    steps:
+      - name: Detect documentation-only scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$RUNNER_TEMP/pr-changed-files.json"
+
+          if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$changed"; then
+            echo "::warning::Could not establish the changed-file set; using full validation."
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! jq -e '[.[][]] | length > 0' "$changed" >/dev/null; then
+            echo "::warning::Changed-file set is empty or unreadable; using full validation."
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if jq -e '
+            [ .[][] | .filename ] as $files
+            | all($files[];
+                . == "README.md"
+                or . == "CONTRIBUTING.md"
+                or . == "AGENTS.md"
+                or test("^docs/.*[.]md$")
+              )
+          ' "$changed" >/dev/null; then
+            docs_only=true
+          else
+            docs_only=false
+          fi
+
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "docs-only=$docs_only"
+
   # Compile the plugin and publish the packaged distribution as an artifact.
   build:
     name: Build
+    needs: [ scope ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
       contents: read
     steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; product Build is not applicable."
+
       - name: Reuse exact-SHA Fast evidence
         id: fast-evidence
-        if: ${{ github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -102,7 +155,7 @@ jobs:
           exit 1
 
       - name: Maximize Build Space
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: false
@@ -110,29 +163,29 @@ jobs:
           large-packages: false
 
       - name: Fetch Sources
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Build plugin
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         run: ./gradlew buildPlugin
 
       # Unpack the distribution so the uploaded artifact is browsable.
       - name: Prepare Plugin Artifact
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         id: artifact
         shell: bash
         run: |
@@ -143,7 +196,7 @@ jobs:
           echo "filename=${FILENAME%.zip}" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.artifact.outputs.filename }}
@@ -153,16 +206,20 @@ jobs:
   # Authoritative test gate.
   test:
     name: Test
-    needs: [ build ]
+    needs: [ scope, build ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
       contents: read
     steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; product Test is not applicable."
+
       - name: Reuse exact-SHA Fast evidence
         id: fast-evidence
-        if: ${{ github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -228,7 +285,7 @@ jobs:
           exit 1
 
       - name: Maximize Build Space
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: false
@@ -236,20 +293,20 @@ jobs:
           large-packages: false
 
       - name: Fetch Sources
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: true
@@ -259,11 +316,11 @@ jobs:
       # complete command-specific ClosedFileSystemException signature is present;
       # every other failure remains an immediate failure.
       - name: Run Tests
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         run: python3 scripts/gradle_check_gate.py check
 
       - name: Show large-workload proof evidence
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -277,13 +334,13 @@ jobs:
       # downloaded only after production fixture binding has passed above; its
       # prebuilt ESM parser bundle is executed directly without npm install.
       - name: Setup Node for Mermaid grammar evidence
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24.9.0'
 
       - name: Verify Mermaid 11.17.2 grammar evidence
-        if: ${{ github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true' }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         env:
           MERMAID_VERSION: 11.17.2
           MERMAID_INTEGRITY: sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==
@@ -307,7 +364,7 @@ jobs:
             "$GITHUB_WORKSPACE/src/test/resources/mermaid"
 
       - name: Collect Tests Result
-        if: ${{ (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') && (failure()) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') && failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tests-result
@@ -327,15 +384,19 @@ jobs:
   # mismatch. Either step failing fails this same required context.
   verify:
     name: Verify plugin
-    needs: [ build ]
+    needs: [ scope, build ]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
     steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; Plugin Verifier is not applicable."
+
 
       - name: Maximize Build Space
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: true
@@ -343,20 +404,20 @@ jobs:
           large-packages: true
 
       - name: Fetch Sources
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: true
@@ -366,7 +427,7 @@ jobs:
       # Verifier starts; real verifier findings never satisfy the exact retry
       # signature.
       - name: Verify IntelliJ IDEA compatibility
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
@@ -374,11 +435,11 @@ jobs:
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.
       - name: Verify DataGrip compatibility
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
-        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (always()) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result
