@@ -4,6 +4,8 @@ Owning issue: #111 (completed)
 
 > **Historical reassessment record.** This file records the 2026-09-20 reassessment and later closure notes. Current merge/release authority lives in `AGENTS.md`, the active repository rulesets, and `docs/marketplace-publication.md`; point-in-time wording below is not a current backlog.
 
+> **2026-09-27 supersession note.** The mandatory failure-remediation declaration and automated failure-classification reporter described below were retired. Failure investigation remains an engineering discipline, while required PR validation is aggregated behind the fail-closed `Merge Gate`.
+
 The repository was reassessed against current external GitHub/OpenSSF guidance and current operating practice. Existing hardening remains authoritative where evidence still applies; this pass closes only demonstrated gaps.
 
 ## Existing controls retained
