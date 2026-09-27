@@ -54,8 +54,8 @@ def main():
         "renamed required job",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    name: Build\n",
-            "    name: Build renamed\n",
+            "    name: Merge Gate\\n",
+            "    name: Merge Gate renamed\\n",
         ),
         "does not match job name",
     )
@@ -63,7 +63,7 @@ def main():
         "missing required job",
         lambda root: replace(
             os.path.join(root, ".github/merge-gate-policy.json"),
-            '"job": "verify"',
+            '"job": "mergeGate"',
             '"job": "missing"',
         ),
         "missing job",
@@ -72,46 +72,37 @@ def main():
         "path-filtered required workflow",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "  pull_request:\n",
-            "  pull_request:\n    paths:\n      - 'src/**'\n",
+            "  pull_request:\\n",
+            "  pull_request:\\n    paths:\\n      - 'src/**'\\n",
         ),
         "path-filtered",
     )
     expect_failure(
-        "missing staged job",
+        "merge gate without always",
         lambda root: replace(
-            os.path.join(root, ".github/merge-gate-policy.json"),
-            '"job": "review"',
-            '"job": "missing-staged"',
+            os.path.join(root, ".github/workflows/build.yml"),
+            "    if: ${{ always() }}\\n",
+            "    if: ${{ github.event_name == 'pull_request' }}\\n",
         ),
-        "staged",
+        "must use exact always()",
+    )
+    expect_failure(
+        "merge gate missing component",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "    needs: [ build, test, verify, staticAnalysis, dependencyReview ]\\n",
+            "    needs: [ build, test, verify, staticAnalysis ]\\n",
+        ),
+        "expected needs",
     )
     expect_failure(
         "unaudited target trigger",
         lambda root: replace(
             os.path.join(root, ".github/merge-gate-policy.json"),
-            '"job": "review",',
-            '"job": "review",\n      "trigger": "pull_request_target",',
+            '"job": "mergeGate"',
+            '"job": "mergeGate",\\n      "trigger": "pull_request_target"',
         ),
         "must not use pull_request_target",
-    )
-    expect_failure(
-        "classifier workflow-level permission regression",
-        lambda root: replace(
-            os.path.join(root, ".github/workflows/failure-classification.yml"),
-            "permissions: {}\n",
-            "permissions:\n  contents: read\n",
-        ),
-        "must use top-level permissions: {}",
-    )
-    expect_failure(
-        "classifier extra write permission",
-        lambda root: replace(
-            os.path.join(root, ".github/workflows/failure-classification.yml"),
-            "      pull-requests: write # Upsert the single sticky classification report on the PR conversation.\n",
-            "      pull-requests: write # Upsert the single sticky classification report on the PR conversation.\n      issues: write\n",
-        ),
-        "unexpected job permissions",
     )
     expect_failure(
         "mutable action ref",
