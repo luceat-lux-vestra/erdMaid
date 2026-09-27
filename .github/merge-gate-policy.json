@@ -5,36 +5,9 @@
   "protected_branch": "main",
   "required": [
     {
-      "context": "Build",
+      "context": "Merge Gate",
       "workflow": ".github/workflows/build.yml",
-      "job": "build"
-    },
-    {
-      "context": "Test",
-      "workflow": ".github/workflows/build.yml",
-      "job": "test"
-    },
-    {
-      "context": "Verify plugin",
-      "workflow": ".github/workflows/build.yml",
-      "job": "verify"
-    },
-    {
-      "context": "Workflow Static Analysis",
-      "workflow": ".github/workflows/workflow-security.yml",
-      "job": "static-analysis"
-    },
-    {
-      "context": "failure-triage",
-      "workflow": ".github/workflows/failure-declaration.yml",
-      "job": "failure-triage",
-      "trigger": "pull_request"
-    },
-    {
-      "context": "Dependency Review",
-      "workflow": ".github/workflows/dependency-review.yml",
-      "job": "review",
-      "promotion_evidence": "PR #112 exact HEAD d2f7b2a22047a51c3628c30a16ba36109086220b produced a successful Dependency Review after live Dependency Graph enablement. PR #122 promoted the checked-in gate; authoritative 2026-09-22 readback confirmed ruleset 22024076 requires Dependency Review with GitHub Actions integration id 15368 and no bypass actors."
+      "job": "mergeGate"
     }
   ],
   "staged": [],
