@@ -17,7 +17,9 @@
     "source_type": "Repository",
     "source": "luceat-lux-vestra/erdMaid",
     "enforcement": "active",
-    "include": ["~DEFAULT_BRANCH"],
+    "include": [
+      "~DEFAULT_BRANCH"
+    ],
     "exclude": [],
     "required_rule_types": [
       "deletion",
@@ -33,7 +35,9 @@
       "require_last_push_approval": false,
       "required_review_thread_resolution": true,
       "require_extra_approval_for_unattributed_changes": true,
-      "allowed_merge_methods": ["squash"]
+      "allowed_merge_methods": [
+        "squash"
+      ]
     },
     "required_status_checks": {
       "strict_required_status_checks_policy": true,
@@ -63,17 +67,102 @@
       "secret_scanning": "enabled",
       "secret_scanning_push_protection": "enabled",
       "private_vulnerability_reporting": true
+    },
+    "publication_ruleset_bypass_actors": {
+      "ruleset": "publication tags",
+      "expected": []
+    },
+    "actions_event_policy": {
+      "policy_id": 5151,
+      "expected_workflow_paths": [
+        ".github/workflows/pr-metadata.yml"
+      ],
+      "expected_allowed_events": [
+        "pull_request_target"
+      ],
+      "forbidden_workflow_paths": [
+        ".github/workflows/failure-triage.yml"
+      ]
     }
   },
   "labels": [
-    {"name": "type:bug", "color": "d73a4a", "description": "Incorrect, unsafe, or regressed behavior"},
-    {"name": "type:feature", "color": "a2eeef", "description": "Product or supported-behavior change"},
-    {"name": "type:maintenance", "color": "fbca04", "description": "Repository, dependency, or maintenance work"},
-    {"name": "area:ci", "color": "5319e7", "description": "CI, workflows, repository policy, or automation"},
-    {"name": "area:docs", "color": "0075ca", "description": "Documentation or engineering contract"},
-    {"name": "area:metadata", "color": "1d76db", "description": "Database metadata identity or extraction"},
-    {"name": "area:mermaid", "color": "b60205", "description": "Mermaid rendering or sanitization"},
-    {"name": "area:compatibility", "color": "0e8a16", "description": "IntelliJ/DataGrip compatibility evidence"},
-    {"name": "dependencies", "color": "0366d6", "description": "Dependency update"}
-  ]
+    {
+      "name": "type:bug",
+      "color": "d73a4a",
+      "description": "Incorrect, unsafe, or regressed behavior"
+    },
+    {
+      "name": "type:feature",
+      "color": "a2eeef",
+      "description": "Product or supported-behavior change"
+    },
+    {
+      "name": "type:maintenance",
+      "color": "fbca04",
+      "description": "Repository, dependency, or maintenance work"
+    },
+    {
+      "name": "area:ci",
+      "color": "5319e7",
+      "description": "CI, workflows, repository policy, or automation"
+    },
+    {
+      "name": "area:docs",
+      "color": "0075ca",
+      "description": "Documentation or engineering contract"
+    },
+    {
+      "name": "area:metadata",
+      "color": "1d76db",
+      "description": "Database metadata identity or extraction"
+    },
+    {
+      "name": "area:mermaid",
+      "color": "b60205",
+      "description": "Mermaid rendering or sanitization"
+    },
+    {
+      "name": "area:compatibility",
+      "color": "0e8a16",
+      "description": "IntelliJ/DataGrip compatibility evidence"
+    },
+    {
+      "name": "dependencies",
+      "color": "0366d6",
+      "description": "Dependency update"
+    }
+  ],
+  "publication_ruleset": {
+    "id": 23835430,
+    "name": "publication tags",
+    "target": "tag",
+    "source_type": "Repository",
+    "source": "luceat-lux-vestra/erdMaid",
+    "enforcement": "active",
+    "include": [
+      "refs/tags/v*"
+    ],
+    "exclude": [],
+    "required_rule_types": [
+      "deletion",
+      "update"
+    ]
+  },
+  "actions_event_policy": {
+    "id": 5151,
+    "name": "Allow audited pull_request_target workflows",
+    "target": "actions",
+    "source_type": "Repository",
+    "source": "luceat-lux-vestra/erdMaid",
+    "enforcement": "active",
+    "workflow_paths": [
+      ".github/workflows/pr-metadata.yml"
+    ],
+    "allowed_events": [
+      "pull_request_target"
+    ],
+    "retired_workflow_paths": [
+      ".github/workflows/failure-triage.yml"
+    ]
+  }
 }
