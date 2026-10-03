@@ -43,8 +43,8 @@ configurations.getByName("integrationTestImplementation") {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.22.2"))
-    testImplementation(platform("tools.jackson:jackson-bom:3.2.2"))
+    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.22.3"))
+    testImplementation(platform("tools.jackson:jackson-bom:3.2.3"))
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.66.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
@@ -60,8 +60,8 @@ dependencies {
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
     add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
-    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.22.2"))
-    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.2.2"))
+    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.22.3"))
+    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.2.3"))
     add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.66.0"))
     constraints {
         add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
@@ -114,10 +114,10 @@ val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
     doLast {
         val expected = mapOf(
             "org.jsoup:jsoup" to "1.23.2",
-            "com.fasterxml.jackson.core:jackson-core" to "2.22.2",
-            "com.fasterxml.jackson.core:jackson-databind" to "2.22.2",
-            "tools.jackson.core:jackson-core" to "3.2.2",
-            "tools.jackson.core:jackson-databind" to "3.2.2",
+            "com.fasterxml.jackson.core:jackson-core" to "2.22.3",
+            "com.fasterxml.jackson.core:jackson-databind" to "2.22.3",
+            "tools.jackson.core:jackson-core" to "3.2.3",
+            "tools.jackson.core:jackson-databind" to "3.2.3",
             "io.netty:netty-handler" to "4.2.18.Final",
             "io.netty:netty-codec-compression" to "4.2.18.Final",
             "org.bouncycastle:bcprov-jdk18on" to "1.86",
