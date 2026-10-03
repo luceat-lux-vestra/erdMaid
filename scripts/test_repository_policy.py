@@ -73,6 +73,38 @@ def main():
     require(manual["ruleset"] == policy["ruleset"]["name"], "manual bypass assertion must target the governed ruleset")
     require(manual["expected"] == [], "no-bypass assertion must remain explicit and fail closed at the privileged exit gate")
 
+    publication_manual = policy["manual_live_assertions"]["publication_ruleset_bypass_actors"]
+    require(
+        publication_manual["ruleset"] == policy["publication_ruleset"]["name"],
+        "manual publication bypass assertion must target the publication ruleset",
+    )
+    require(
+        publication_manual["expected"] == [],
+        "publication ruleset no-bypass assertion must remain explicit",
+    )
+
+    require(
+        rp.validate_actions_event_policy_contract(policy) == [],
+        "checked-in Actions event-policy contract must match current trusted workflow ownership",
+    )
+    bad_actions_policy = copy.deepcopy(policy)
+    bad_actions_policy["actions_event_policy"]["workflow_paths"].append(
+        ".github/workflows/failure-triage.yml"
+    )
+    require(
+        rp.validate_actions_event_policy_contract(bad_actions_policy),
+        "retired failure-triage path must not be re-admitted to the Actions event policy",
+    )
+    bad_actions_manual = copy.deepcopy(policy)
+    bad_actions_manual["manual_live_assertions"]["actions_event_policy"]["expected_allowed_events"] = [
+        "pull_request_target",
+        "push",
+    ]
+    require(
+        rp.validate_actions_event_policy_contract(bad_actions_manual),
+        "manual Actions event-policy assertion must not drift from canonical allowed events",
+    )
+
     expected_repo = {
         "full_name": "o/r",
         "default_branch": "main",
@@ -163,18 +195,71 @@ def main():
         },
         "required_status_checks": {"strict_required_status_checks_policy": True, "do_not_enforce_on_create": False, "integration_id": 15368},
     }
-    good_summary = [{
-        "id": 1,
-        "name": "main protection",
-        "target": "branch",
+    expected_publication_ruleset = {
+        "id": 2,
+        "name": "publication tags",
+        "target": "tag",
         "source_type": "Repository",
         "source": "o/r",
         "enforcement": "active",
-    }]
-    require(rp.validate_ruleset_collection(good_summary, expected_ruleset) == [], "healthy ruleset collection must pass")
+        "include": ["refs/tags/v*"],
+        "exclude": [],
+        "required_rule_types": ["deletion", "update"],
+    }
+    good_summary = [
+        {
+            "id": 1,
+            "name": "main protection",
+            "target": "branch",
+            "source_type": "Repository",
+            "source": "o/r",
+            "enforcement": "active",
+        },
+        {
+            "id": 2,
+            "name": "publication tags",
+            "target": "tag",
+            "source_type": "Repository",
+            "source": "o/r",
+            "enforcement": "active",
+        },
+    ]
+    require(
+        rp.validate_ruleset_collection(
+            good_summary,
+            expected_ruleset,
+            expected_publication_ruleset,
+        ) == [],
+        "healthy main + publication ruleset collection must pass",
+    )
+    missing_publication = copy.deepcopy(good_summary[:1])
+    require(
+        rp.validate_ruleset_collection(
+            missing_publication,
+            expected_ruleset,
+            expected_publication_ruleset,
+        ),
+        "missing publication ruleset must fail",
+    )
     extra_summary = copy.deepcopy(good_summary)
-    extra_summary.append({"id": 2, "name": "unexpected", "target": "branch", "source_type": "Repository", "source": "o/r", "enforcement": "active"})
-    require(rp.validate_ruleset_collection(extra_summary, expected_ruleset), "unexpected repository ruleset must fail")
+    extra_summary.append(
+        {
+            "id": 3,
+            "name": "unexpected",
+            "target": "branch",
+            "source_type": "Repository",
+            "source": "o/r",
+            "enforcement": "active",
+        }
+    )
+    require(
+        rp.validate_ruleset_collection(
+            extra_summary,
+            expected_ruleset,
+            expected_publication_ruleset,
+        ),
+        "unexpected repository ruleset must fail",
+    )
 
     good_ruleset = {
         "name": "main protection",
@@ -211,6 +296,61 @@ def main():
     excluded = copy.deepcopy(good_ruleset)
     excluded["conditions"]["ref_name"]["exclude"] = ["refs/heads/main"]
     require(rp.validate_ruleset(excluded, expected_ruleset, ["Build", "Test"], []), "ruleset exclusion drift must fail")
+
+    good_publication_ruleset = {
+        "id": 2,
+        "name": "publication tags",
+        "target": "tag",
+        "source_type": "Repository",
+        "source": "o/r",
+        "enforcement": "active",
+        "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
+        "bypass_actors": [],
+        "rules": [
+            {"type": "deletion"},
+            {"type": "update"},
+        ],
+    }
+    require(
+        rp.validate_publication_ruleset(
+            good_publication_ruleset,
+            expected_publication_ruleset,
+            [],
+        ) == [],
+        "healthy publication ruleset must pass",
+    )
+    publication_scope_drift = copy.deepcopy(good_publication_ruleset)
+    publication_scope_drift["conditions"]["ref_name"]["include"] = ["refs/tags/*"]
+    require(
+        rp.validate_publication_ruleset(
+            publication_scope_drift,
+            expected_publication_ruleset,
+            [],
+        ),
+        "publication tag scope broadening must fail",
+    )
+    publication_missing_update = copy.deepcopy(good_publication_ruleset)
+    publication_missing_update["rules"] = [{"type": "deletion"}]
+    require(
+        rp.validate_publication_ruleset(
+            publication_missing_update,
+            expected_publication_ruleset,
+            [],
+        ),
+        "missing publication update protection must fail",
+    )
+    publication_bypass = copy.deepcopy(good_publication_ruleset)
+    publication_bypass["bypass_actors"] = [
+        {"actor_type": "RepositoryRole", "actor_id": 5}
+    ]
+    require(
+        rp.validate_publication_ruleset(
+            publication_bypass,
+            expected_publication_ruleset,
+            [],
+        ),
+        "publication bypass actor drift must fail",
+    )
 
     wanted = [{"name": "area:ci", "color": "5319e7", "description": "CI"}]
     require(rp.validate_labels([{"name": "area:ci", "color": "5319E7", "description": "CI"}], wanted) == [], "healthy label fixture must pass")
