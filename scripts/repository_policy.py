@@ -98,15 +98,43 @@ def _rule(rules, rule_type):
     return matches[0] if len(matches) == 1 else None
 
 
-def validate_ruleset_collection(actual, expected):
+def validate_ruleset_collection(actual, expected_main, expected_publication):
     errors = []
-    if len(actual) != 1:
-        errors.append(f"repository ruleset topology: expected exactly one ruleset, observed {len(actual)}")
+    expected = [expected_main, expected_publication]
+    if len(actual) != len(expected):
+        errors.append(
+            f"repository ruleset topology: expected exactly {len(expected)} rulesets, observed {len(actual)}"
+        )
         return errors
-    summary = actual[0]
-    for key in ("name", "target", "source_type", "source", "enforcement"):
-        if summary.get(key) != expected[key]:
-            errors.append(f"ruleset summary.{key}: expected {expected[key]!r}, observed {summary.get(key)!r}")
+
+    keys = ("name", "target", "source_type", "source", "enforcement")
+    actual_by_identity = {
+        (item.get("name"), item.get("target")): item
+        for item in actual
+        if isinstance(item, dict)
+    }
+    expected_by_identity = {
+        (item["name"], item["target"]): item
+        for item in expected
+    }
+    if set(actual_by_identity) != set(expected_by_identity):
+        errors.append(
+            "repository ruleset identities: "
+            f"expected {sorted(expected_by_identity)!r}, observed {sorted(actual_by_identity)!r}"
+        )
+        return errors
+
+    for identity, wanted in expected_by_identity.items():
+        summary = actual_by_identity[identity]
+        for key in keys:
+            if summary.get(key) != wanted[key]:
+                errors.append(
+                    f"ruleset summary {identity!r}.{key}: expected {wanted[key]!r}, observed {summary.get(key)!r}"
+                )
+        if "id" in wanted and summary.get("id") != wanted["id"]:
+            errors.append(
+                f"ruleset summary {identity!r}.id: expected {wanted['id']!r}, observed {summary.get('id')!r}"
+            )
     return errors
 
 
@@ -156,6 +184,78 @@ def validate_ruleset(actual, expected, required_contexts, expected_bypass_actors
         wrong_sources = [item for item in observed_checks if item.get("integration_id") != wanted["integration_id"]]
         if wrong_sources:
             errors.append(f"ruleset required check source drift: expected integration {wanted['integration_id']}")
+    return errors
+
+
+def validate_publication_ruleset(actual, expected, expected_bypass_actors):
+    errors = []
+    for key in ("id", "name", "target", "source_type", "source", "enforcement"):
+        if actual.get(key) != expected[key]:
+            errors.append(
+                f"publication_ruleset.{key}: expected {expected[key]!r}, observed {actual.get(key)!r}"
+            )
+
+    ref_name = actual.get("conditions", {}).get("ref_name", {})
+    if ref_name.get("include", []) != expected["include"]:
+        errors.append(
+            f"publication_ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include', [])!r}"
+        )
+    if ref_name.get("exclude", []) != expected["exclude"]:
+        errors.append(
+            f"publication_ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude', [])!r}"
+        )
+
+    if "bypass_actors" in actual and actual["bypass_actors"] != expected_bypass_actors:
+        errors.append(
+            "publication_ruleset.bypass_actors: "
+            f"expected {expected_bypass_actors!r}, observed {actual['bypass_actors']!r}"
+        )
+
+    rules = actual.get("rules", [])
+    observed_types = [rule.get("type") for rule in rules]
+    if sorted(observed_types) != sorted(expected["required_rule_types"]):
+        errors.append(
+            "publication ruleset rule topology: "
+            f"expected {sorted(expected['required_rule_types'])!r}, observed {sorted(observed_types)!r}"
+        )
+    return errors
+
+
+def validate_actions_event_policy_contract(policy):
+    errors = []
+    expected = policy.get("actions_event_policy")
+    manual = policy.get("manual_live_assertions", {}).get("actions_event_policy")
+    if not isinstance(expected, dict) or not isinstance(manual, dict):
+        return ["actions event-policy contract is missing"]
+
+    if expected.get("id") != 5151:
+        errors.append(f"actions_event_policy.id: expected 5151, observed {expected.get('id')!r}")
+    if expected.get("workflow_paths") != [".github/workflows/pr-metadata.yml"]:
+        errors.append(
+            "actions_event_policy.workflow_paths must equal ['.github/workflows/pr-metadata.yml']"
+        )
+    if expected.get("allowed_events") != ["pull_request_target"]:
+        errors.append("actions_event_policy.allowed_events must equal ['pull_request_target']")
+    if expected.get("retired_workflow_paths") != [".github/workflows/failure-triage.yml"]:
+        errors.append(
+            "actions_event_policy.retired_workflow_paths must equal ['.github/workflows/failure-triage.yml']"
+        )
+
+    if manual.get("policy_id") != expected.get("id"):
+        errors.append("manual Actions event-policy assertion targets a different policy id")
+    if manual.get("expected_workflow_paths") != expected.get("workflow_paths"):
+        errors.append("manual Actions event-policy workflow paths drifted from canonical policy")
+    if manual.get("expected_allowed_events") != expected.get("allowed_events"):
+        errors.append("manual Actions event-policy allowed events drifted from canonical policy")
+    if manual.get("forbidden_workflow_paths") != expected.get("retired_workflow_paths"):
+        errors.append("manual Actions event-policy forbidden paths drifted from canonical policy")
+
+    for rel in expected.get("workflow_paths", []):
+        if not (ROOT / rel).is_file():
+            errors.append(f"active Actions event-policy workflow is missing: {rel}")
+    for rel in expected.get("retired_workflow_paths", []):
+        if (ROOT / rel).exists():
+            errors.append(f"retired Actions event-policy workflow unexpectedly exists: {rel}")
     return errors
 
 
@@ -220,6 +320,7 @@ def audit(policy, token):
     errors = []
     redacted_fields = repository_redacted_fields(policy)
     manual_security_features(policy)
+    errors.extend(validate_actions_event_policy_contract(policy))
     repository = api_request(f"/repos/{repo}", token)
     errors.extend(validate_repository(repository, policy["repository"], redacted_fields))
     missing_redacted_fields = sorted(field for field in redacted_fields if field not in repository)
@@ -230,7 +331,14 @@ def audit(policy, token):
         )
 
     rulesets = read_all_repository_rulesets(repo, token)
-    errors.extend(validate_ruleset_collection(rulesets, policy["ruleset"]))
+    errors.extend(
+        validate_ruleset_collection(
+            rulesets,
+            policy["ruleset"],
+            policy["publication_ruleset"],
+        )
+    )
+
     candidates = [item for item in rulesets if item.get("name") == policy["ruleset"]["name"]]
     if len(candidates) == 1:
         ruleset = api_request(f"/repos/{repo}/rulesets/{candidates[0]['id']}?includes_parents=false", token)
@@ -245,8 +353,43 @@ def audit(policy, token):
                 manual["expected"],
             )
         )
-    elif len(candidates) != 1:
+    else:
         errors.append(f"expected exactly one ruleset named {policy['ruleset']['name']!r}; observed {len(candidates)}")
+
+    publication_candidates = [
+        item for item in rulesets
+        if item.get("name") == policy["publication_ruleset"]["name"]
+        and item.get("target") == policy["publication_ruleset"]["target"]
+    ]
+    if len(publication_candidates) == 1:
+        publication = api_request(
+            f"/repos/{repo}/rulesets/{publication_candidates[0]['id']}?includes_parents=false",
+            token,
+        )
+        publication_manual = policy["manual_live_assertions"]["publication_ruleset_bypass_actors"]
+        if publication_manual["ruleset"] != policy["publication_ruleset"]["name"]:
+            errors.append("manual publication bypass assertion targets a different ruleset")
+        errors.extend(
+            validate_publication_ruleset(
+                publication,
+                policy["publication_ruleset"],
+                publication_manual["expected"],
+            )
+        )
+    else:
+        errors.append(
+            f"expected exactly one publication ruleset named {policy['publication_ruleset']['name']!r}; "
+            f"observed {len(publication_candidates)}"
+        )
+
+    actions_manual = policy["manual_live_assertions"]["actions_event_policy"]
+    print(
+        "actions event-policy live readback remains a separate privileged assertion: "
+        f"policy {actions_manual['policy_id']} must scope exactly to "
+        f"{actions_manual['expected_workflow_paths']!r} with events "
+        f"{actions_manual['expected_allowed_events']!r}; forbidden paths "
+        f"{actions_manual['forbidden_workflow_paths']!r}"
+    )
 
     labels = read_all_labels(repo, token)
     errors.extend(validate_labels(labels, policy["labels"]))
@@ -299,9 +442,9 @@ def main():
             print(f"REPOSITORY POLICY ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "repository policy OK for read-visible settings, exact repository ruleset topology, "
-        "required check sources, and canonical labels; declared redacted repository fields and "
-        "ruleset bypass actors remain separate privileged live assertions"
+        "repository policy OK for read-visible settings, exact main/publication ruleset topology, "
+        "required check sources, and canonical labels; declared redacted repository fields, "
+        "ruleset bypass actors, and Actions event-policy scope remain separate privileged live assertions"
     )
     return 0
 
