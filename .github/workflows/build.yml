@@ -370,7 +370,7 @@ jobs:
   # mismatch. Either step failing fails this same required context.
   verify:
     name: Verify plugin
-    needs: [ scope, build ]
+    needs: [ scope ]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
