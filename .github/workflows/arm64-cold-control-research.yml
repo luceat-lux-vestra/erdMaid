@@ -69,7 +69,7 @@ jobs:
     needs: [ scope ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -212,7 +212,7 @@ jobs:
     needs: [ scope, ab_x64_build_1 ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -401,7 +401,7 @@ jobs:
     needs: [ scope, ab_x64_build_1 ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 60
     permissions:
       contents: read
@@ -477,7 +477,7 @@ jobs:
     needs: [ scope ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -620,7 +620,7 @@ jobs:
     needs: [ scope, ab_x64_build_2 ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -809,7 +809,7 @@ jobs:
     needs: [ scope, ab_x64_build_2 ]
     runs-on: ubuntu-24.04
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 60
     permissions:
       contents: read
@@ -885,7 +885,7 @@ jobs:
     needs: [ scope ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -1028,7 +1028,7 @@ jobs:
     needs: [ scope, ab_arm64_build_1 ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -1217,7 +1217,7 @@ jobs:
     needs: [ scope, ab_arm64_build_1 ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 60
     permissions:
       contents: read
@@ -1293,7 +1293,7 @@ jobs:
     needs: [ scope ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -1436,7 +1436,7 @@ jobs:
     needs: [ scope, ab_arm64_build_2 ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 30
     permissions:
       actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
@@ -1625,7 +1625,7 @@ jobs:
     needs: [ scope, ab_arm64_build_2 ]
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/erdmaid-cold-ab-home
+      GRADLE_USER_HOME: /tmp/erdmaid-ab-controlled-cold
     timeout-minutes: 60
     permissions:
       contents: read
