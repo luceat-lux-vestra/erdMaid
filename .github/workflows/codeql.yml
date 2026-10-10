@@ -9,13 +9,7 @@ on:
       - "CONTRIBUTING.md"
       - "AGENTS.md"
       - "docs/**/*.md"
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - "README.md"
-      - "CONTRIBUTING.md"
-      - "AGENTS.md"
-      - "docs/**/*.md"
+  # The default-branch security alert baseline is refreshed weekly, not on every merge.
   schedule:
     - cron: "47 3 * * 3"
 
