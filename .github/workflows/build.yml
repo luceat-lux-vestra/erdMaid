@@ -154,14 +154,6 @@ jobs:
           echo "::error::Timed out waiting for canonical exact-SHA '$EXPECTED_JOB' evidence at $EXPECTED_SHA."
           exit 1
 
-      - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          preinstalled-runtimes: false
-          swap-storage: true
-          large-packages: false
-
       - name: Fetch Sources
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -284,14 +276,6 @@ jobs:
           echo "::error::Timed out waiting for canonical exact-SHA '$EXPECTED_JOB' evidence at $EXPECTED_SHA."
           exit 1
 
-      - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          preinstalled-runtimes: false
-          swap-storage: true
-          large-packages: false
-
       - name: Fetch Sources
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -373,10 +357,12 @@ jobs:
 
   # Authoritative plugin structure + IntelliJ Plugin Verifier gate.
   #
-  # `tool-cache` and `large-packages` reclamation are enabled here (and only
-  # here) because the Verifier downloads full IDE distributions plus their
-  # Marketplace dependencies. Every `Verify plugin` run on `main` between
-  # 2026-08-05 and 2026-08-27 failed with "No space left on device" without it.
+  # Historical evidence: the Verifier downloaded full IDE distributions plus
+  # Marketplace dependencies, and runs on main during 2026-08-05..2026-08-27
+  # failed with "No space left on device" without reclamation. A controlled
+  # native x64/ARM64 2026-10-11 experiment passed without reclamation, with
+  # sampled root free space >=67.97 GiB on x64; see issue #169.
+  # Do not mistake hosted runners for unlimited storage; monitor regressions.
   #
   # One required job owns both supported hosts on the 2026.2 platform line.
   # IntelliJ IDEA runs via IJPGP's verifyPlugin task; DataGrip runs through the
@@ -394,14 +380,6 @@ jobs:
         if: ${{ needs.scope.outputs.docs_only == 'true' }}
         run: echo "Documentation-only change; Plugin Verifier is not applicable."
 
-
-      - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          preinstalled-runtimes: true
-          swap-storage: true
-          large-packages: true
 
       - name: Fetch Sources
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}

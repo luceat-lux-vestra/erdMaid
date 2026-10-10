@@ -25,13 +25,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Maximize Build Space
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          preinstalled-runtimes: false
-          swap-storage: true
-          large-packages: false
-
       - name: Fetch exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,13 +40,16 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          cache-read-only: true
+          # Preserve dependencies across synchronize runs on this PR; the prior
+          # read-only setting forced every cold Starter E2E job to re-download.
+          cache-read-only: false
 
       - name: Build exact plugin artifact
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew buildPlugin
+          # Keep the exact failure output in the diagnostics artifact as well as job logs.
+          ./gradlew buildPlugin 2>&1 | tee starter-e2e-build.log
           tested_commit="$(git rev-parse HEAD)"
           test "$tested_commit" = "${{ github.event.pull_request.head.sha || github.sha }}"
           mapfile -t archives < <(find build/distributions -maxdepth 1 -type f -name '*.zip' -print)
@@ -90,6 +86,7 @@ jobs:
         with:
           name: starter-e2e-failure-diagnostics
           path: |
+            starter-e2e-build.log
             starter-e2e.log
             build/reports/tests/integrationTest
             build/test-results/integrationTest
