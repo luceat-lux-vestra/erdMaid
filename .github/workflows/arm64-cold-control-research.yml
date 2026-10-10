@@ -420,7 +420,7 @@ jobs:
 
 
       - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: true
@@ -428,20 +428,20 @@ jobs:
           large-packages: true
 
       - name: Fetch Sources
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-disabled: true
@@ -451,7 +451,7 @@ jobs:
       # Verifier starts; real verifier findings never satisfy the exact retry
       # signature.
       - name: Verify IntelliJ IDEA compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
@@ -459,11 +459,11 @@ jobs:
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.
       - name: Verify DataGrip compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) && always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result-cold-x64-1
@@ -828,7 +828,7 @@ jobs:
 
 
       - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: true
@@ -836,20 +836,20 @@ jobs:
           large-packages: true
 
       - name: Fetch Sources
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-disabled: true
@@ -859,7 +859,7 @@ jobs:
       # Verifier starts; real verifier findings never satisfy the exact retry
       # signature.
       - name: Verify IntelliJ IDEA compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
@@ -867,11 +867,11 @@ jobs:
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.
       - name: Verify DataGrip compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) && always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result-cold-x64-2
@@ -1236,7 +1236,7 @@ jobs:
 
 
       - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: true
@@ -1244,20 +1244,20 @@ jobs:
           large-packages: true
 
       - name: Fetch Sources
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-disabled: true
@@ -1267,7 +1267,7 @@ jobs:
       # Verifier starts; real verifier findings never satisfy the exact retry
       # signature.
       - name: Verify IntelliJ IDEA compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
@@ -1275,11 +1275,11 @@ jobs:
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.
       - name: Verify DataGrip compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) && always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result-cold-arm64-1
@@ -1644,7 +1644,7 @@ jobs:
 
 
       - name: Maximize Build Space
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           preinstalled-runtimes: true
@@ -1652,20 +1652,20 @@ jobs:
           large-packages: true
 
       - name: Fetch Sources
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Java
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: 25
 
       - name: Setup Gradle
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-disabled: true
@@ -1675,7 +1675,7 @@ jobs:
       # Verifier starts; real verifier findings never satisfy the exact retry
       # signature.
       - name: Verify IntelliJ IDEA compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/gradle_check_gate.py verifyPlugin
 
       # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
@@ -1683,11 +1683,11 @@ jobs:
       # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
       # same default blocking levels as IJPGP 2.18.1. It has no retry path.
       - name: Verify DataGrip compatibility
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
         run: python3 scripts/datagrip_verifier.py
 
       - name: Collect Plugin Verifier Result
-        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) && always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginVerifier-result-cold-arm64-2
