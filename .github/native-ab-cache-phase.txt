@@ -1,3 +1,0 @@
-erDMaid native x64/ARM64 cache A/B second SHA marker, 2026-10-11 KST.
-This file is a non-product experimental synchronization marker; remove it before final production merge.
-The prior PR run wrote Gradle User Home cache on both architectures. The next PR synchronize run must independently demonstrate cache restores in logs.
