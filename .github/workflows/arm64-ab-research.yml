@@ -1,0 +1,739 @@
+# TEMPORARY, UNMERGED RESEARCH-ONLY RUNNER A/B EXPERIMENT.
+# Replicates authoritative build/test/IDE verifier, host API, Starter E2E, and CodeQL
+# jobs at the same PR source HEAD, under x64/arm64 Ubuntu 24.04 and two repetitions.
+# This file is experimental evidence only. Never merge it to protected main.
+name: ARM64 Runner A/B Research
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: arm64-ab-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  scope:
+    name: AB Validation scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+    steps:
+      - name: Detect documentation-only scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$RUNNER_TEMP/pr-changed-files.json"
+
+          if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$changed"; then
+            echo "::warning::Could not establish the changed-file set; using full validation."
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! jq -e '[.[][]] | length > 0' "$changed" >/dev/null; then
+            echo "::warning::Changed-file set is empty or unreadable; using full validation."
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if jq -e '
+            [ .[][] | .filename ] as $files
+            | all($files[];
+                . == "README.md"
+                or . == "CONTRIBUTING.md"
+                or . == "AGENTS.md"
+                or test("^docs/.*[.]md$")
+              )
+          ' "$changed" >/dev/null; then
+            docs_only=true
+          else
+            docs_only=false
+          fi
+
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "docs-only=$docs_only"
+
+  # Compile the plugin and publish the packaged distribution as an artifact.
+
+  build:
+    name: AB build (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    needs: [ scope ]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 30
+    permissions:
+      actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
+      contents: read
+    steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; product Build is not applicable."
+
+      - name: Reuse exact-SHA Fast evidence
+        id: fast-evidence
+        if: ${{ needs.scope.outputs.docs_only != 'true' && github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_JOB: Build
+          SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$SAME_REPOSITORY" != "true" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            echo "Fork PR cannot reuse base-repository Build evidence; Final will execute the local Fast checks."
+            exit 0
+          fi
+          base_workflow_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/build.yml?ref=$BASE_SHA" --jq '.sha')"
+          head_workflow_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/build.yml?ref=$EXPECTED_SHA" --jq '.sha')"
+          if [ "$base_workflow_sha" != "$head_workflow_sha" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            echo "Build producer workflow changed on this PR; Final will execute the local Fast checks instead of trusting self-modified evidence."
+            exit 0
+          fi
+
+          for _ in $(seq 1 60); do
+            runs="$(gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$EXPECTED_SHA&per_page=100")"
+            latest="$(jq -c --arg sha "$EXPECTED_SHA" --arg current "$GITHUB_RUN_ID" '
+              [.workflow_runs[]
+               | select(.head_sha == $sha and .event == "pull_request")
+               | select((.id | tostring) != $current)]
+              | if length == 0 then empty else max_by(.id) end
+            ' <<<"$runs")"
+            if [ -z "$latest" ]; then
+              sleep 5
+              continue
+            fi
+            status="$(jq -r '.status' <<<"$latest")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$latest")"
+            if [ "$status" != "completed" ]; then
+              sleep 5
+              continue
+            fi
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::Canonical Build workflow for exact HEAD $EXPECTED_SHA concluded '$conclusion'; refusing stale or failed evidence."
+              exit 1
+            fi
+
+            run_id="$(jq -r '.id' <<<"$latest")"
+            jobs="$(gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100")"
+            matching_jobs="$(jq --arg name "$EXPECTED_JOB" '[.jobs[] | select(.name == $name)] | length' <<<"$jobs")"
+            if [ "$matching_jobs" != "1" ]; then
+              echo "::error::Canonical Build run $run_id must contain exactly one '$EXPECTED_JOB' job; found $matching_jobs."
+              exit 1
+            fi
+            job_status="$(jq -r --arg name "$EXPECTED_JOB" '.jobs[] | select(.name == $name) | .status' <<<"$jobs")"
+            job_conclusion="$(jq -r --arg name "$EXPECTED_JOB" '.jobs[] | select(.name == $name) | (.conclusion // "")' <<<"$jobs")"
+            if [ "$job_status" != "completed" ] || [ "$job_conclusion" != "success" ]; then
+              echo "::error::Canonical '$EXPECTED_JOB' evidence for exact HEAD $EXPECTED_SHA is status=$job_status conclusion=$job_conclusion."
+              exit 1
+            fi
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+            echo "Reusing canonical successful '$EXPECTED_JOB' evidence for exact HEAD $EXPECTED_SHA."
+            exit 0
+          done
+          echo "::error::Timed out waiting for canonical exact-SHA '$EXPECTED_JOB' evidence at $EXPECTED_SHA."
+          exit 1
+
+      - name: Maximize Build Space
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: false
+          swap-storage: true
+          large-packages: false
+
+      - name: Fetch Sources
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Build plugin
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        run: ./gradlew buildPlugin
+
+      # Unpack the distribution so the uploaded artifact is browsable.
+      - name: Prepare Plugin Artifact
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/build/distributions"
+          FILENAME=$(ls -- *.zip)
+          unzip -q "$FILENAME" -d content
+          echo "filename=${FILENAME%.zip}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.artifact.outputs.filename }}-ab-${{ matrix.arch }}-${{ matrix.rep }}
+          path: ./build/distributions/content/*/*
+          if-no-files-found: error
+
+  # Authoritative test gate.
+
+  test:
+    name: AB test (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    needs: [ scope, build ]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 30
+    permissions:
+      actions: read # Needed to inspect the canonical exact-SHA Build workflow run.
+      contents: read
+    steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; product Test is not applicable."
+
+      - name: Reuse exact-SHA Fast evidence
+        id: fast-evidence
+        if: ${{ needs.scope.outputs.docs_only != 'true' && github.event_name == 'pull_request' && github.event.action == 'ready_for_review' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_JOB: Test
+          SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$SAME_REPOSITORY" != "true" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            echo "Fork PR cannot reuse base-repository Build evidence; Final will execute the local Fast checks."
+            exit 0
+          fi
+          base_workflow_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/build.yml?ref=$BASE_SHA" --jq '.sha')"
+          head_workflow_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/build.yml?ref=$EXPECTED_SHA" --jq '.sha')"
+          if [ "$base_workflow_sha" != "$head_workflow_sha" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            echo "Build producer workflow changed on this PR; Final will execute the local Fast checks instead of trusting self-modified evidence."
+            exit 0
+          fi
+
+          for _ in $(seq 1 60); do
+            runs="$(gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$EXPECTED_SHA&per_page=100")"
+            latest="$(jq -c --arg sha "$EXPECTED_SHA" --arg current "$GITHUB_RUN_ID" '
+              [.workflow_runs[]
+               | select(.head_sha == $sha and .event == "pull_request")
+               | select((.id | tostring) != $current)]
+              | if length == 0 then empty else max_by(.id) end
+            ' <<<"$runs")"
+            if [ -z "$latest" ]; then
+              sleep 5
+              continue
+            fi
+            status="$(jq -r '.status' <<<"$latest")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$latest")"
+            if [ "$status" != "completed" ]; then
+              sleep 5
+              continue
+            fi
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::Canonical Build workflow for exact HEAD $EXPECTED_SHA concluded '$conclusion'; refusing stale or failed evidence."
+              exit 1
+            fi
+
+            run_id="$(jq -r '.id' <<<"$latest")"
+            jobs="$(gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100")"
+            matching_jobs="$(jq --arg name "$EXPECTED_JOB" '[.jobs[] | select(.name == $name)] | length' <<<"$jobs")"
+            if [ "$matching_jobs" != "1" ]; then
+              echo "::error::Canonical Build run $run_id must contain exactly one '$EXPECTED_JOB' job; found $matching_jobs."
+              exit 1
+            fi
+            job_status="$(jq -r --arg name "$EXPECTED_JOB" '.jobs[] | select(.name == $name) | .status' <<<"$jobs")"
+            job_conclusion="$(jq -r --arg name "$EXPECTED_JOB" '.jobs[] | select(.name == $name) | (.conclusion // "")' <<<"$jobs")"
+            if [ "$job_status" != "completed" ] || [ "$job_conclusion" != "success" ]; then
+              echo "::error::Canonical '$EXPECTED_JOB' evidence for exact HEAD $EXPECTED_SHA is status=$job_status conclusion=$job_conclusion."
+              exit 1
+            fi
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+            echo "Reusing canonical successful '$EXPECTED_JOB' evidence for exact HEAD $EXPECTED_SHA."
+            exit 0
+          done
+          echo "::error::Timed out waiting for canonical exact-SHA '$EXPECTED_JOB' evidence at $EXPECTED_SHA."
+          exit 1
+
+      - name: Maximize Build Space
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: false
+          swap-storage: true
+          large-packages: false
+
+      - name: Fetch Sources
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+
+      # IJPGP 2.18.1 has a known intermittent jar FileSystem lifecycle bug while
+      # resolving bundled plugins. The gate retries exactly once only when the
+      # complete command-specific ClosedFileSystemException signature is present;
+      # every other failure remains an immediate failure.
+      - name: Run Tests
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        run: python3 scripts/gradle_check_gate.py check
+
+      - name: Show large-workload proof evidence
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== large-selection ==='
+          cat build/reports/proof/large-selection.txt
+          echo '=== large-selection-cancelled ==='
+          cat build/reports/proof/large-selection-cancelled.txt
+
+      # #79 grammar evidence is CI-only. The plugin runtime and Gradle graph do
+      # not depend on Node/npm/Mermaid. The exact published Mermaid package is
+      # downloaded only after production fixture binding has passed above; its
+      # prebuilt ESM parser bundle is executed directly without npm install.
+      - name: Setup Node for Mermaid grammar evidence
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.9.0'
+
+      - name: Verify Mermaid 11.17.2 grammar evidence
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
+        env:
+          MERMAID_VERSION: 11.17.2
+          MERMAID_INTEGRITY: sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg==
+        run: |
+          set -euo pipefail
+          EVIDENCE_ROOT="$RUNNER_TEMP/mermaid-grammar"
+          rm -rf "$EVIDENCE_ROOT"
+          mkdir -p "$EVIDENCE_ROOT"
+          PACKAGE_FILE=$(npm pack --silent --ignore-scripts --pack-destination "$EVIDENCE_ROOT" "mermaid@${MERMAID_VERSION}")
+          test -n "$PACKAGE_FILE"
+          PACKAGE_PATH="$EVIDENCE_ROOT/$PACKAGE_FILE"
+          ACTUAL_INTEGRITY="sha512-$(node -e 'const fs=require("node:fs"); const crypto=require("node:crypto"); const data=fs.readFileSync(process.argv[1]); process.stdout.write(crypto.createHash("sha512").update(data).digest("base64"));' "$PACKAGE_PATH")"
+          if [ "$ACTUAL_INTEGRITY" != "$MERMAID_INTEGRITY" ]; then
+            echo "::error::Mermaid package integrity mismatch: expected $MERMAID_INTEGRITY, observed $ACTUAL_INTEGRITY"
+            exit 1
+          fi
+          echo "Mermaid package integrity OK: $ACTUAL_INTEGRITY"
+          tar -xzf "$PACKAGE_PATH" -C "$EVIDENCE_ROOT"
+          node scripts/verify_mermaid_grammar.mjs \
+            "$EVIDENCE_ROOT/package" \
+            "$GITHUB_WORKSPACE/src/test/resources/mermaid"
+
+      - name: Collect Tests Result
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') && failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tests-result-${{ matrix.arch }}-${{ matrix.rep }}
+          path: build/reports/tests
+          if-no-files-found: warn
+
+  # Authoritative plugin structure + IntelliJ Plugin Verifier gate.
+  #
+  # `tool-cache` and `large-packages` reclamation are enabled here (and only
+  # here) because the Verifier downloads full IDE distributions plus their
+  # Marketplace dependencies. Every `Verify plugin` run on `main` between
+  # 2026-08-05 and 2026-08-27 failed with "No space left on device" without it.
+  #
+  # One required job owns both supported hosts on the 2026.2 platform line.
+  # IntelliJ IDEA runs via IJPGP's verifyPlugin task; DataGrip runs through the
+  # pinned standalone gate because IJPGP 2.18.1 still has the DB/DG catalog-code
+  # mismatch. Either step failing fails this same required context.
+
+  verify:
+    name: AB verify (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    needs: [ scope, build ]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; Plugin Verifier is not applicable."
+
+
+      - name: Maximize Build Space
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: true
+          swap-storage: true
+          large-packages: true
+
+      - name: Fetch Sources
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+
+      # The IJPGP-owned IntelliJ IDEA 2026.2.2 target is declared explicitly in
+      # build.gradle.kts. The known IJPGP zipfs race can happen before Plugin
+      # Verifier starts; real verifier findings never satisfy the exact retry
+      # signature.
+      - name: Verify IntelliJ IDEA compatibility
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        run: python3 scripts/gradle_check_gate.py verifyPlugin
+
+      # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
+      # resolver. This step selects that exact release/build, verifies archive
+      # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
+      # same default blocking levels as IJPGP 2.18.1. It has no retry path.
+      - name: Verify DataGrip compatibility
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) }}
+        run: python3 scripts/datagrip_verifier.py
+
+      - name: Collect Plugin Verifier Result
+        if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || true) && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pluginVerifier-result-${{ matrix.arch }}-${{ matrix.rep }}
+          path: |
+            build/reports/pluginVerifier
+            build/reports/pluginVerifierDataGrip
+          if-no-files-found: warn
+
+  idea-host-api-evidence:
+    name: AB idea-host-api-evidence (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: false
+          swap-storage: true
+          large-packages: false
+
+      - name: Fetch Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+
+      - name: Check inventory negative controls
+        run: python3 scripts/test_database_host_api_inventory.py
+
+      - name: Resolve exact IDEA DatabaseTools runtime
+        run: python3 scripts/gradle_check_gate.py check
+
+      - name: Collect exact IDEA host API evidence
+        run: |
+          IDE_HOME="$(cat build/reports/hostApiEvidence/idea/idea-home.txt)"
+          python3 scripts/database_host_api_inventory.py \
+            "$IDE_HOME" \
+            build/reports/hostApiEvidence/idea/api-inventory.json
+
+      - name: Upload IDEA API evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: idea-host-api-evidence-${{ matrix.arch }}-${{ matrix.rep }}
+          path: build/reports/hostApiEvidence/idea
+          if-no-files-found: warn
+
+  datagrip-host-api-evidence:
+    name: AB datagrip-host-api-evidence (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: true
+          swap-storage: true
+          large-packages: true
+
+      - name: Fetch Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Check inventory negative controls
+        run: python3 scripts/test_database_host_api_inventory.py
+
+      - name: Collect exact DataGrip host API evidence
+        run: python3 scripts/datagrip_host_api_evidence.py
+
+      - name: Upload DataGrip API evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: datagrip-host-api-evidence-${{ matrix.arch }}-${{ matrix.rep }}
+          path: build/reports/hostApiEvidence/datagrip
+          if-no-files-found: warn
+
+  starter-e2e:
+    name: AB starter-e2e (${{ matrix.arch }}, rep ${{ matrix.rep }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, rep: 1, runner: ubuntu-24.04 }
+          - { arch: x64, rep: 2, runner: ubuntu-24.04 }
+          - { arch: arm64, rep: 1, runner: ubuntu-24.04-arm }
+          - { arch: arm64, rep: 2, runner: ubuntu-24.04-arm }
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: false
+          swap-storage: true
+          large-packages: false
+
+      - name: Fetch exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup Java 25
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+
+      - name: Build exact plugin artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew buildPlugin
+          tested_commit="$(git rev-parse HEAD)"
+          test "$tested_commit" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          mapfile -t archives < <(find build/distributions -maxdepth 1 -type f -name '*.zip' -print)
+          if [[ ${#archives[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one plugin distribution, found ${#archives[@]}"
+            printf '%s\n' "${archives[@]}"
+            exit 1
+          fi
+          artifact="${archives[0]}"
+          {
+            echo "tested_commit=$tested_commit"
+            echo "plugin_artifact=$artifact"
+            echo "plugin_sha256=$(sha256sum "$artifact" | awk '{print $1}')"
+            echo "ide_release=2026.2.2"
+          } | tee starter-e2e-artifact-manifest.txt
+
+      - name: Run Starter E2E
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew integrationTest --stacktrace 2>&1 | tee starter-e2e.log
+
+      - name: Upload Starter E2E artifact identity
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: starter-e2e-artifact-identity-${{ matrix.arch }}-${{ matrix.rep }}
+          path: starter-e2e-artifact-manifest.txt
+          if-no-files-found: error
+
+      - name: Upload Starter E2E failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: starter-e2e-failure-diagnostics-${{ matrix.arch }}-${{ matrix.rep }}
+          path: |
+            starter-e2e.log
+            build/reports/tests/integrationTest
+            build/test-results/integrationTest
+            out/ide-tests/tests
+          if-no-files-found: warn
+
+  analyze:
+    name: AB CodeQL (${{ matrix.language }}, ${{ matrix.arch }}, rep ${{ matrix.rep }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+            arch: x64
+            rep: 1
+            runner: ubuntu-24.04
+          - language: actions
+            build-mode: none
+            arch: x64
+            rep: 2
+            runner: ubuntu-24.04
+          - language: actions
+            build-mode: none
+            arch: arm64
+            rep: 1
+            runner: ubuntu-24.04-arm
+          - language: actions
+            build-mode: none
+            arch: arm64
+            rep: 2
+            runner: ubuntu-24.04-arm
+          - language: java-kotlin
+            build-mode: autobuild
+            arch: x64
+            rep: 1
+            runner: ubuntu-24.04
+          - language: java-kotlin
+            build-mode: autobuild
+            arch: x64
+            rep: 2
+            runner: ubuntu-24.04
+          - language: java-kotlin
+            build-mode: autobuild
+            arch: arm64
+            rep: 1
+            runner: ubuntu-24.04-arm
+          - language: java-kotlin
+            build-mode: autobuild
+            arch: arm64
+            rep: 2
+            runner: ubuntu-24.04-arm
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Fetch exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ env.EXPECTED_SHA }}
+
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup Java 25
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: "/language:${{ matrix.language }}/ab-${{ matrix.arch }}-rep${{ matrix.rep }}"
+          upload: never
+          upload-database: false
