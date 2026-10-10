@@ -189,7 +189,7 @@ jobs:
 
       - name: Upload artifact
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.artifact.outputs.filename }}
           path: ./build/distributions/content/*/*
@@ -319,7 +319,7 @@ jobs:
       # prebuilt ESM parser bundle is executed directly without npm install.
       - name: Setup Node for Mermaid grammar evidence
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.9.0'
 
@@ -349,7 +349,7 @@ jobs:
 
       - name: Collect Tests Result
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') && failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tests-result
           path: build/reports/tests
@@ -418,7 +418,7 @@ jobs:
 
       - name: Collect Plugin Verifier Result
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pluginVerifier-result
           path: |
