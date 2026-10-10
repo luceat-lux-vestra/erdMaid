@@ -16,7 +16,7 @@
       "context": "CodeQL (actions)",
       "workflow": ".github/workflows/codeql.yml",
       "disposition": "pull-request/weekly-default-branch security analysis",
-      "reason": "PR and weekly default-branch CodeQL analysis remain advisory, not part of the required Merge Gate. PR analysis does not immediately update the default-branch alert baseline; the Wednesday scheduled scan refreshes it (up to about 7 days later). The required Merge Gate independently aggregates Build/Test/Plugin Verifier/workflow-policy/dependency evidence. Historical Kotlin extractor compatibility was tracked in #114."
+      "reason": "PR and weekly default-branch CodeQL analysis remain advisory, not part of the required Merge Gate; PR CodeQL failures therefore do not automatically block merge. PR analysis does not immediately update the default-branch alert baseline; the Wednesday scheduled scan normally refreshes it, but delayed, skipped, or failed schedules can extend staleness beyond a week. The required Merge Gate independently aggregates Build/Test/Plugin Verifier/workflow-policy/dependency evidence. Historical Kotlin extractor compatibility was tracked in #114."
     }
   ]
 }
