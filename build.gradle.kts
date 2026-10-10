@@ -59,7 +59,7 @@ dependencies {
     // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
-    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.18.Final"))
+    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.19.Final"))
     add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.22.3"))
     add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.2.3"))
     add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.66.0"))
@@ -73,7 +73,7 @@ dependencies {
         add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.86") {
             because("keep Bouncy Castle Starter tooling modules version-aligned")
         }
-        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.11.4") {
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.12.0") {
             because("1.11.3 includes the security fixes released in 1.11.2")
         }
         add("integrationTestImplementation", "org.jsoup:jsoup:1.23.2") {
@@ -118,12 +118,12 @@ val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
             "com.fasterxml.jackson.core:jackson-databind" to "2.22.3",
             "tools.jackson.core:jackson-core" to "3.2.3",
             "tools.jackson.core:jackson-databind" to "3.2.3",
-            "io.netty:netty-handler" to "4.2.18.Final",
-            "io.netty:netty-codec-compression" to "4.2.18.Final",
+            "io.netty:netty-handler" to "4.2.19.Final",
+            "io.netty:netty-codec-compression" to "4.2.19.Final",
             "org.bouncycastle:bcprov-jdk18on" to "1.86",
             "org.bouncycastle:bcpkix-jdk18on" to "1.86",
             "org.bouncycastle:bcutil-jdk18on" to "1.86",
-            "at.yawk.lz4:lz4-java" to "1.11.4",
+            "at.yawk.lz4:lz4-java" to "1.12.0",
         )
         val resolved = configurations.getByName("integrationTestRuntimeClasspath")
             .incoming.resolutionResult.allComponents
