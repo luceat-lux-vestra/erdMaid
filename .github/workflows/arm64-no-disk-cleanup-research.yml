@@ -164,7 +164,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -323,7 +328,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -461,7 +471,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -620,7 +635,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -779,7 +799,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -917,7 +942,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1076,7 +1106,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1235,7 +1270,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1373,7 +1413,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1532,7 +1577,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1691,7 +1741,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
@@ -1829,7 +1884,12 @@ jobs:
           df -i /
           logfile="$RUNNER_TEMP/erdmaid-disk-free.log"
           printf 'timestamp_utc free_kib\n' > "$logfile"
-          nohup bash -c 'while true; do read -r dev total used free pct mount <<< "$(df -Pk / | tail -n 1)"; printf "%s %s\n" "$(date -u +%FT%TZ)" "$free"; sleep 5; done' >> "$logfile" 2>&1 < /dev/null &
+          (
+            while true; do
+              printf '%s %s\n' "$(date -u +%FT%TZ)" "$(df -Pk / | awk 'NR==2 {print $4}')"
+              sleep 5
+            done
+          ) >> "$logfile" 2>&1 < /dev/null &
           echo "$!" > "$RUNNER_TEMP/erdmaid-disk-probe.pid"
           echo "NO_DISK_CLEANUP=true"
 
