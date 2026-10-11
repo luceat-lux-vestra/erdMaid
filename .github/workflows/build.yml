@@ -423,7 +423,7 @@ jobs:
           shopt -s nullglob
           marker="$RUNNER_TEMP/erdmaid-verification-zip-ready"
           rm -f "$marker"
-          export RESEARCH_READY_MARKER="$marker"
+          export ERDMAID_VERIFICATION_READY_MARKER="$marker"
           init_dir="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
           mkdir -p "$init_dir"
           cat > "$init_dir/zz-erdmaid-build-plugin-ready.init.gradle" <<'GROOVY'
@@ -431,7 +431,7 @@ jobs:
             def candidate = gradle.rootProject.tasks.findByName('buildPlugin')
             if (candidate == null) throw new GradleException('Verification gate: buildPlugin task not found')
             candidate.doLast {
-              def markerPath = System.getenv('RESEARCH_READY_MARKER')
+              def markerPath = System.getenv('ERDMAID_VERIFICATION_READY_MARKER')
               if (!markerPath) throw new GradleException('Verification gate: marker env missing')
               def archives = new File(gradle.rootProject.buildDir, 'distributions').listFiles({ File dir, String name -> name.endsWith('.zip') } as FilenameFilter)
               if (archives == null || archives.length != 1) throw new GradleException('Verification gate: expected one complete ZIP after buildPlugin')
