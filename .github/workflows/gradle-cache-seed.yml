@@ -6,9 +6,10 @@ name: Seed Gradle Cache
 on:
   push:
     branches: [ main ]
+    # Cache inputs, not unrelated CI orchestration changes. If a CI-only edit
+    # changes Gradle dependency needs, explicitly dispatch this on main.
     paths:
       - '.github/workflows/gradle-cache-seed.yml'
-      - '.github/workflows/build.yml'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
       - 'gradle.properties'
