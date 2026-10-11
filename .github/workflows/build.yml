@@ -448,7 +448,7 @@ jobs:
           # The Gradle task (not file existence/stable size) signals a fully
           # built ZIP. An early IDEA failure or missing marker fails closed.
           ready=0
-          for i in $(seq 1 240); do
+          for _probe in $(seq 1 240); do
             if [ -f "$marker" ]; then
               ready=1
               break
