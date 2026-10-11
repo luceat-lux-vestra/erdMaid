@@ -434,7 +434,11 @@ jobs:
           expected_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
           (set -o pipefail; python3 scripts/gradle_check_gate.py verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
           idea_pid=$!
-          (set -o pipefail; python3 scripts/datagrip_verifier.py 2>&1 | tee "$RUNNER_TEMP/datagrip-verifier.log") &
+          # Verifier 1.410 uses ~/.pluginVerifier/extracted-plugins by default.
+          # A second concurrent process would remove IDEA's extracted JARs.
+          # Isolate only DataGrip's JVM, including its loaded/extracted plugins.
+          mkdir -p "$RUNNER_TEMP/datagrip-plugin-verifier"
+          (set -o pipefail; JAVA_TOOL_OPTIONS="-Dplugin.verifier.home.dir=$RUNNER_TEMP/datagrip-plugin-verifier" python3 scripts/datagrip_verifier.py 2>&1 | tee "$RUNNER_TEMP/datagrip-verifier.log") &
           datagrip_pid=$!
           idea_result=0
           datagrip_result=0
