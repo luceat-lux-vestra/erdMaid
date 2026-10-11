@@ -400,46 +400,87 @@ jobs:
         with:
           cache-read-only: true
 
-      # Build the candidate once. Use one version for both host gates even when
-      # Gradle is invoked again: the default project version is clock-derived.
-      # Both independent verifiers must consume the exact same distribution ZIP.
-      - name: Prepare shared verification archive
+      # Pin one version for the entire build+two-host verification. The IJPGP
+      # verifyPlugin task already depends on buildPlugin, so a second separate
+      # Gradle invocation is unnecessary. Do not alter the fail-closed gate.
+      - name: Prepare shared verification version
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         shell: bash
         run: |
           set -euo pipefail
           version="$(date -u +'%y.%m.%d.%H%M%S')"
-          export ORG_GRADLE_PROJECT_buildVersion="$version"
           echo "ORG_GRADLE_PROJECT_buildVersion=$version" >> "$GITHUB_ENV"
-          ./gradlew buildPlugin
 
-      # Run the authoritative IJPGP IDEA gate and fail-closed standalone
-      # DataGrip gate concurrently. Both process statuses remain mandatory.
-      # The byte-identical plugin ZIP guard detects Gradle re-packaging or
-      # unintended archive mutation while the standalone verifier executes.
-      # The IJPGP zipfs signature-only retry remains in gradle_check_gate.py;
-      # DataGrip never retries. No new or weakened compatibility exclusions.
+      # Execute one Gradle invocation through the original narrow zipfs-only
+      # retry gate. A job-local Gradle init hook emits the ZIP-ready marker
+      # strictly AFTER buildPlugin has completed; then DataGrip launches in
+      # parallel with IDEA. No polling on ZIP size or partial output.
       - name: Verify IDEA and DataGrip compatibility concurrently
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
+          marker="$RUNNER_TEMP/erdmaid-verification-zip-ready"
+          rm -f "$marker"
+          export ERDMAID_VERIFICATION_READY_MARKER="$marker"
+          init_dir="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
+          mkdir -p "$init_dir"
+          cat > "$init_dir/zz-erdmaid-build-plugin-ready.init.gradle" <<'GROOVY'
+          gradle.projectsEvaluated {
+            def candidate = gradle.rootProject.tasks.findByName('buildPlugin')
+            if (candidate == null) throw new GradleException('Verification gate: buildPlugin task not found')
+            candidate.doLast {
+              def markerPath = System.getenv('ERDMAID_VERIFICATION_READY_MARKER')
+              if (!markerPath) throw new GradleException('Verification gate: marker env missing')
+              def archives = new File(gradle.rootProject.buildDir, 'distributions').listFiles({ File dir, String name -> name.endsWith('.zip') } as FilenameFilter)
+              if (archives == null || archives.length != 1) throw new GradleException('Verification gate: expected one complete ZIP after buildPlugin')
+              new File(markerPath).text = archives[0].absolutePath + '\n'
+              println('VERIFICATION_BUILD_PLUGIN_READY ' + archives[0].name)
+            }
+          }
+          GROOVY
+
+          gate_start="$(date +%s)"
+          (set -o pipefail; python3 scripts/gradle_check_gate.py verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
+          idea_pid=$!
+
+          # The Gradle task (not file existence/stable size) signals a fully
+          # built ZIP. An early IDEA failure or missing marker fails closed.
+          ready=0
+          for _probe in $(seq 1 240); do
+            if [ -f "$marker" ]; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$idea_pid" 2>/dev/null; then
+              echo "::error::IDEA validation stopped before buildPlugin completed."
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::No completed plugin ZIP marker was produced."
+            wait "$idea_pid" || true
+            exit 1
+          fi
           archives=(build/distributions/*.zip)
           if [ "${#archives[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one prebuilt plugin ZIP."
+            echo "::error::Expected exactly one complete plugin ZIP."
             exit 1
           fi
           archive="${archives[0]}"
+          if [ "$(cat "$marker")" != "$(realpath "$archive")" ]; then
+            echo "::error::Completed archive marker does not match plugin ZIP."
+            exit 1
+          fi
           expected_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
-          (set -o pipefail; python3 scripts/gradle_check_gate.py verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
-          idea_pid=$!
-          # Verifier 1.410 uses ~/.pluginVerifier/extracted-plugins by default.
-          # A second concurrent process would remove IDEA's extracted JARs.
-          # Isolate only DataGrip's JVM, including its loaded/extracted plugins.
+          # Isolate DataGrip's JVM/extracted plugins to prevent Verifier 1.410
+          # removing IDEA's shared extracted plugins directory mid-validation.
           mkdir -p "$RUNNER_TEMP/datagrip-plugin-verifier"
           (set -o pipefail; JAVA_TOOL_OPTIONS="-Dplugin.verifier.home.dir=$RUNNER_TEMP/datagrip-plugin-verifier" python3 scripts/datagrip_verifier.py 2>&1 | tee "$RUNNER_TEMP/datagrip-verifier.log") &
           datagrip_pid=$!
+
           idea_result=0
           datagrip_result=0
           wait "$idea_pid" || idea_result=$?
@@ -459,6 +500,7 @@ jobs:
             exit 1
           fi
           echo "Both host verifiers passed against the identical ZIP SHA-256 $observed_hash."
+          echo "VERIFICATION_GATE_WALL_SECONDS=$(($(date +%s)-gate_start))"
 
       - name: Collect Plugin Verifier Result
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
