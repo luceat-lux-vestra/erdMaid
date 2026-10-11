@@ -400,21 +400,65 @@ jobs:
         with:
           cache-read-only: true
 
-      # The IJPGP-owned IntelliJ IDEA 2026.2.2 target is declared explicitly in
-      # build.gradle.kts. The known IJPGP zipfs race can happen before Plugin
-      # Verifier starts; real verifier findings never satisfy the exact retry
-      # signature.
-      - name: Verify IntelliJ IDEA compatibility
+      # Build the candidate once. Use one version for both host gates even when
+      # Gradle is invoked again: the default project version is clock-derived.
+      # Both independent verifiers must consume the exact same distribution ZIP.
+      - name: Prepare shared verification archive
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-        run: python3 scripts/gradle_check_gate.py verifyPlugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(date -u +'%y.%m.%d.%H%M%S')"
+          export ORG_GRADLE_PROJECT_buildVersion="$version"
+          echo "ORG_GRADLE_PROJECT_buildVersion=$version" >> "$GITHUB_ENV"
+          ./gradlew buildPlugin
 
-      # DataGrip 2026.2.5 intentionally does not go through IJPGP's broken native
-      # resolver. This step selects that exact release/build, verifies archive
-      # identity/checksums and a pinned Plugin Verifier JAR, then enforces the
-      # same default blocking levels as IJPGP 2.18.1. It has no retry path.
-      - name: Verify DataGrip compatibility
+      # Run the authoritative IJPGP IDEA gate and fail-closed standalone
+      # DataGrip gate concurrently. Both process statuses remain mandatory.
+      # The byte-identical plugin ZIP guard detects Gradle re-packaging or
+      # unintended archive mutation while the standalone verifier executes.
+      # The IJPGP zipfs signature-only retry remains in gradle_check_gate.py;
+      # DataGrip never retries. No new or weakened compatibility exclusions.
+      - name: Verify IDEA and DataGrip compatibility concurrently
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-        run: python3 scripts/datagrip_verifier.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(build/distributions/*.zip)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one prebuilt plugin ZIP."
+            exit 1
+          fi
+          archive="${archives[0]}"
+          expected_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
+          (set -o pipefail; python3 scripts/gradle_check_gate.py verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
+          idea_pid=$!
+          # Verifier 1.410 uses ~/.pluginVerifier/extracted-plugins by default.
+          # A second concurrent process would remove IDEA's extracted JARs.
+          # Isolate only DataGrip's JVM, including its loaded/extracted plugins.
+          mkdir -p "$RUNNER_TEMP/datagrip-plugin-verifier"
+          (set -o pipefail; JAVA_TOOL_OPTIONS="-Dplugin.verifier.home.dir=$RUNNER_TEMP/datagrip-plugin-verifier" python3 scripts/datagrip_verifier.py 2>&1 | tee "$RUNNER_TEMP/datagrip-verifier.log") &
+          datagrip_pid=$!
+          idea_result=0
+          datagrip_result=0
+          wait "$idea_pid" || idea_result=$?
+          wait "$datagrip_pid" || datagrip_result=$?
+          archives_after=(build/distributions/*.zip)
+          if [ "${#archives_after[@]}" -ne 1 ] || [ "${archives_after[0]}" != "$archive" ]; then
+            echo "::error::Plugin archive set changed during host verification."
+            exit 1
+          fi
+          observed_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
+          if [ "$expected_hash" != "$observed_hash" ]; then
+            echo "::error::Plugin ZIP changed during parallel host verification."
+            exit 1
+          fi
+          if [ "$idea_result" -ne 0 ] || [ "$datagrip_result" -ne 0 ]; then
+            echo "::error::IDEA verifier rc=$idea_result; DataGrip verifier rc=$datagrip_result."
+            exit 1
+          fi
+          echo "Both host verifiers passed against the identical ZIP SHA-256 $observed_hash."
 
       - name: Collect Plugin Verifier Result
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && always() }}
