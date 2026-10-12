@@ -2,6 +2,7 @@
 """Negative fixtures proving the erdMaid workflow policy fails closed."""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,30 @@ def replace(path, old, new):
         handle.write(text.replace(old, new, 1))
 
 
+def check_gradle_seed_input_paths(root):
+    """Only inputs that can affect the protected-main Gradle cache trigger a seed."""
+    seed_path = os.path.join(root, ".github", "workflows", "gradle-cache-seed.yml")
+    with open(seed_path, encoding="utf-8") as handle:
+        workflow = handle.read()
+    header = workflow.split("\njobs:", 1)[0]
+    assert "    branches: [ main ]" in header
+    assert "  workflow_dispatch:" in header
+    paths = re.findall(r"(?m)^      - '([^']+)'$", header)
+    expected = [
+        ".github/workflows/gradle-cache-seed.yml",
+        "build.gradle.kts", "settings.gradle.kts",
+        "gradle.properties", "gradle/**", "gradlew",
+    ]
+    if paths != expected:
+        raise AssertionError(f"cache seed input path drift: {paths!r} != {expected!r}")
+    for forbidden in ("src/**", "docs/**", ".github/workflows/build.yml", "**"):
+        if forbidden in paths:
+            raise AssertionError(f"cache seed should not run on unrelated inputs: {forbidden}")
+    print("ok: dependency-only Gradle cache seed trigger")
+
+
 def main():
+    check_gradle_seed_input_paths(ROOT)
     baseline = run(ROOT)
     if baseline.returncode != 0:
         print(baseline.stdout + baseline.stderr, file=sys.stderr)
