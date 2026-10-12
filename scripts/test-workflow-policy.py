@@ -57,11 +57,11 @@ def check_gradle_seed_input_paths(root):
     expected = [
         ".github/workflows/gradle-cache-seed.yml",
         "build.gradle.kts", "settings.gradle.kts",
-        "gradle.properties", "gradle/**", "gradlew",
+        "gradle.properties", "gradle/**",
     ]
     if paths != expected:
         raise AssertionError(f"cache seed input path drift: {paths!r} != {expected!r}")
-    for forbidden in ("src/**", "docs/**", ".github/workflows/build.yml", "**"):
+    for forbidden in ("gradlew", "src/**", "docs/**", ".github/workflows/build.yml", "**"):
         if forbidden in paths:
             raise AssertionError(f"cache seed should not run on unrelated inputs: {forbidden}")
     print("ok: dependency-only Gradle cache seed trigger")
