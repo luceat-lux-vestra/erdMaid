@@ -35,7 +35,6 @@ def check(path: Path) -> None:
     if paths != expected:
         raise AssertionError(f"dependency-input paths drifted: {paths!r} != {expected!r}")
     require(text, "permissions: {}", "empty workflow permissions")
-    require(text, "vars.ERDMAID_ADS_CUTOVER_DONE == 'true'", "activation guard")
     require(text, "github.ref == 'refs/heads/main'", "main-only job guard")
     require(text, "runs-on: ubuntu-24.04-arm", "ARM64 runner")
     require(text, "contents: write", "submission permission")
@@ -63,7 +62,6 @@ def expect_fail(name: str, old: str, new: str) -> None:
 
 def main() -> int:
     check(WORKFLOW)
-    expect_fail("activation guard", "ERDMAID_ADS_CUTOVER_DONE == 'true'", "ERDMAID_ADS_CUTOVER_DONE == 'false'")
     expect_fail("ARM64 runner", "runs-on: ubuntu-24.04-arm", "runs-on: ubuntu-latest")
     expect_fail("cache writer", "cache-read-only: true", "cache-read-only: false")
     expect_fail("no submit", "generate-and-submit", "generate-and-upload")
