@@ -41,9 +41,22 @@ It runs only for a published GitHub Release whose tag is stable `vMAJOR.MINOR.PA
 plugin version is the tag with the leading `v` removed. The tag commit must be reachable from
 reviewed `main`.
 
+New automated Marketplace publication requires an exact candidate/tag SHA equal
+to the current reviewed `main` SHA and an eligible manual/scheduled CodeQL
+scan of that same SHA. Both Actions and Java/Kotlin must finish with retained,
+valid SARIF and a High/Critical security verdict recomputed from raw evidence.
+If no such evidence exists, manually dispatch CodeQL on the frozen current
+main SHA before publishing. Existing successful immutable-SHA evidence may be
+reused while its original SARIF artifacts remain retrievable and valid.
+
+**Scope limit:** these checks run on `release: released`, after the GitHub
+Release is publicly visible. They guard the repository-managed automated
+Marketplace publication path, not the owner's direct GitHub Release UI/API
+or any manual Marketplace upload. Owner publication checklist remains necessary.
+
 For a new publication the workflow, in order:
 
-1. proves release/tag identity and reviewed-main ancestry;
+1. proves release/tag identity, reviewed-main ancestry, and exact-source CodeQL security evidence;
 2. proves no completed/pending publication identity conflicts with the release;
 3. rebuilds the exact tagged source with the exact SemVer;
 4. runs the repository test gate and IDEA/DataGrip verifier gates;

@@ -584,6 +584,11 @@ jobs:
       - name: Check Marketplace release fixtures
         run: python3 scripts/test_marketplace_release.py
 
+      - name: Check release CodeQL fail-closed security fixtures
+        run: |
+          python3 scripts/release_codeql_verdict.py --self-test
+          python3 scripts/release_codeql_gate.py --self-test
+
       - name: Run zizmor
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

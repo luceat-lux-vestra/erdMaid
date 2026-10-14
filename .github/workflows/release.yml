@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 90
     environment: jetbrains-marketplace
     permissions:
+      actions: read # Inspect trusted CodeQL evidence.
       contents: write
       id-token: write
       attestations: write
@@ -159,6 +160,19 @@ jobs:
             exit 1
           }
           echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      # GitHub Release is already public. This only protects the repository's
+      # automated Marketplace publishing path, not manual/out-of-band uploads.
+      - name: Verify exact-tag CodeQL evidence before new Marketplace publication
+        if: ${{ steps.state.outputs.publish == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release_codeql_gate.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --candidate-sha "$RELEASE_COMMIT"
 
       - name: Setup Java
         if: ${{ steps.state.outputs.publish == 'true' }}
