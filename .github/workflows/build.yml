@@ -564,6 +564,9 @@ jobs:
       - name: Check workflow policy fixtures
         run: python3 scripts/test-workflow-policy.py
 
+      - name: Check dependency submission policy
+        run: python3 scripts/test-dependency-submission.py
+
       - name: Check repository policy fixtures
         run: python3 scripts/test_repository_policy.py
 
