@@ -161,9 +161,9 @@ def self_test():
            "head_branch": "main", "head_sha": sha, "status": "completed",
            "conclusion": "success", "run_attempt": 1,
            "created_at": "2026-10-14T00:00:00Z"}
-    jobs = {"total_count": 3, "jobs": [{"name": f"CodeQL ({lang})",
+    jobs = {"total_count": len(LANGUAGES), "jobs": [{"name": f"CodeQL ({lang})",
              "status": "completed", "conclusion": "success"} for lang in LANGUAGES]}
-    artifacts = {"total_count": 3, "artifacts": [
+    artifacts = {"total_count": len(LANGUAGES), "artifacts": [
         {"name": f"release-codeql-{sha}-{lang}", "id": i + 1,
          "size_in_bytes": 2000, "expired": False,
          "workflow_run": {"head_sha": sha}} for i, lang in enumerate(LANGUAGES)]}
