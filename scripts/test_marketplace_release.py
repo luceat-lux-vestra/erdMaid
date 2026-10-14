@@ -17,6 +17,20 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.build = BUILD.read_text(encoding="utf-8")
 
+    def test_new_marketplace_publication_requires_codeql(self):
+        state = self.workflow.index("Resolve publication recovery state")
+        guard = self.workflow.index("Verify exact-tag CodeQL evidence before new Marketplace publication")
+        signing = self.workflow.index("Sign exact Marketplace artifact")
+        mutating = self.workflow.index("Lock publication identity")
+        publishing = self.workflow.index("Publish verified artifact to JetBrains Marketplace")
+        self.assertLess(state, guard)
+        self.assertLess(guard, signing)
+        self.assertLess(guard, mutating)
+        self.assertLess(guard, publishing)
+        self.assertIn("steps.state.outputs.publish == 'true'", self.workflow)
+        self.assertIn('scripts/release_codeql_gate.py', self.workflow)
+        self.assertIn('actions: read', self.workflow)
+
     def test_release_only_trigger_and_environment_boundary(self):
         self.assertIn("release:\n    types: [released]", self.workflow)
         self.assertNotIn("pull_request:", self.workflow)

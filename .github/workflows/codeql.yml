@@ -1,6 +1,13 @@
 name: CodeQL
 
 on:
+  # Stage A: manual SHA proof is added while PR analysis remains active.
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact 40-character protected main SHA for Marketplace preflight'
+        required: true
+        type: string
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [ main ]
@@ -17,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: codeql-${{ github.ref }}
+  group: codeql-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,8 +46,21 @@ jobs:
           - language: java-kotlin
             build-mode: autobuild
     env:
-      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}
     steps:
+      - name: Verify trusted exact-main security evidence source
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Require full immutable SHA"; exit 1; }
+          [ "$GITHUB_REF" = "refs/heads/main" ] || { echo "::error::Only reviewed main may produce evidence"; exit 1; }
+          [ "$GITHUB_SHA" = "$EXPECTED_SHA" ] || { echo "::error::Selected SHA does not match workflow event"; exit 1; }
+          case "$GITHUB_EVENT_NAME" in workflow_dispatch|schedule) ;; *) exit 1 ;; esac
+          remote_main="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          [ "$remote_main" = "$EXPECTED_SHA" ] || { echo "::error::Protected main moved"; exit 1; }
+
       - name: Fetch exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,6 +84,32 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
 
       - name: Analyze
+        id: analyze
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           category: "/language:${{ matrix.language }}"
+          upload: ${{ github.event_name == 'workflow_dispatch' && 'never' || 'always' }}
+          output: ${{ runner.temp }}/release-codeql-${{ matrix.language }}
+
+      - name: Retain exact-main raw SARIF
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-codeql-${{ env.EXPECTED_SHA }}-${{ matrix.language }}
+          path: ${{ steps.analyze.outputs.sarif-output }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Fail closed on invalid or High/Critical security evidence
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SARIF_DIR: ${{ steps.analyze.outputs.sarif-output }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release_codeql_verdict.py \
+            --sarif-dir "$SARIF_DIR" \
+            --language "${{ matrix.language }}" \
+            --candidate-sha "$EXPECTED_SHA"
+          remote_main="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          [ "$remote_main" = "$EXPECTED_SHA" ] || { echo "::error::Protected main moved during scan"; exit 1; }
