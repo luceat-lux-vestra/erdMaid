@@ -1,22 +1,30 @@
-# Gradle dependency-submission cutover
+# Gradle dependency submission
 
-Status: **STAGED / INACTIVE** until administrator cutover.
+Status: **ACTIVE repository-owned ARM64 publisher**.
 
-This supersedes the previous NO-GO in #187. The fixed-source JDK25 graph
-already matched the managed snapshot exactly at 814 resolved / 53 direct /
-4,752 edges / 814 purls. The maintainer has chosen to move the production
-publisher directly to JDK25 ARM64 instead of preserving x64. The first live
-main submission is therefore the architecture acceptance point and remains
-fully rollbackable.
+The repository-owned workflow replaces GitHub-managed Automatic Dependency
+Submission. Managed ADS should remain disabled while this workflow is active.
 
-Cutover:
-1. Merge while ERDMAID_ADS_CUTOVER_DONE is absent/false.
-2. Disable managed Automatic dependency submission; keep Dependency Graph, Dependabot and Dependency Review enabled.
-3. Set ERDMAID_ADS_CUTOVER_DONE=true.
-4. Dispatch Gradle Dependency Submission on main.
-5. Require SUCCESS, exact-main SHA/ref and graph coverage. Historical reference is 814/53; fail-closed floor is 750/45.
-6. Confirm later feature/research pushes no longer create managed ADS runs.
+The publisher:
+- runs automatically only on protected `main` pushes that change Gradle dependency/build-definition inputs;
+- supports manual dispatch on `main` for recovery or explicit refresh;
+- uses JDK25 on `ubuntu-24.04-arm`;
+- keeps Gradle cache access read-only;
+- submits with `dependency-graph: generate-and-submit`;
+- verifies exact-main provenance and fail-closed graph coverage after submission.
 
-The ARM64 publisher uses cache-read-only=true, so a cache miss cannot create a new ARM64 cache producer.
+Current reference graph: 814 resolved / 53 direct / 4,752 edges / 814 purls.
+The ARM64 pre-cutover probe produced canonical resolved SHA256
+`0ae9aef365152e7c17500fa324e0b73be94ec29a1bfe2dc95e9f662290eb967c`,
+identical to the earlier x64 graph. The workflow fails closed below 750
+resolved or 45 direct dependencies.
 
-Rollback: set ERDMAID_ADS_CUTOVER_DONE=false first, re-enable managed ADS, and require a fresh managed main snapshot. Never leave both publishers active.
+A cold ARM64 graph generation succeeded with zero cache restores and zero
+cache saves, so this publisher does not depend on a pre-existing ARM64 cache.
+
+Rollback:
+1. disable or remove the repository-owned publisher;
+2. re-enable GitHub-managed Automatic Dependency Submission;
+3. require a successful fresh managed main snapshot before considering the rollback complete.
+
+Do not intentionally keep both publishers active.
