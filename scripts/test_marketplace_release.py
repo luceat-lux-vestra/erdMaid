@@ -10,12 +10,32 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 BUILD = ROOT / "build.gradle.kts"
+CODEQL = ROOT / ".github" / "workflows" / "codeql.yml"
 
 
 class MarketplaceReleaseTest(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.build = BUILD.read_text(encoding="utf-8")
+
+    def test_codeql_cadence_weekly_manual_without_routine_pr(self):
+        codeql = CODEQL.read_text(encoding="utf-8")
+        triggers, remainder = codeql.split("\npermissions:\n", 1)
+        self.assertIn("  workflow_dispatch:", triggers)
+        self.assertIn("  schedule:", triggers)
+        self.assertIn('    - cron: "47 3 * * 3"', triggers)
+        for forbidden in ("pull_request", "pull_request_target", "push",
+                          "merge_group", "workflow_run"):
+            self.assertNotRegex(triggers, rf"(?m)^  {forbidden}:")
+        self.assertNotIn("github.event.pull_request", remainder)
+        self.assertIn("candidate_sha:", triggers)
+        self.assertIn("Verify trusted exact-main security evidence source", remainder)
+        self.assertIn("Fail closed on invalid or High/Critical security evidence", remainder)
+        self.assertIn("release_codeql_verdict.py", remainder)
+        self.assertIn("retention-days: 90", remainder)
+        self.assertIn("- language: actions", remainder)
+        self.assertIn("- language: java-kotlin", remainder)
+        self.assertIn("build-mode: autobuild", remainder)
 
     def test_new_marketplace_publication_requires_codeql(self):
         state = self.workflow.index("Resolve publication recovery state")

@@ -15,8 +15,8 @@
     {
       "context": "CodeQL (actions)",
       "workflow": ".github/workflows/codeql.yml",
-      "disposition": "pull-request/weekly-default-branch/manual exact-main security analysis",
-      "reason": "PR, weekly default-branch, and manual exact-main CodeQL analysis remain advisory, not part of the required Merge Gate; PR CodeQL failures therefore do not automatically block merge. PR analysis does not immediately update the default-branch alert baseline; the Wednesday scheduled scan normally refreshes it, but delayed, skipped, or failed schedules can extend staleness beyond a week. The required Merge Gate independently aggregates Build/Test/Plugin Verifier/workflow-policy/dependency evidence. Historical Kotlin extractor compatibility was tracked in #114."
+      "disposition": "weekly-default-branch/manual exact-main security analysis (no PR/push CodeQL)",
+      "reason": "CodeQL analysis is deliberately not triggered on PRs or main pushes. Full Actions and Java/Kotlin CodeQL runs on the Wednesday scheduled protected-main baseline and explicit exact-current-main manual dispatch, both advisory and outside the required Merge Gate. Newly merged vulnerabilities may remain undetected until the next successful weekly/manual run; delayed, cancelled or failed schedules can extend that interval. New repository-managed automated Marketplace publication is blocked unless eligible exact-tag/current-main CodeQL run identity and original SARIF High/Critical verdict pass; public GitHub Release creation and out-of-band manual uploads remain owner-controlled and outside that workflow's protection. Required Merge Gate still independently aggregates Build/Test/Plugin Verifier/workflow-policy/dependency evidence."
     }
   ]
 }

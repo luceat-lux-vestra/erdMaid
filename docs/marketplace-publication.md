@@ -41,6 +41,24 @@ It runs only for a published GitHub Release whose tag is stable `vMAJOR.MINOR.PA
 plugin version is the tag with the leading `v` removed. The tag commit must be reachable from
 reviewed `main`.
 
+### CodeQL execution cadence and exposure
+
+Routine PR and `main` push CodeQL scans are intentionally disabled to reduce
+analysis workload and all-security-check-complete latency. Full Actions and
+Java/Kotlin CodeQL scanning continues on Wednesday's scheduled protected-main
+run and manually via `workflow_dispatch` with the **exact current `main` SHA**.
+The normal PR `Merge Gate` still requires Build, Test, two host verifiers,
+Workflow Static Analysis and Dependency Review. No CodeQL query or Kotlin
+extraction scope is reduced.
+
+**Trade-off:** newly merged vulnerabilities may remain undetected until the next
+successful scheduled or manually dispatched scan. A missed/failed weekly run
+can extend that exposure. For a release candidate, freeze and scan the exact
+current main commit before creating the public GitHub Release; new automated
+Marketplace publishing fails closed without original valid SARIF for that SHA.
+This guard does **not** stop the repository owner from creating a public GitHub
+Release directly or uploading to Marketplace outside the automation.
+
 New automated Marketplace publication requires an exact candidate/tag SHA equal
 to the current reviewed `main` SHA and an eligible manual/scheduled CodeQL
 scan of that same SHA. Both Actions and Java/Kotlin must finish with retained,
