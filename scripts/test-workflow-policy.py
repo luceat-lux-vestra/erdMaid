@@ -44,6 +44,42 @@ def replace(path, old, new):
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text.replace(old, new, 1))
 
+def expect_success(name, mutate):
+    with tempfile.TemporaryDirectory() as temp:
+        root = os.path.join(temp, "repo")
+        os.makedirs(root)
+        copy_tree(root)
+        mutate(root)
+        result = run(root)
+        output = result.stdout + result.stderr
+        if result.returncode != 0:
+            raise AssertionError(f"{name}: expected success, got {result.returncode}: {output}")
+        print(f"ok: {name}")
+
+
+def write_ephemeral_fixture(root, owner="issue #201", retire="remove when bounded research concludes"):
+    path = os.path.join(root, ".github", "workflows", "research-lifecycle-fixture.yml")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(
+            f"# lifecycle-owner: {owner}\n"
+            f"# lifecycle-retire: {retire}\n"
+            "name: Research Lifecycle Fixture\n\n"
+            "on:\n"
+            "  workflow_dispatch:\n\n"
+            "permissions:\n"
+            "  contents: read\n\n"
+            "concurrency:\n"
+            "  group: research-lifecycle-fixture\n"
+            "  cancel-in-progress: true\n\n"
+            "jobs:\n"
+            "  probe:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    timeout-minutes: 5\n"
+            "    steps:\n"
+            "      - run: echo fixture\n"
+        )
+
+
 
 def check_gradle_seed_input_paths(root):
     """Only inputs that can affect the protected-main Gradle cache trigger a seed."""
@@ -73,6 +109,21 @@ def main():
     if baseline.returncode != 0:
         print(baseline.stdout + baseline.stderr, file=sys.stderr)
         return 1
+
+    expect_success(
+        "ephemeral workflow with lifecycle metadata",
+        lambda root: write_ephemeral_fixture(root),
+    )
+    expect_failure(
+        "ephemeral workflow missing lifecycle owner",
+        lambda root: write_ephemeral_fixture(root, owner=""),
+        "lacks non-empty # lifecycle-owner:",
+    )
+    expect_failure(
+        "ephemeral workflow missing retirement condition",
+        lambda root: write_ephemeral_fixture(root, retire=""),
+        "lacks non-empty # lifecycle-retire:",
+    )
 
     expect_failure(
         "renamed required job",
