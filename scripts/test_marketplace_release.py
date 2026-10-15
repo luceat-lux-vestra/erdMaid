@@ -20,7 +20,7 @@ class MarketplaceReleaseTest(unittest.TestCase):
 
     def test_codeql_cadence_weekly_manual_without_routine_pr(self):
         codeql = CODEQL.read_text(encoding="utf-8")
-        triggers, remainder = codeql.split("\npermissions:\n", 1)
+        triggers, remainder = codeql.split("\npermissions:", 1)
         self.assertIn("  workflow_dispatch:", triggers)
         self.assertIn("  schedule:", triggers)
         self.assertIn('    - cron: "47 3 * * 3"', triggers)
