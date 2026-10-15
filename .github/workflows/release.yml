@@ -12,7 +12,67 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+
+  codeql_preflight:
+    name: Release CodeQL preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: write # Isolated dispatch-only authority; no release write or publication secrets.
+      contents: read
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Fetch exact tag for candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch current protected-main preflight verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: .trusted-codeql-preflight
+          persist-credentials: false
+
+      - name: Classify previously completed Marketplace recovery
+        id: recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" > "$RUNNER_TEMP/release-preflight.json"
+          jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and .draft == false and .prerelease == false' "$RUNNER_TEMP/release-preflight.json" >/dev/null
+          published="$(jq '[.assets[]? | select(.name == "erdmaid-release-published.json")] | length' "$RUNNER_TEMP/release-preflight.json")"
+          pending="$(jq '[.assets[]? | select(.name == "erdmaid-release-identity.json")] | length' "$RUNNER_TEMP/release-preflight.json")"
+          [ "$published" -le 1 ] && [ "$pending" -le 1 ] || exit 1
+          if [ "$published" -eq 1 ]; then
+            [ "$pending" -eq 1 ] || exit 1
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif [ "$pending" -eq 1 ]; then
+            echo "::error::Pending Marketplace publication identity requires manual recovery"
+            exit 1
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run trusted exact-source CodeQL reuse/dispatch/join/wait
+        if: ${{ steps.recovery.outputs.publish == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_sha="$(git rev-parse HEAD)"
+          python3 .trusted-codeql-preflight/scripts/release_codeql_gate.py \
+            --sha "$candidate_sha" --tag "$RELEASE_TAG"
+
   publish:
+    needs: codeql_preflight
     name: Publish signed plugin
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -161,18 +221,8 @@ jobs:
           }
           echo "publish=true" >> "$GITHUB_OUTPUT"
 
-      # GitHub Release is already public. This only protects the repository's
-      # automated Marketplace publishing path, not manual/out-of-band uploads.
-      - name: Verify exact-tag CodeQL evidence before new Marketplace publication
-        if: ${{ steps.state.outputs.publish == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
-        run: |
-          set -euo pipefail
-          python3 scripts/release_codeql_gate.py \
-            --repository "$GITHUB_REPOSITORY" \
-            --candidate-sha "$RELEASE_COMMIT"
+      # GitHub Release is already public; the nonpublishing prerequisite job
+      # protects only this workflow's downstream Marketplace automation.
 
       - name: Setup Java
         if: ${{ steps.state.outputs.publish == 'true' }}

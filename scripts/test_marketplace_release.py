@@ -20,7 +20,7 @@ class MarketplaceReleaseTest(unittest.TestCase):
 
     def test_codeql_cadence_weekly_manual_without_routine_pr(self):
         codeql = CODEQL.read_text(encoding="utf-8")
-        triggers, remainder = codeql.split("\npermissions:\n", 1)
+        triggers, remainder = codeql.split("\npermissions:", 1)
         self.assertIn("  workflow_dispatch:", triggers)
         self.assertIn("  schedule:", triggers)
         self.assertIn('    - cron: "47 3 * * 3"', triggers)
@@ -29,7 +29,7 @@ class MarketplaceReleaseTest(unittest.TestCase):
             self.assertNotRegex(triggers, rf"(?m)^  {forbidden}:")
         self.assertNotIn("github.event.pull_request", remainder)
         self.assertIn("candidate_sha:", triggers)
-        self.assertIn("Verify trusted exact-main security evidence source", remainder)
+        self.assertIn("Verify exact protected-main candidate", remainder)
         self.assertIn("Fail closed on invalid or High/Critical security evidence", remainder)
         self.assertIn("release_codeql_verdict.py", remainder)
         self.assertIn("retention-days: 90", remainder)
@@ -38,18 +38,44 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.assertIn("build-mode: autobuild", remainder)
 
     def test_new_marketplace_publication_requires_codeql(self):
-        state = self.workflow.index("Resolve publication recovery state")
-        guard = self.workflow.index("Verify exact-tag CodeQL evidence before new Marketplace publication")
-        signing = self.workflow.index("Sign exact Marketplace artifact")
-        mutating = self.workflow.index("Lock publication identity")
-        publishing = self.workflow.index("Publish verified artifact to JetBrains Marketplace")
-        self.assertLess(state, guard)
-        self.assertLess(guard, signing)
-        self.assertLess(guard, mutating)
-        self.assertLess(guard, publishing)
-        self.assertIn("steps.state.outputs.publish == 'true'", self.workflow)
-        self.assertIn('scripts/release_codeql_gate.py', self.workflow)
-        self.assertIn('actions: read', self.workflow)
+        prerequisite, publisher = self.workflow.split("\n  publish:\n", 1)
+        self.assertIn("  codeql_preflight:", prerequisite)
+        self.assertIn("    needs: codeql_preflight", publisher)
+        self.assertIn("Run trusted exact-source CodeQL reuse/dispatch/join/wait", prerequisite)
+        self.assertIn("Classify previously completed Marketplace recovery", prerequisite)
+        self.assertIn("steps.recovery.outputs.publish == 'true'", prerequisite)
+        self.assertIn("ref: main", prerequisite)
+        self.assertIn("path: .trusted-codeql-preflight", prerequisite)
+        self.assertIn(".trusted-codeql-preflight/scripts/release_codeql_gate.py", prerequisite)
+        self.assertIn("actions: write", prerequisite)
+        self.assertNotIn("contents: write", prerequisite)
+        self.assertNotIn("environment: jetbrains-marketplace", prerequisite)
+        self.assertNotIn("id-token: write", prerequisite)
+        self.assertNotIn("attestations: write", prerequisite)
+        for forbidden in ("signPlugin", "publishPlugin", "gh release upload"):
+            self.assertNotIn(forbidden, prerequisite)
+        self.assertNotIn("actions: write", publisher)
+        self.assertIn("actions: read", publisher)
+        self.assertIn("contents: write", publisher)
+        self.assertIn("environment: jetbrains-marketplace", publisher)
+        for required in ("Resolve publication recovery state", "Sign exact Marketplace artifact",
+                         "Lock publication identity", "Publish verified artifact to JetBrains Marketplace"):
+            self.assertIn(required, publisher)
+        self.assertNotIn("scripts/release_codeql_gate.py", publisher)
+
+    def test_exact_source_codeql_provenance_and_retention(self):
+        codeql = CODEQL.read_text(encoding="utf-8")
+        self.assertIn("run-name: CodeQL source ${{ inputs.candidate_sha || github.sha }}", codeql)
+        self.assertIn("group: codeql-${{ inputs.candidate_sha || github.sha }}", codeql)
+        self.assertIn("cancel-in-progress: false", codeql)
+        for step in ("Verify exact checkout", "Verify protected-main ancestry",
+                     "Record analyzed source", "Verify protected-main ancestry after analysis"):
+            self.assertIn(step, codeql)
+        self.assertIn("codeql-source-${{ env.EXPECTED_SHA }}-${{ matrix.language }}", codeql)
+        self.assertIn("codeql-${{ env.EXPECTED_SHA }}-${{ matrix.language }}", codeql)
+        self.assertIn("source-identity.json", codeql)
+        self.assertIn("git merge-base --is-ancestor", codeql)
+        self.assertIn("if [ \"$GITHUB_EVENT_NAME\" = \"schedule\" ]; then", codeql)
 
     def test_release_only_trigger_and_environment_boundary(self):
         self.assertIn("release:\n    types: [released]", self.workflow)

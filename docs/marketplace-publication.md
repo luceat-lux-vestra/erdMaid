@@ -41,41 +41,57 @@ It runs only for a published GitHub Release whose tag is stable `vMAJOR.MINOR.PA
 plugin version is the tag with the leading `v` removed. The tag commit must be reachable from
 reviewed `main`.
 
-### CodeQL execution cadence and exposure
+### CodeQL execution cadence and release preflight
 
-Routine PR and `main` push CodeQL scans are intentionally disabled to reduce
-analysis workload and all-security-check-complete latency. Full Actions and
-Java/Kotlin CodeQL scanning continues on Wednesday's scheduled protected-main
-run and manually via `workflow_dispatch` with the **exact current `main` SHA**.
-The normal PR `Merge Gate` still requires Build, Test, two host verifiers,
-Workflow Static Analysis and Dependency Review. No CodeQL query or Kotlin
-extraction scope is reduced.
+Routine PR and `main` push CodeQL scans remain disabled. Full Actions and Java/Kotlin
+CodeQL scans continue on Wednesday's scheduled protected-main run and through
+`workflow_dispatch` with an **exact 40-character commit SHA from protected-main
+history**, including trusted historical release-tag commits. Regular required PR
+Build/Test/IDEA+DataGrip/Workflow Static Analysis/Dependency Review gates are unchanged.
 
-**Trade-off:** newly merged vulnerabilities may remain undetected until the next
-successful scheduled or manually dispatched scan. A missed/failed weekly run
-can extend that exposure. For a release candidate, freeze and scan the exact
-current main commit before creating the public GitHub Release; new automated
-Marketplace publishing fails closed without original valid SARIF for that SHA.
-This guard does **not** stop the repository owner from creating a public GitHub
-Release directly or uploading to Marketplace outside the automation.
+A new managed Marketplace publication uses a **separate, nonpublishing**
+`codeql_preflight` job before its credentialed `publish` job:
 
-New automated Marketplace publication requires an exact candidate/tag SHA equal
-to the current reviewed `main` SHA and an eligible manual/scheduled CodeQL
-scan of that same SHA. Both Actions and Java/Kotlin must finish with retained,
-valid SARIF and a High/Critical security verdict recomputed from raw evidence.
-If no such evidence exists, manually dispatch CodeQL on the frozen current
-main SHA before publishing. Existing successful immutable-SHA evidence may be
-reused while its original SARIF artifacts remain retrievable and valid.
+1. Resolve the release tag's exact commit and confirm its immutable remote tag,
+   stable version and current protected-main ancestry. The candidate's source
+   checkout SHA is independent of the dispatch workflow's own event SHA.
+2. Skip a new scan only if a completed-publication identity is present; the
+   downstream publication job still independently verifies that recovery identity,
+   the existing signed asset digest and publication state before no-op.
+3. For a new publication, reuse a trustworthy, successful exact-source-SHA
+   weekly/manual CodeQL run if all language jobs and original unexpired SARIF
+   artifacts pass fresh verification. Modern runs must also carry per-language
+   `source-identity.json` with checkout/event/run/attempt/language identity.
+4. If no eligible evidence exists, join a matching in-progress trusted run or
+   automatically dispatch one exact-source scan from protected `main` and wait
+   for bounded completion. Failed, timed-out, ambiguous or unverified executions
+   fail closed instead of retrying indefinitely.
+5. Inspect the original language SARIF, successful invocations, loaded query packs,
+   actual extracted Actions/Kotlin source diagnostics and High/Critical findings.
+   Reject missing/corrupt/expired evidence or any High/Critical result. Recheck
+   tag identity and main ancestry before authorizing downstream publication.
 
-**Scope limit:** these checks run on `release: released`, after the GitHub
-Release is publicly visible. They guard the repository-managed automated
-Marketplace publication path, not the owner's direct GitHub Release UI/API
-or any manual Marketplace upload. Owner publication checklist remains necessary.
+The preflight job holds `contents:read` and `actions:write` only to inspect
+and dispatch the scanner, not signing or publication credentials. The publishing
+job retains Marketplace signing/publishing authority without `actions:write`.
+
+**Exposure trade-off:** vulnerabilities can remain undiscovered after a merge until
+the next scheduled/manual scan or first release preflight. For operational
+predictability, run a nonpublishing manual CodeQL scan on the intended exact source
+before publishing a GitHub Release where possible; automatic preflight provides
+a fallback rather than an exemption from complete evidence.
+
+**Authority limit:** `release: released` is triggered only after the GitHub Release
+is visible publicly. The preflight cannot stop direct owner/admin GitHub Release
+creation, out-of-band Marketplace uploads, or a hypothetical historical workflow
+version that predates this gate. For historical tags, ensure the active trusted
+default-branch release workflow actually includes this preflight. The managed
+Marketplace publishing path is gated, not GitHub Release visibility.
 
 For a new publication the workflow, in order:
 
-1. proves release/tag identity, reviewed-main ancestry, and exact-source CodeQL security evidence;
-2. proves no completed/pending publication identity conflicts with the release;
+1. completes the separate nonpublishing release-source/CodeQL preflight and checks recovery classification;
+2. reproves release/tag identity, reviewed-main ancestry and no conflicting pending/completed publication identity;
 3. rebuilds the exact tagged source with the exact SemVer;
 4. runs the repository test gate and IDEA/DataGrip verifier gates;
 5. inspects the unsigned candidate identity and packaged license;
@@ -140,9 +156,9 @@ new attempt. Never move/reuse the existing tag to different source.
 
 1. choose the next stable SemVer greater than the current Marketplace version;
 2. require the target commit to be reviewed and present on `main`;
-3. create protected tag `vMAJOR.MINOR.PATCH` on that exact commit;
-4. create/publish the GitHub Release for that tag;
-5. the Marketplace Release workflow performs the signed automated publication;
+3. optionally dispatch and verify a nonpublishing CodeQL scan of the exact protected-main source SHA;
+4. create protected tag `vMAJOR.MINOR.PATCH` on that exact commit and publish its GitHub Release only after checking the current release-workflow authority;
+5. the Marketplace Release workflow performs the exact-SHA reuse-or-auto-scan preflight, then signed automated publication;
 6. verify the Marketplace update and the GitHub Release signed asset after the workflow completes.
 
 Do not manufacture a production release solely as CI evidence.
