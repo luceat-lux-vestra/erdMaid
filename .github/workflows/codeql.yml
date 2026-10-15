@@ -3,12 +3,12 @@ run-name: CodeQL source ${{ inputs.candidate_sha || github.sha }}
 
 on:
   # Routine PR/push CodeQL is intentionally disabled: full default-branch scans
-  # remain weekly and exact-current-main scans are available on manual dispatch.
+  # remain weekly and trusted exact-source scans are available on manual dispatch.
   # New automated Marketplace publications require eligible exact-SHA SARIF evidence.
   workflow_dispatch:
     inputs:
       candidate_sha:
-        description: 'Exact 40-character protected main SHA for Marketplace preflight'
+        description: 'Exact 40-character protected main ancestor SHA for Marketplace preflight'
         required: true
         type: string
   # The default-branch security alert baseline is refreshed weekly, not on every merge.
@@ -119,7 +119,7 @@ jobs:
           upload: ${{ github.event_name == 'workflow_dispatch' && 'never' || 'always' }}
           output: ${{ runner.temp }}/release-codeql-${{ matrix.language }}
 
-      - name: Retain exact-main raw SARIF
+      - name: Retain exact-source raw SARIF
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
