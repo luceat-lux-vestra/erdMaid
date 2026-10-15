@@ -98,9 +98,9 @@ def check_ephemeral_workflow_lifecycle(path, text):
     if not EPHEMERAL_WORKFLOW.match(name):
         return
     header = "\n".join(text.splitlines()[:20])
-    if not re.search(r"^# lifecycle-owner:\s*\S.+$", header, re.MULTILINE):
+    if not re.search(r"^# lifecycle-owner:[ \t]*\S[^\r\n]*$", header, re.MULTILINE):
         raise ValueError(f"{name} is ephemeral and lacks non-empty # lifecycle-owner: header metadata")
-    if not re.search(r"^# lifecycle-retire:\s*\S.+$", header, re.MULTILINE):
+    if not re.search(r"^# lifecycle-retire:[ \t]*\S[^\r\n]*$", header, re.MULTILINE):
         raise ValueError(f"{name} is ephemeral and lacks non-empty # lifecycle-retire: header metadata")
 
 
