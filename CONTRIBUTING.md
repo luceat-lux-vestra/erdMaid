@@ -24,6 +24,8 @@ The internal `Test` and `Verify plugin` component jobs still mean successful `./
 
 ## Repository automation
 
+Research, experiment, and temporary workflows should stay off protected default branch where practical. If an exceptional ephemeral workflow must land in `.github/workflows` on the default branch, filenames beginning with `research-`, `temporary-`, `tmp-`, or `experiment-` must declare non-empty `# lifecycle-owner:` and `# lifecycle-retire:` header metadata. The owner identifies the issue/authority responsible for the workflow; the retirement field states the concrete condition for deletion or consolidation. Historical Actions runs are evidence and are not deleted merely to make the sidebar look clean.
+
 Validation workflows are read-only. Dedicated metadata automation may only mutate issue/PR labels with narrowly scoped permissions and trusted default-branch configuration; it must never execute untrusted PR-head code. Marketplace/GitHub Release mutation is isolated to the release-event-only `Marketplace Release` workflow, which executes an immutable reviewed tag, uses the `jetbrains-marketplace` environment, and is never reachable from pull-request or ordinary main validation.
 
 Issue metadata automation owns only explicit repository title protocol. `bug|fix` maps to `type:bug`, `feat|feature` maps to `type:feature`, and repository/maintenance prefixes including `task|track|epic|build|ci|test|refactor|chore|perf|release|docs|security|audit|design|architecture|maintenance|hardening|governance` map to `type:maintenance`. Titles outside that protocol are left unchanged; issue body text and area ownership are never inferred heuristically.

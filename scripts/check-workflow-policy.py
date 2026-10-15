@@ -9,6 +9,7 @@ import sys
 
 SHA = re.compile(r"@[0-9a-f]{40}(?:\s+#.*)?$")
 JOB = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
+EPHEMERAL_WORKFLOW = re.compile(r"^(?:research|temporary|tmp|experiment)-.*\.(?:yml|yaml)$", re.IGNORECASE)
 
 
 def fail(message):
@@ -92,6 +93,17 @@ def check_entries(root, entries, classification):
             raise ValueError(f"{entry['context']!r} is not emitted on {event}")
 
 
+def check_ephemeral_workflow_lifecycle(path, text):
+    name = os.path.basename(path)
+    if not EPHEMERAL_WORKFLOW.match(name):
+        return
+    header = "\n".join(text.splitlines()[:20])
+    if not re.search(r"^# lifecycle-owner:[ \t]*\S[^\r\n]*$", header, re.MULTILINE):
+        raise ValueError(f"{name} is ephemeral and lacks non-empty # lifecycle-owner: header metadata")
+    if not re.search(r"^# lifecycle-retire:[ \t]*\S[^\r\n]*$", header, re.MULTILINE):
+        raise ValueError(f"{name} is ephemeral and lacks non-empty # lifecycle-retire: header metadata")
+
+
 def check_workflow_security(root):
     workflow_dir = os.path.join(root, ".github", "workflows")
     paths = sorted(
@@ -103,6 +115,7 @@ def check_workflow_security(root):
         raise ValueError("no workflow files found")
     for path in paths:
         text = open(path, encoding="utf-8").read()
+        check_ephemeral_workflow_lifecycle(path, text)
         if not re.search(r"^permissions:(?:\s*\{\})?\s*$", text, re.MULTILINE):
             raise ValueError(f"{os.path.basename(path)} has no supported top-level permissions block")
         for line in text.splitlines():
