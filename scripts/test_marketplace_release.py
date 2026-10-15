@@ -36,6 +36,11 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.assertIn("- language: actions", remainder)
         self.assertIn("- language: java-kotlin", remainder)
         self.assertIn("build-mode: autobuild", remainder)
+        self.assertIn("name: CodeQL schedule guard", remainder)
+        self.assertIn('if [ "$GITHUB_EVENT_NAME" != "schedule" ]; then', remainder)
+        self.assertIn(".head_sha == $sha", remainder)
+        self.assertIn("needs: scan-guard", remainder)
+        self.assertIn("if: needs.scan-guard.outputs.should_scan == 'true'", remainder)
 
     def test_new_marketplace_publication_requires_codeql(self):
         prerequisite, publisher = self.workflow.split("\n  publish:\n", 1)
