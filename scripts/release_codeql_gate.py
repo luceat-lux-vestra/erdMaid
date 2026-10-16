@@ -364,6 +364,9 @@ def run_preflight(sha: str, tag: str, repo: str,
             # loop or security-failure laundering.
             dispatch(repo, sha)
             dispatched = True
+            # Registration latency begins with this new dispatch, not with
+            # the potentially lengthy audit of historical eligible artifacts.
+            discovery_deadline = min(deadline, time.monotonic() + 150)
             print(f"Regenerating exact-source CodeQL original proof for {sha}",
                   flush=True)
         if time.monotonic() >= deadline:
