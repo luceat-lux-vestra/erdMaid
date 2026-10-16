@@ -226,10 +226,9 @@ def verify_evidence(run: dict, sha: str, workflow_id: int, repo: str,
 def find_runs(repo: str, sha: str, workflow_id: int) -> list[dict]:
     found = []
     # Searching by event head_sha would exclude historical-commit scans.
-    # A bounded recent search may miss old evidence; that means a fresh scan.
-    # Search only approved trigger types. Historical PR-triggered runs can be
-    # numerous; fetching their pages every 15 seconds risks Actions API limits.
-    # Beyond the bounded recent eligible window, start a new verified scan.
+    # Search only approved trigger types. Continue page-wise with an explicit
+    # limit; silent truncation would permit missing a failed exact-source scan.
+    # A history beyond the finite bound is a security NO-GO, not a green reuse.
     for event in ("workflow_dispatch", "schedule"):
         # Paginate instead of silently interpreting the most recent 100
         # runs as a complete source history. An exceeded bound is NO-GO.
@@ -588,7 +587,16 @@ def self_test() -> None:
         assert len(find_runs("owner/repo", sha, 2)) == 101
         assert paged.call_count == 3
 
+    # A concurrent second exact-candidate full scan cannot be joined
+    # ambiguously, even when no historical completed result exists.
     active = dict(modern, status="in_progress", conclusion=None)
+    with patch(__name__ + ".find_runs", return_value=[
+        active, dict(active, id=18)]):
+        reject(lambda: select_run("owner/repo", sha, 2), "multiple concurrent")
+    with patch(__name__ + ".gh_json", return_value={
+        "workflow_runs": long_page
+    }):
+        reject(lambda: find_runs("owner/repo", sha, 2), "1000-run bound")
     queued = dict(modern, status="queued", conclusion=None)
     failed = dict(modern, conclusion="failure")
     exercise([modern, modern], 0)
