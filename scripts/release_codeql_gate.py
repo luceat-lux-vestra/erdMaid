@@ -304,6 +304,8 @@ def run_preflight(sha: str, tag: str, repo: str,
     # A previously successful full scan whose original archive aged out is
     # skipped only after its identity and complete matrix were verified.
     expired_ids: set[int] = set()
+    verified_ids: set[int] = set()
+    verified_proof: dict | None = None
     dispatched = False
     if selected is None:
         # The destination workflow only accepts trusted protected-main sources.
@@ -318,7 +320,7 @@ def run_preflight(sha: str, tag: str, repo: str,
     deadline = time.monotonic() + timeout
     discovery_deadline = min(deadline, time.monotonic() + 150)
     while True:
-        current = select_run(repo, sha, workflow_id, expired_ids)
+        current = select_run(repo, sha, workflow_id, expired_ids | verified_ids)
         if current is not None:
             require(current.get("run_attempt") == 1,
                     "CodeQL rerun/attempt ambiguity")
@@ -336,12 +338,25 @@ def run_preflight(sha: str, tag: str, repo: str,
                           f"{current['id']}; searching older verified proof",
                           flush=True)
                     continue
+                if not dispatched:
+                    # Do not let the first green scanner conceal malformed,
+                    # security-positive or untrusted same-source duplicates.
+                    verified_ids.add(current["id"])
+                    if verified_proof is None:
+                        verified_proof = result
+                    print(f"Independently verified complete CodeQL run {current['id']}",
+                          flush=True)
+                    continue
                 verify_source(sha, tag, repo)
-                result["execution"] = "dispatched" if dispatched else "reused-or-joined"
+                result["execution"] = "dispatched"
                 return result
             require(status in {"queued", "in_progress", "waiting", "pending", "requested"},
                     f"unrecognized CodeQL run status: {status}")
         elif not dispatched:
+            if verified_proof is not None:
+                verify_source(sha, tag, repo)
+                verified_proof["execution"] = "reused-or-joined"
+                return verified_proof
             if not expired_ids:
                 raise ValueError("previously visible CodeQL run vanished")
             # Exhausted all completed candidates with genuinely expired or
@@ -511,6 +526,9 @@ def self_test() -> None:
             except StopIteration:
                 entry = last
             scans.append(entry)
+            ignored = args[3] if len(args) > 3 else kwargs.get("ignored", set())
+            if entry is not None and entry.get("id") in ignored:
+                return None
             return entry
         with patch(__name__ + ".verify_source"), \
              patch(__name__ + ".gh_json", return_value={"id": 2, "state": "active"}), \
@@ -571,6 +589,23 @@ def self_test() -> None:
     queued = dict(modern, status="queued", conclusion=None)
     failed = dict(modern, conclusion="failure")
     exercise([modern, modern], 0)
+    # Two independently eligible complete same-SHA scans must each pass their
+    # original SARIF and source-manifest verification; reuse only afterwards.
+    with patch(__name__ + ".verify_source"), \
+         patch(__name__ + ".gh_json", return_value={"id": 2, "state": "active"}), \
+         patch(__name__ + ".select_run", side_effect=[
+             modern, modern, dict(modern, id=18), None]), \
+         patch(__name__ + ".dispatch") as unnecessary, \
+         patch(__name__ + ".verify_evidence", side_effect=[
+             {"run_id": 17}, {"run_id": 18}]) as checks, \
+         patch(__name__ + ".time.sleep"), \
+         patch(__name__ + ".time.monotonic",
+               side_effect=(x for x in range(0, 10000))):
+        reuse = run_preflight(sha, "v1.0.0", "owner/repo",
+                              timeout=50, poll=1)
+        assert reuse["execution"] == "reused-or-joined"
+        assert checks.call_count == 2 and unnecessary.call_count == 0
+
     exercise([None, None, queued, active, modern], 1)
     exercise([active, active, modern], 0)
     exercise([failed, failed], 0, "ended")
