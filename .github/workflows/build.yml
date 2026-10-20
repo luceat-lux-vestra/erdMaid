@@ -518,6 +518,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      pull-requests: read
     steps:
 
       - name: Fetch Sources
@@ -591,6 +592,65 @@ jobs:
         run: |
           python3 scripts/release_codeql_verdict.py --self-test
           python3 scripts/release_codeql_gate.py --self-test
+
+      # Only the changed, non-privileged CodeQL artifact path is exercised here.
+      # A PR fixture is never a trusted security scan or release evidence.
+      - name: Verify CodeQL PR fixture negative controls
+        run: python3 scripts/trusted_workflow_validation.py self-test
+
+      - name: Require exact production CodeQL artifact-action pin
+        run: |
+          python3 scripts/trusted_workflow_validation.py check-pins \
+            --codeql .github/workflows/codeql.yml \
+            --pr-workflow .github/workflows/build.yml
+
+      - name: Classify CodeQL workflow changes against exact PR HEAD
+        id: codeql-fixture-scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr-metadata.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/pr-files.json"
+          python3 scripts/trusted_workflow_validation.py classify \
+            --pull "$RUNNER_TEMP/pr-metadata.json" \
+            --pages "$RUNNER_TEMP/pr-files.json" \
+            --head "$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare untrusted PR-only synthetic CodeQL SARIF
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/trusted_workflow_validation.py prepare \
+            --dir "$RUNNER_TEMP/pr-codeql-fixture" --head "$EXPECTED_HEAD"
+
+      - name: Upload PR-only CodeQL artifact fixture
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-codeql-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr-codeql-fixture
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Download PR-only CodeQL artifact fixture
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pr-codeql-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr-codeql-fixture-downloaded
+
+      - name: Verify downloaded PR fixture and reject promotion
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/trusted_workflow_validation.py verify \
+            --dir "$RUNNER_TEMP/pr-codeql-fixture-downloaded" --head "$EXPECTED_HEAD"
 
       - name: Run zizmor
         env:
