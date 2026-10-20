@@ -336,6 +336,7 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 - CI green is necessary but not sufficient for merge.
 - Third-party actions remain pinned to full commit SHAs.
 - Validation workflows remain read-only and fail closed.
+- PR-time trusted-workflow compatibility validation is a non-privileged, synthetic fixture path inside the existing Workflow Static Analysis job. Its first adapter covers the CodeQL upload-artifact action pin only; the validator rejects unsupported CodeQL YAML edits and incomplete or drifting PR file listings. The fixture runs without production secrets or write authority, and its PR artifacts are not release/security evidence. The protected-main CodeQL schedule/manual scan and release evidence gate retain their separate authority.
 - `actions/checkout` keeps `persist-credentials: false` unless a separately isolated write job
   demonstrably requires credentials.
 - Metadata automation remains a distinct narrowly-permissioned trust boundary.
