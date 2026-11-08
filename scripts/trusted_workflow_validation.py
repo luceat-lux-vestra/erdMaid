@@ -50,17 +50,21 @@ def classify(pull, pages, expected_head):
         seen.add(name)
         require(status in {"added", "modified", "removed", "renamed", "copied", "changed", "unchanged"}, "unknown PR file status")
         paths.add(name)
-        # The reference adapter only proves the upload action's runtime path.
-        # Other CodeQL YAML changes require a separately reviewed adapter.
+        # CodeQL workflow changes are fail-closed. The dynamic fixture proves the
+        # upload-artifact path; init/analyze changes are admitted only as immutable
+        # SHA pin-only churn, with every other YAML mutation still rejected.
         if name == ".github/workflows/codeql.yml":
             require(status == "modified", "unsupported CodeQL workflow change type")
             patch = f.get("patch")
             require(isinstance(patch, str) and patch, "CodeQL change has no complete reviewable patch")
             changes = [line[1:].strip() for line in patch.splitlines()
                        if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))]
-            require(changes and all(re.fullmatch(
-                r"uses: actions/upload-artifact@[0-9a-f]{40}(?:\s+# v[0-9A-Za-z.+-]+)?", line)
-                for line in changes), "CodeQL YAML changes beyond upload-action pin are not proven by fixture")
+            allowed_pin = re.compile(
+                r"uses: (?:actions/upload-artifact|actions/setup-java|github/codeql-action/(?:init|analyze))@"
+                r"[0-9a-f]{40}(?:\s+# v[0-9A-Za-z.+-]+)?"
+            )
+            require(changes and all(allowed_pin.fullmatch(line) for line in changes),
+                    "CodeQL YAML changes beyond approved immutable action pins are not proven")
         if status == "renamed":
             old = f.get("previous_filename")
             require(isinstance(old, str) and old and not old.startswith("/") and ".." not in old.split("/"), "rename missing previous path")
@@ -142,6 +146,27 @@ def self_test():
             raise AssertionError("unsafe changed-file listing was accepted")
     valid_patch = "@@ -171 +171 @@\n-        uses: actions/upload-artifact@" + "a" * 40 + " # v7.0.1\n+        uses: actions/upload-artifact@" + "b" * 40 + " # v7.0.2"
     assert classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": valid_patch}]], sha)
+    codeql_pin_patch = (
+        "@@ -147,2 +147,2 @@\n"
+        "-        uses: github/codeql-action/init@" + "a" * 40 + " # v4.38.3\n"
+        "+        uses: github/codeql-action/init@" + "b" * 40 + " # v4.39.3\n"
+        "-        uses: github/codeql-action/analyze@" + "a" * 40 + " # v4.38.3\n"
+        "+        uses: github/codeql-action/analyze@" + "b" * 40 + " # v4.39.3"
+    )
+    assert classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": codeql_pin_patch}]], sha)
+    setup_java_pin_patch = (
+        "@@ -147 +147 @@\n"
+        "-        uses: actions/setup-java@" + "a" * 40 + " # v6.1.0\n"
+        "+        uses: actions/setup-java@" + "b" * 40 + " # v6.2.0"
+    )
+    assert classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": setup_java_pin_patch}]], sha)
+    unpinned_codeql_patch = "@@ -1 +1 @@\n-        uses: github/codeql-action/init@" + "a" * 40 + "\n+        uses: github/codeql-action/init@v4"
+    try:
+        classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": unpinned_codeql_patch}]], sha)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unpinned CodeQL action update was accepted")
     bad_patch = "@@ -1 +1 @@\n-name: CodeQL\n+name: Not CodeQL"
     try:
         classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": bad_patch}]], sha)

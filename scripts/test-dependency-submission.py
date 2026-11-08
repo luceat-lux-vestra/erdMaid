@@ -44,7 +44,7 @@ def check(path: Path) -> None:
     require(text, "len(resolved) < 750", "node coverage floor")
     require(text, "direct < 45", "direct coverage floor")
     require(text, 'graph.get("ref") != "refs/heads/main"', "exact-main provenance")
-    require(text, "gradle/actions/dependency-submission@3f5f9adaf7d9fecd50b5935e54106014257a94e6", "action pin")
+    require(text, "gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c", "action pin")
 
 def expect_fail(name: str, old: str, new: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
