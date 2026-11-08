@@ -645,14 +645,21 @@ jobs:
           python3 scripts/release_codeql_verdict.py --self-test
           python3 scripts/release_codeql_gate.py --self-test
 
-      # Only the changed, non-privileged CodeQL artifact path is exercised here.
-      # A PR fixture is never a trusted security scan or release evidence.
+      # Changed CodeQL runtime and artifact paths are exercised here without
+      # production security-write authority. PR output is never trusted evidence.
       - name: Verify CodeQL PR fixture negative controls
         run: python3 scripts/trusted_workflow_validation.py self-test
 
       - name: Require exact production CodeQL artifact-action pin
         run: |
           python3 scripts/trusted_workflow_validation.py check-pins \
+            --codeql .github/workflows/codeql.yml \
+            --pr-workflow .github/workflows/build.yml
+
+      - name: Verify CodeQL PR runtime adapter contract
+        run: |
+          python3 scripts/trusted_codeql_runtime_validation.py self-test
+          python3 scripts/trusted_codeql_runtime_validation.py check-contract \
             --codeql .github/workflows/codeql.yml \
             --pr-workflow .github/workflows/build.yml
 
@@ -671,6 +678,32 @@ jobs:
             --pull "$RUNNER_TEMP/pr-metadata.json" \
             --pages "$RUNNER_TEMP/pr-files.json" \
             --head "$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize PR-only CodeQL runtime
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: actions
+          build-mode: none
+
+      - name: Analyze PR-only CodeQL runtime without upload
+        id: codeql-runtime-analyze
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:actions"
+          upload: never
+          output: ${{ runner.temp }}/pr-codeql-runtime
+
+      - name: Verify local PR-only CodeQL runtime SARIF and reject promotion
+        if: steps.codeql-fixture-scope.outputs.required == 'true'
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          SARIF_DIR: ${{ steps.codeql-runtime-analyze.outputs.sarif-output }}
+        run: |
+          python3 scripts/trusted_codeql_runtime_validation.py verify \
+            --dir "$SARIF_DIR" \
+            --head "$EXPECTED_HEAD"
 
       - name: Prepare untrusted PR-only synthetic CodeQL SARIF
         if: steps.codeql-fixture-scope.outputs.required == 'true'
