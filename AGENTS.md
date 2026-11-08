@@ -331,11 +331,11 @@ retained beyond the invocation unless a separately reviewed owner and benefit ar
 
 ## 10. CI and repository policy
 
-- The live ruleset requires one `Merge Gate`. It succeeds only when the internal `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, and `Dependency Review` component jobs all succeed.
+- The live ruleset requires one `Merge Gate`. It succeeds only when `Validation scope`, `Build`, `Test`, `Verify plugin`, `Workflow Static Analysis`, and `Dependency Review` succeed, and when each scope-applicable reusable `Host API Evidence` / `Starter E2E` workflow succeeds; known non-applicable evidence must be skipped.
 - Documentation-only CI uses a narrow syntactic fast path only when every changed file is `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, or a Markdown file under `docs/**`. This is not semantic classification. Build/Test/Plugin Verifier runtime work is skipped, Workflow Static Analysis and Dependency Review still run, and `Merge Gate` remains required. Any mixed, empty, or unreadable changed-file set falls back to full validation.
 - CI green is necessary but not sufficient for merge.
 - Third-party actions remain pinned to full commit SHAs.
-- Validation workflows remain read-only and fail closed.
+- Validation workflows remain read-only and fail closed. The canonical `Build` PR DAG owns Host API / Starter applicability; incomplete or drifting PR file listings force both specialized evidence surfaces on rather than silently skipping them. `PR Metadata` remains a separate `pull_request_target` trust boundary.
 - PR-time trusted-workflow compatibility validation is a non-privileged, synthetic fixture path inside the existing Workflow Static Analysis job. Its first adapter covers the CodeQL upload-artifact action pin only; the validator rejects unsupported CodeQL YAML edits and incomplete or drifting PR file listings. The fixture runs without production secrets or write authority, and its PR artifacts are not release/security evidence. The protected-main CodeQL schedule/manual scan and release evidence gate retain their separate authority.
 - `actions/checkout` keeps `persist-credentials: false` unless a separately isolated write job
   demonstrably requires credentials.

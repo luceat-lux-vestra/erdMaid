@@ -165,8 +165,8 @@ def main():
         "merge gate missing component",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    needs: [ build, test, verify, staticAnalysis, dependencyReview ]\n",
-            "    needs: [ build, test, verify, staticAnalysis ]\n",
+            "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence, starterE2E ]\n",
+            "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence ]\n",
         ),
         "expected needs",
     )
@@ -187,6 +187,15 @@ def main():
             "actions/checkout@v7",
         ),
         "mutable action ref",
+    )
+    expect_failure(
+        "non-reusable job without timeout",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "    uses: ./.github/workflows/host-api-evidence.yml # zizmor: ignore[self-repository] actionlint 1.7.12 rejects GitHub's newer $/ self-repository syntax.\n",
+            "    runs-on: ubuntu-latest\n",
+        ),
+        "has no timeout-minutes",
     )
     print("all workflow-policy fixtures passed")
     return 0
