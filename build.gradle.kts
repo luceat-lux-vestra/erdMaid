@@ -43,8 +43,8 @@ configurations.getByName("integrationTestImplementation") {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.22.3"))
-    testImplementation(platform("tools.jackson:jackson-bom:3.2.3"))
+    testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.22.4"))
+    testImplementation(platform("tools.jackson:jackson-bom:3.2.4"))
     testImplementation(platform("io.opentelemetry:opentelemetry-bom:1.67.0"))
 
     add("integrationTestImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
@@ -59,9 +59,9 @@ dependencies {
     // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
-    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.19.Final"))
-    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.22.3"))
-    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.2.3"))
+    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.20.Final"))
+    add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.22.4"))
+    add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.2.4"))
     add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.67.0"))
     constraints {
         add("integrationTestImplementation", "org.bouncycastle:bcprov-jdk18on:1.86") {
@@ -73,10 +73,10 @@ dependencies {
         add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.86") {
             because("keep Bouncy Castle Starter tooling modules version-aligned")
         }
-        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.12.0") {
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.12.1") {
             because("1.11.3 includes the security fixes released in 1.11.2")
         }
-        add("integrationTestImplementation", "org.jsoup:jsoup:1.23.2") {
+        add("integrationTestImplementation", "org.jsoup:jsoup:1.24.1") {
             because("1.23.2 contains the XmlTreeBuilder resource-consumption fix commit 862ba2f")
         }
     }
@@ -113,17 +113,17 @@ val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
 
     doLast {
         val expected = mapOf(
-            "org.jsoup:jsoup" to "1.23.2",
-            "com.fasterxml.jackson.core:jackson-core" to "2.22.3",
-            "com.fasterxml.jackson.core:jackson-databind" to "2.22.3",
-            "tools.jackson.core:jackson-core" to "3.2.3",
-            "tools.jackson.core:jackson-databind" to "3.2.3",
-            "io.netty:netty-handler" to "4.2.19.Final",
-            "io.netty:netty-codec-compression" to "4.2.19.Final",
+            "org.jsoup:jsoup" to "1.24.1",
+            "com.fasterxml.jackson.core:jackson-core" to "2.22.4",
+            "com.fasterxml.jackson.core:jackson-databind" to "2.22.4",
+            "tools.jackson.core:jackson-core" to "3.2.4",
+            "tools.jackson.core:jackson-databind" to "3.2.4",
+            "io.netty:netty-handler" to "4.2.20.Final",
+            "io.netty:netty-codec-compression" to "4.2.20.Final",
             "org.bouncycastle:bcprov-jdk18on" to "1.86",
             "org.bouncycastle:bcpkix-jdk18on" to "1.86",
             "org.bouncycastle:bcutil-jdk18on" to "1.86",
-            "at.yawk.lz4:lz4-java" to "1.12.0",
+            "at.yawk.lz4:lz4-java" to "1.12.1",
         )
         val resolved = configurations.getByName("integrationTestRuntimeClasspath")
             .incoming.resolutionResult.allComponents
