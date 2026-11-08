@@ -76,7 +76,10 @@ def check_entries(root, entries, classification):
             if needs is None:
                 raise ValueError("Merge Gate must declare an inline needs list")
             observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
-            expected_needs = {"build", "test", "verify", "staticAnalysis", "dependencyReview"}
+            expected_needs = {
+                "scope", "build", "test", "verify", "staticAnalysis", "dependencyReview",
+                "hostApiEvidence", "starterE2E",
+            }
             if observed_needs != expected_needs:
                 raise ValueError(
                     f"Merge Gate expected needs={sorted(expected_needs)!r}, got {sorted(observed_needs)!r}"
@@ -127,7 +130,8 @@ def check_workflow_security(root):
                     raise ValueError(f"{os.path.basename(path)} contains mutable action ref {ref!r}")
         jobs = read_jobs(text)
         for job_id, job in jobs.items():
-            if not re.search(r"^    timeout-minutes:\s*[1-9][0-9]*\s*$", job, re.MULTILINE):
+            reusable_call = re.search(r"^    uses:\s*\./", job, re.MULTILINE) is not None
+            if not reusable_call and not re.search(r"^    timeout-minutes:\s*[1-9][0-9]*\s*$", job, re.MULTILINE):
                 raise ValueError(f"{os.path.basename(path)}:{job_id} has no timeout-minutes")
         if not re.search(r"^concurrency:\s*$", text, re.MULTILINE):
             raise ValueError(f"{os.path.basename(path)} has no concurrency control")

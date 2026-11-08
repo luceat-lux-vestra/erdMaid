@@ -33,26 +33,57 @@ jobs:
       pull-requests: read
     outputs:
       docs_only: ${{ steps.scope.outputs.docs_only }}
+      host_api_evidence: ${{ steps.scope.outputs.host_api_evidence }}
+      starter_e2e: ${{ steps.scope.outputs.starter_e2e }}
     steps:
-      - name: Detect documentation-only scope
+      - name: Classify validation scope
         id: scope
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_COUNT: ${{ github.event.pull_request.changed_files }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
         shell: bash
         run: |
           set -euo pipefail
           changed="$RUNNER_TEMP/pr-changed-files.json"
 
-          if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$changed"; then
-            echo "::warning::Could not establish the changed-file set; using full validation."
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          docs_only=false
+          host_api_evidence=true
+          starter_e2e=true
+
+          emit_scope() {
+            {
+              echo "docs_only=$docs_only"
+              echo "host_api_evidence=$host_api_evidence"
+              echo "starter_e2e=$starter_e2e"
+            } >> "$GITHUB_OUTPUT"
+            echo "docs-only=$docs_only host-api-evidence=$host_api_evidence starter-e2e=$starter_e2e"
+          }
+
+          if [ "$IS_DRAFT" = "true" ]; then
+            host_api_evidence=false
+            starter_e2e=false
+            emit_scope
             exit 0
           fi
 
-          if ! jq -e '[.[][]] | length > 0' "$changed" >/dev/null; then
-            echo "::warning::Changed-file set is empty or unreadable; using full validation."
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          if ! [[ "$EXPECTED_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::Changed-file count is empty or malformed; using full validation."
+            emit_scope
+            exit 0
+          fi
+
+          if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$changed"; then
+            echo "::warning::Could not establish the changed-file set; using full validation."
+            emit_scope
+            exit 0
+          fi
+
+          observed="$(jq '[.[][]] | length' "$changed")"
+          if [ "$observed" -ne "$EXPECTED_COUNT" ] || [ "$observed" -eq 0 ]; then
+            echo "::warning::Changed-file API returned $observed of $EXPECTED_COUNT files; using full validation."
+            emit_scope
             exit 0
           fi
 
@@ -66,12 +97,33 @@ jobs:
               )
           ' "$changed" >/dev/null; then
             docs_only=true
-          else
-            docs_only=false
           fi
 
-          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
-          echo "docs-only=$docs_only"
+          host_api_evidence="$(jq -r '
+            [.[][] | .filename, (.previous_filename // "")] as $paths
+            | any($paths[];
+                . == ".github/workflows/host-api-evidence.yml"
+                or . == "scripts/database_host_api_inventory.py"
+                or . == "scripts/test_database_host_api_inventory.py"
+                or . == "scripts/datagrip_host_api_evidence.py"
+                or . == "scripts/datagrip_verifier.py"
+                or startswith("src/main/kotlin/com/algorist/erdmaid/actions/")
+                or startswith("src/main/kotlin/com/algorist/erdmaid/host/")
+                or startswith("src/test/kotlin/com/algorist/erdmaid/actions/")
+                or startswith("src/test/kotlin/com/algorist/erdmaid/host/")
+              )
+          ' "$changed")"
+
+          starter_e2e="$(jq -r '
+            [.[][] | .filename, (.previous_filename // "")] as $paths
+            | any($paths[];
+                . == "build.gradle.kts"
+                or . == ".github/workflows/starter-e2e.yml"
+                or startswith("src/integrationTest/")
+              )
+          ' "$changed")"
+
+          emit_scope
 
   # Compile the plugin and publish the packaged distribution as an artifact.
   build:
@@ -725,25 +777,45 @@ jobs:
           fail-on-severity: moderate
 
 
+  hostApiEvidence:
+    name: Host API Evidence
+    needs: [ scope ]
+    if: ${{ needs.scope.outputs.host_api_evidence == 'true' }}
+    uses: ./.github/workflows/host-api-evidence.yml # zizmor: ignore[self-repository] actionlint 1.7.12 rejects GitHub's newer $/ self-repository syntax.
+
+  starterE2E:
+    name: Starter E2E
+    needs: [ scope ]
+    if: ${{ needs.scope.outputs.starter_e2e == 'true' }}
+    uses: ./.github/workflows/starter-e2e.yml # zizmor: ignore[self-repository] actionlint 1.7.12 rejects GitHub's newer $/ self-repository syntax.
+
+
   mergeGate:
     name: Merge Gate
-    needs: [ build, test, verify, staticAnalysis, dependencyReview ]
+    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence, starterE2E ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every merge-gate component to succeed
         env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.test.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           WORKFLOW_STATIC_ANALYSIS_RESULT: ${{ needs.staticAnalysis.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependencyReview.result }}
+          HOST_API_REQUIRED: ${{ needs.scope.outputs.host_api_evidence }}
+          HOST_API_RESULT: ${{ needs.hostApiEvidence.result }}
+          STARTER_E2E_REQUIRED: ${{ needs.scope.outputs.starter_e2e }}
+          STARTER_E2E_RESULT: ${{ needs.starterE2E.result }}
         shell: bash
         run: |
           set -euo pipefail
           failed=0
+
           for entry in \
+            "Validation scope=$SCOPE_RESULT" \
             "Build=$BUILD_RESULT" \
             "Test=$TEST_RESULT" \
             "Verify plugin=$VERIFY_RESULT" \
@@ -757,5 +829,32 @@ jobs:
               failed=1
             fi
           done
-          exit "$failed"
 
+          require_conditional() {
+            local name="$1"
+            local required="$2"
+            local result="$3"
+            case "$required" in
+              true)
+                if [ "$result" != "success" ]; then
+                  echo "::error::$name is applicable but concluded '$result'; Merge Gate remains closed."
+                  failed=1
+                fi
+                ;;
+              false)
+                if [ "$result" != "skipped" ]; then
+                  echo "::error::$name is not applicable but concluded '$result'; Merge Gate remains closed."
+                  failed=1
+                fi
+                ;;
+              *)
+                echo "::error::$name applicability is '$required'; scope is unknown and Merge Gate remains closed."
+                failed=1
+                ;;
+            esac
+          }
+
+          require_conditional "Host API Evidence" "$HOST_API_REQUIRED" "$HOST_API_RESULT"
+          require_conditional "Starter E2E" "$STARTER_E2E_REQUIRED" "$STARTER_E2E_RESULT"
+
+          exit "$failed"
