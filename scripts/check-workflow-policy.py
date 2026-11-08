@@ -77,13 +77,18 @@ def check_entries(root, entries, classification):
                 raise ValueError("Merge Gate must declare an inline needs list")
             observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
             expected_needs = {
-                "scope", "build", "test", "verify", "staticAnalysis", "dependencyReview",
+                "scope", "build", "test", "verify", "staticAnalysis",
+                "dependencySubmissionValidation", "dependencyReview",
                 "hostApiEvidence", "starterE2E",
             }
             if observed_needs != expected_needs:
                 raise ValueError(
                     f"Merge Gate expected needs={sorted(expected_needs)!r}, got {sorted(observed_needs)!r}"
                 )
+            if "DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}" not in job:
+                raise ValueError("Merge Gate must expose dependencySubmissionValidation result")
+            if '"Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT"' not in job:
+                raise ValueError("Merge Gate must aggregate dependencySubmissionValidation result")
         elif job_if_value is not None:
             raise ValueError(f"{entry['context']!r} can be skipped by job policy")
 

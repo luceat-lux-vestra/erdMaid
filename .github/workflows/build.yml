@@ -765,6 +765,75 @@ jobs:
           echo "Negative control passed: actionlint (exit ${actionlint_status}) and zizmor (exit ${zizmor_status}) both rejected the unsafe workflow."
 
 
+
+  dependencySubmissionValidation:
+    name: Dependency submission PR validation
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Fetch exact validation source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Verify dependency-submission PR adapter policy
+        run: |
+          python3 scripts/trusted_dependency_submission_validation.py self-test
+          python3 scripts/trusted_dependency_submission_validation.py check-contract \
+            --production .github/workflows/dependency-submission.yml \
+            --pr-workflow .github/workflows/build.yml
+
+      - name: Classify dependency-submission validation scope
+        id: dependency-scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pull="$RUNNER_TEMP/dependency-pr.json"
+          files="$RUNNER_TEMP/dependency-pr-files.json"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$pull"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$files"
+          python3 scripts/trusted_dependency_submission_validation.py classify \
+            --pull "$pull" \
+            --pages "$files" \
+            --head "$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Setup supported Java
+        if: ${{ steps.dependency-scope.outputs.required == 'true' }}
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Generate untrusted PR dependency graph without submission
+        if: ${{ steps.dependency-scope.outputs.required == 'true' }}
+        uses: gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: true
+          dependency-graph: generate-and-upload
+          dependency-graph-report-dir: dependency-graph-reports-pr
+          dependency-graph-continue-on-failure: false
+
+      - name: Verify PR dependency graph provenance and coverage
+        if: ${{ steps.dependency-scope.outputs.required == 'true' }}
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          python3 scripts/trusted_dependency_submission_validation.py verify \
+            --dir dependency-graph-reports-pr \
+            --head "$EXPECTED_HEAD" \
+            --event-ref "$EVENT_REF"
+
   dependencyReview:
     name: Dependency Review
     runs-on: ubuntu-latest
@@ -792,7 +861,7 @@ jobs:
 
   mergeGate:
     name: Merge Gate
-    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence, starterE2E ]
+    needs: [ scope, build, test, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -804,6 +873,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           WORKFLOW_STATIC_ANALYSIS_RESULT: ${{ needs.staticAnalysis.result }}
+          DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependencyReview.result }}
           HOST_API_REQUIRED: ${{ needs.scope.outputs.host_api_evidence }}
           HOST_API_RESULT: ${{ needs.hostApiEvidence.result }}
@@ -820,6 +890,7 @@ jobs:
             "Test=$TEST_RESULT" \
             "Verify plugin=$VERIFY_RESULT" \
             "Workflow Static Analysis=$WORKFLOW_STATIC_ANALYSIS_RESULT" \
+            "Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT" \
             "Dependency Review=$DEPENDENCY_REVIEW_RESULT"
           do
             name="${entry%%=*}"

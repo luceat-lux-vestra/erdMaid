@@ -165,10 +165,28 @@ def main():
         "merge gate missing component",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence, starterE2E ]\n",
+            "    needs: [ scope, build, test, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]\n",
             "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence ]\n",
         ),
         "expected needs",
+    )
+    expect_failure(
+        "merge gate missing dependency-submission result env",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "          DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}\n",
+            "",
+        ),
+        "must expose dependencySubmissionValidation result",
+    )
+    expect_failure(
+        "merge gate does not aggregate dependency-submission result",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            '            "Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT" \\\n',
+            "",
+        ),
+        "must aggregate dependencySubmissionValidation result",
     )
     expect_failure(
         "unaudited target trigger",
