@@ -60,7 +60,7 @@ def classify(pull, pages, expected_head):
             changes = [line[1:].strip() for line in patch.splitlines()
                        if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))]
             allowed_pin = re.compile(
-                r"uses: (?:actions/upload-artifact|github/codeql-action/(?:init|analyze))@"
+                r"uses: (?:actions/upload-artifact|actions/setup-java|github/codeql-action/(?:init|analyze))@"
                 r"[0-9a-f]{40}(?:\s+# v[0-9A-Za-z.+-]+)?"
             )
             require(changes and all(allowed_pin.fullmatch(line) for line in changes),
@@ -154,6 +154,12 @@ def self_test():
         "+        uses: github/codeql-action/analyze@" + "b" * 40 + " # v4.39.3"
     )
     assert classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": codeql_pin_patch}]], sha)
+    setup_java_pin_patch = (
+        "@@ -147 +147 @@\n"
+        "-        uses: actions/setup-java@" + "a" * 40 + " # v6.1.0\n"
+        "+        uses: actions/setup-java@" + "b" * 40 + " # v6.2.0"
+    )
+    assert classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": setup_java_pin_patch}]], sha)
     unpinned_codeql_patch = "@@ -1 +1 @@\n-        uses: github/codeql-action/init@" + "a" * 40 + "\n+        uses: github/codeql-action/init@v4"
     try:
         classify(pull, [[{"filename": ".github/workflows/codeql.yml", "status": "modified", "patch": unpinned_codeql_patch}]], sha)
