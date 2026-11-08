@@ -15,6 +15,13 @@ PIN_ACTIONS = (
     "actions/setup-java",
     "gradle/actions/dependency-submission",
 )
+SUPPORTED_COORDINATE_KEYS = frozenset({
+    "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin",
+})
+COORDINATE_LINE = re.compile(
+    r'required = \{"(?P<coordinate>[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[^"\s]+)"\}\Z'
+)
+
 RELEVANT_PATHS = frozenset({
     ".github/workflows/dependency-submission.yml",
     ".github/workflows/build.yml",
@@ -22,7 +29,7 @@ RELEVANT_PATHS = frozenset({
     "scripts/test-dependency-submission.py",
 })
 REQUIRED_COORDINATES = frozenset({
-    "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0",
+    "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0",
 })
 
 
@@ -45,7 +52,7 @@ def require_supported_publisher_patch(entry: dict) -> None:
     require(isinstance(patch, str) and patch,
             "dependency-submission change has no reviewable patch")
     changed = [
-        line[1:].strip()
+        (line[0], line[1:].strip())
         for line in patch.splitlines()
         if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
     ]
@@ -54,8 +61,27 @@ def require_supported_publisher_patch(entry: dict) -> None:
         r"uses:\s*(?:actions/checkout|actions/setup-java|gradle/actions/dependency-submission)"
         r"@[0-9a-f]{40}(?:\s+#.*)?\Z"
     )
-    require(all(allowed_action.fullmatch(line) for line in changed),
-            "dependency-submission workflow mutation exceeds the supported action-pin adapter")
+    if all(allowed_action.fullmatch(line) for _, line in changed):
+        return
+
+    require(len(changed) == 2,
+            "dependency-submission workflow mutation exceeds the supported adapters")
+    removed = [line for sign, line in changed if sign == "-"]
+    added = [line for sign, line in changed if sign == "+"]
+    require(len(removed) == 1 and len(added) == 1,
+            "dependency-submission coordinate adapter requires one replacement pair")
+    old_match = COORDINATE_LINE.fullmatch(removed[0])
+    new_match = COORDINATE_LINE.fullmatch(added[0])
+    require(old_match is not None and new_match is not None,
+            "dependency-submission coordinate adapter only accepts the coverage coordinate")
+    old_coordinate = old_match.group("coordinate")
+    new_coordinate = new_match.group("coordinate")
+    old_key = old_coordinate.rsplit(":", 1)[0]
+    new_key = new_coordinate.rsplit(":", 1)[0]
+    require(old_key == new_key and new_key in SUPPORTED_COORDINATE_KEYS,
+            "dependency-submission coordinate adapter changed an unsupported artifact")
+    require(new_coordinate in REQUIRED_COORDINATES,
+            "dependency-submission publisher coordinate does not match PR validation policy")
 
 
 def classify(pull: dict, pages: list, expected_head: str) -> bool:
@@ -124,6 +150,9 @@ def check_contract(production: str, pr_workflow: str) -> None:
             "production publisher may write Gradle cache")
     require("dependency-graph-continue-on-failure: false" in production,
             "production publisher no longer fails closed")
+    for coordinate in REQUIRED_COORDINATES:
+        require(coordinate in production,
+                f"production publisher coordinate drifted: {coordinate}")
     job = extract_job(pr_workflow, "dependencySubmissionValidation")
     require("    permissions:\n      contents: read\n      pull-requests: read\n" in job,
             "PR dependency adapter permissions must be explicitly read-only")
@@ -225,7 +254,26 @@ def self_test() -> None:
         "status": "modified",
         "patch": allowed_patch,
     }]], sha)
+    coordinate_patch = (
+        "@@ -1 +1 @@\n"
+        '-          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"}\n'
+        '+          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"}'
+    )
+    assert classify(pull, [[{
+        "filename": ".github/workflows/dependency-submission.yml",
+        "status": "modified",
+        "patch": coordinate_patch,
+    }]], sha)
     bad_cases = [
+        (pull, [[{
+            "filename": ".github/workflows/dependency-submission.yml",
+            "status": "modified",
+            "patch": (
+                "@@ -1 +1 @@\n"
+                '-          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"}\n'
+                '+          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.1"}'
+            ),
+        }]], sha),
         ({"head": {"sha": sha}, "changed_files": 2},
          [[{"filename": "README.md", "status": "modified"}]], sha),
         (pull, [[{"filename": "../bad", "status": "modified"}]], sha),
@@ -258,6 +306,7 @@ def self_test() -> None:
         "        with:\n          cache-read-only: true\n"
         "          dependency-graph: generate-and-submit\n"
         "          dependency-graph-continue-on-failure: false\n"
+        '          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"}\n'
     )
     pr = (
         "jobs:\n  dependencySubmissionValidation:\n"
@@ -299,7 +348,7 @@ def self_test() -> None:
         for i in range(44):
             resolved[f"example:direct:{i}"] = {"relationship": "direct"}
         resolved[
-            "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"
+            "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"
         ] = {"relationship": "direct"}
         graph = {
             "sha": sha,

@@ -85,6 +85,10 @@ def check_entries(root, entries, classification):
                 raise ValueError(
                     f"Merge Gate expected needs={sorted(expected_needs)!r}, got {sorted(observed_needs)!r}"
                 )
+            if "DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}" not in job:
+                raise ValueError("Merge Gate must expose dependencySubmissionValidation result")
+            if '"Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT"' not in job:
+                raise ValueError("Merge Gate must aggregate dependencySubmissionValidation result")
         elif job_if_value is not None:
             raise ValueError(f"{entry['context']!r} can be skipped by job policy")
 

@@ -76,7 +76,7 @@ jobs:
               resolved.update(manifest.get("resolved") or {})
           if len(resolved) < 750:
               raise SystemExit(f"Dependency graph lost required coverage: {len(resolved)} < 750")
-          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"}
+          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"}
           if missing := required - resolved.keys():
               raise SystemExit(f"Dependency graph lost required coordinates: {sorted(missing)}")
           direct = sum(node.get("relationship") == "direct" for node in resolved.values())

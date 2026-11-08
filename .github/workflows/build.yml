@@ -873,6 +873,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           WORKFLOW_STATIC_ANALYSIS_RESULT: ${{ needs.staticAnalysis.result }}
+          DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependencyReview.result }}
           HOST_API_REQUIRED: ${{ needs.scope.outputs.host_api_evidence }}
           HOST_API_RESULT: ${{ needs.hostApiEvidence.result }}
@@ -889,6 +890,7 @@ jobs:
             "Test=$TEST_RESULT" \
             "Verify plugin=$VERIFY_RESULT" \
             "Workflow Static Analysis=$WORKFLOW_STATIC_ANALYSIS_RESULT" \
+            "Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT" \
             "Dependency Review=$DEPENDENCY_REVIEW_RESULT"
           do
             name="${entry%%=*}"

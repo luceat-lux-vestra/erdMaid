@@ -41,6 +41,7 @@ def check(path: Path) -> None:
     require(text, "cache-read-only: true", "read-only Gradle cache")
     require(text, "dependency-graph: generate-and-submit", "submission mode")
     require(text, "dependency-graph-continue-on-failure: false", "fail-closed submission")
+    require(text, "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0", "current IntelliJ Platform Gradle Plugin coordinate")
     require(text, "len(resolved) < 750", "node coverage floor")
     require(text, "direct < 45", "direct coverage floor")
     require(text, 'graph.get("ref") != "refs/heads/main"', "exact-main provenance")
@@ -65,6 +66,7 @@ def main() -> int:
     expect_fail("ARM64 runner", "runs-on: ubuntu-24.04-arm", "runs-on: ubuntu-latest")
     expect_fail("cache writer", "cache-read-only: true", "cache-read-only: false")
     expect_fail("no submit", "generate-and-submit", "generate-and-upload")
+    expect_fail("stale coordinate", "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0", "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0")
     print("dependency submission policy passed")
     return 0
 
