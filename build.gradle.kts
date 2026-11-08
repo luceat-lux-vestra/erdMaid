@@ -15,7 +15,7 @@ repositories {
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
-    id("org.jetbrains.intellij.platform") version "2.19.0"
+    id("org.jetbrains.intellij.platform") version "2.20.0"
     id("org.jetbrains.changelog") version "2.5.0"
 }
 
@@ -73,7 +73,7 @@ dependencies {
         add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.86") {
             because("keep Bouncy Castle Starter tooling modules version-aligned")
         }
-        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.12.1") {
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.13.0") {
             because("1.11.3 includes the security fixes released in 1.11.2")
         }
         add("integrationTestImplementation", "org.jsoup:jsoup:1.24.1") {
@@ -123,7 +123,7 @@ val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
             "org.bouncycastle:bcprov-jdk18on" to "1.86",
             "org.bouncycastle:bcpkix-jdk18on" to "1.86",
             "org.bouncycastle:bcutil-jdk18on" to "1.86",
-            "at.yawk.lz4:lz4-java" to "1.12.1",
+            "at.yawk.lz4:lz4-java" to "1.13.0",
         )
         val resolved = configurations.getByName("integrationTestRuntimeClasspath")
             .incoming.resolutionResult.allComponents
