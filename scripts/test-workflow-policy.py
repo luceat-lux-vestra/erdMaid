@@ -165,7 +165,7 @@ def main():
         "merge gate missing component",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence, starterE2E ]\n",
+            "    needs: [ scope, build, test, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]\n",
             "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence ]\n",
         ),
         "expected needs",

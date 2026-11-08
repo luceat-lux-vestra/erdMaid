@@ -77,7 +77,8 @@ def check_entries(root, entries, classification):
                 raise ValueError("Merge Gate must declare an inline needs list")
             observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
             expected_needs = {
-                "scope", "build", "test", "verify", "staticAnalysis", "dependencyReview",
+                "scope", "build", "test", "verify", "staticAnalysis",
+                "dependencySubmissionValidation", "dependencyReview",
                 "hostApiEvidence", "starterE2E",
             }
             if observed_needs != expected_needs:
