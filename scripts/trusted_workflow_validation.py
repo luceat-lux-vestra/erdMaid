@@ -20,6 +20,7 @@ CODEQL_INPUTS = frozenset({
     "scripts/release_codeql_verdict.py",
     "scripts/release_codeql_gate.py",
     "scripts/trusted_workflow_validation.py",
+    "scripts/trusted_codeql_runtime_validation.py",
     "scripts/test_trusted_workflow_validation.py",
 })
 DOMAIN = "untrusted-pr-fixture-only"
