@@ -193,7 +193,7 @@ def main():
             "require_extra_approval_for_unattributed_changes": True,
             "allowed_merge_methods": ["squash"],
         },
-        "required_status_checks": {"strict_required_status_checks_policy": True, "do_not_enforce_on_create": False, "integration_id": 15368},
+        "required_status_checks": {"strict_required_status_checks_policy": False, "do_not_enforce_on_create": False, "integration_id": 15368},
     }
     expected_publication_ruleset = {
         "id": 2,
@@ -273,7 +273,7 @@ def main():
             {"type": "non_fast_forward"},
             {"type": "required_linear_history"},
             {"type": "pull_request", "parameters": copy.deepcopy(expected_ruleset["pull_request"])},
-            {"type": "required_status_checks", "parameters": {"strict_required_status_checks_policy": True, "do_not_enforce_on_create": False, "required_status_checks": [{"context": "Build", "integration_id": 15368}, {"context": "Test", "integration_id": 15368}]}},
+            {"type": "required_status_checks", "parameters": {"strict_required_status_checks_policy": False, "do_not_enforce_on_create": False, "required_status_checks": [{"context": "Build", "integration_id": 15368}, {"context": "Test", "integration_id": 15368}]}},
         ],
     }
     require(rp.validate_ruleset(good_ruleset, expected_ruleset, ["Build", "Test"], []) == [], "read-only ruleset fixture with redacted bypass actors must pass")
