@@ -15,11 +15,10 @@ PIN_ACTIONS = (
     "actions/setup-java",
     "gradle/actions/dependency-submission",
 )
-SUPPORTED_COORDINATE_KEYS = frozenset({
-    "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin",
-})
-COORDINATE_LINE = re.compile(
-    r'required = \{"(?P<coordinate>[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[^"\s]+)"\}\Z'
+COORDINATE_KEY = "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin"
+SUPPORTED_COORDINATE_KEYS = frozenset({COORDINATE_KEY})
+PLUGIN_DECLARATION = re.compile(
+    r'id\("org\.jetbrains\.intellij\.platform"\)\s+version\s+"(?P<version>[^"\s]+)"'
 )
 
 RELEVANT_PATHS = frozenset({
@@ -28,10 +27,6 @@ RELEVANT_PATHS = frozenset({
     "scripts/trusted_dependency_submission_validation.py",
     "scripts/test-dependency-submission.py",
 })
-REQUIRED_COORDINATES = frozenset({
-    "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0",
-})
-
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -45,43 +40,22 @@ def safe_path(value: object) -> str:
     return value
 
 
-def require_supported_publisher_patch(entry: dict) -> None:
+def required_coordinates(build_gradle: str) -> frozenset[str]:
+    matches = PLUGIN_DECLARATION.findall(build_gradle)
+    require(len(matches) == 1,
+            "expected exactly one IntelliJ Platform Gradle Plugin declaration")
+    version = matches[0]
+    require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+_-]*", version) is not None,
+            "invalid IntelliJ Platform Gradle Plugin version")
+    return frozenset({f"{COORDINATE_KEY}:{version}"})
+
+
+def require_reviewable_publisher_change(entry: dict) -> None:
     require(entry.get("status") == "modified",
             "unsupported dependency-submission workflow change type")
     patch = entry.get("patch")
     require(isinstance(patch, str) and patch,
             "dependency-submission change has no reviewable patch")
-    changed = [
-        (line[0], line[1:].strip())
-        for line in patch.splitlines()
-        if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
-    ]
-    require(changed, "dependency-submission change has no changed lines")
-    allowed_action = re.compile(
-        r"uses:\s*(?:actions/checkout|actions/setup-java|gradle/actions/dependency-submission)"
-        r"@[0-9a-f]{40}(?:\s+#.*)?\Z"
-    )
-    if all(allowed_action.fullmatch(line) for _, line in changed):
-        return
-
-    require(len(changed) == 2,
-            "dependency-submission workflow mutation exceeds the supported adapters")
-    removed = [line for sign, line in changed if sign == "-"]
-    added = [line for sign, line in changed if sign == "+"]
-    require(len(removed) == 1 and len(added) == 1,
-            "dependency-submission coordinate adapter requires one replacement pair")
-    old_match = COORDINATE_LINE.fullmatch(removed[0])
-    new_match = COORDINATE_LINE.fullmatch(added[0])
-    require(old_match is not None and new_match is not None,
-            "dependency-submission coordinate adapter only accepts the coverage coordinate")
-    old_coordinate = old_match.group("coordinate")
-    new_coordinate = new_match.group("coordinate")
-    old_key = old_coordinate.rsplit(":", 1)[0]
-    new_key = new_coordinate.rsplit(":", 1)[0]
-    require(old_key == new_key and new_key in SUPPORTED_COORDINATE_KEYS,
-            "dependency-submission coordinate adapter changed an unsupported artifact")
-    require(new_coordinate in REQUIRED_COORDINATES,
-            "dependency-submission publisher coordinate does not match PR validation policy")
 
 
 def classify(pull: dict, pages: list, expected_head: str) -> bool:
@@ -116,7 +90,7 @@ def classify(pull: dict, pages: list, expected_head: str) -> bool:
         if status == "renamed":
             paths.add(safe_path(entry.get("previous_filename")))
         if name == ".github/workflows/dependency-submission.yml":
-            require_supported_publisher_patch(entry)
+            require_reviewable_publisher_change(entry)
     return bool(paths & RELEVANT_PATHS)
 
 
@@ -138,7 +112,7 @@ def action_pin(text: str, action: str) -> str:
     return pins[0]
 
 
-def check_contract(production: str, pr_workflow: str) -> None:
+def check_contract(production: str, pr_workflow: str, build_gradle: str) -> None:
     require("  pull_request:" not in production
             and "  pull_request_target:" not in production,
             "production dependency publisher must not run on PR events")
@@ -150,9 +124,13 @@ def check_contract(production: str, pr_workflow: str) -> None:
             "production publisher may write Gradle cache")
     require("dependency-graph-continue-on-failure: false" in production,
             "production publisher no longer fails closed")
-    for coordinate in REQUIRED_COORDINATES:
-        require(coordinate in production,
-                f"production publisher coordinate drifted: {coordinate}")
+    required_coordinates(build_gradle)
+    require("trusted_dependency_submission_validation.py verify-main" in production,
+            "production publisher must delegate graph verification to the trusted validator")
+    require("--build-gradle build.gradle.kts" in production,
+            "production publisher must derive required coordinates from build.gradle.kts")
+    require(COORDINATE_KEY + ":" not in production,
+            "production publisher must not hard-code the current plugin coordinate")
     job = extract_job(pr_workflow, "dependencySubmissionValidation")
     require("    permissions:\n      contents: read\n      pull-requests: read\n" in job,
             "PR dependency adapter permissions must be explicitly read-only")
@@ -168,6 +146,8 @@ def check_contract(production: str, pr_workflow: str) -> None:
             "PR dependency adapter no longer fails closed")
     require("dependency-graph-report-dir: dependency-graph-reports-pr" in job,
             "PR dependency adapter report directory drifted")
+    require("--build-gradle build.gradle.kts" in job,
+            "PR dependency adapter must derive required coordinates from build.gradle.kts")
     require(
         "repository: ${{ github.event.pull_request.head.repo.full_name }}" in job
         and "ref: ${{ github.event.pull_request.head.sha }}" in job,
@@ -184,13 +164,13 @@ def production_eligible(graph: dict, source_sha: str) -> bool:
     return graph.get("sha") == source_sha and graph.get("ref") == "refs/heads/main"
 
 
-def verify_graph(directory: Path, expected_head: str, event_ref: str) -> dict:
-    require(SHA.fullmatch(expected_head or "") is not None,
-            "invalid expected PR HEAD")
-    require(isinstance(event_ref, str) and event_ref.startswith("refs/pull/"),
-            "dependency fixture did not run in pull_request ref context")
-    require(event_ref != "refs/heads/main",
-            "PR dependency fixture cannot use protected-main provenance")
+def _verify_graph(
+    directory: Path,
+    expected_head: str,
+    expected_ref: str,
+    required: frozenset[str],
+    production_evidence: bool,
+) -> dict:
     files = sorted(directory.rglob("*.json"))
     require(len(files) == 1,
             f"expected exactly one dependency graph report, got {len(files)}")
@@ -198,11 +178,9 @@ def verify_graph(directory: Path, expected_head: str, event_ref: str) -> dict:
     require(isinstance(data, dict),
             "dependency graph report is not an object")
     require(data.get("sha") == expected_head,
-            "dependency graph source SHA is not exact PR HEAD")
-    require(data.get("ref") == event_ref,
-            "dependency graph ref is not the PR event ref")
-    require(not production_eligible(data, expected_head),
-            "PR dependency graph was admitted as protected-main production evidence")
+            "dependency graph source SHA is not exact expected HEAD")
+    require(data.get("ref") == expected_ref,
+            "dependency graph ref is not the expected ref")
     manifests = data.get("manifests")
     require(isinstance(manifests, dict) and manifests,
             "dependency graph has no manifests")
@@ -216,7 +194,7 @@ def verify_graph(directory: Path, expected_head: str, event_ref: str) -> dict:
         resolved.update(nodes)
     require(len(resolved) >= 750,
             f"dependency graph lost required coverage: {len(resolved)} < 750")
-    missing = REQUIRED_COORDINATES - resolved.keys()
+    missing = required - resolved.keys()
     require(not missing,
             f"dependency graph lost required coordinates: {sorted(missing)}")
     direct = sum(
@@ -227,66 +205,84 @@ def verify_graph(directory: Path, expected_head: str, event_ref: str) -> dict:
             f"dependency graph lost direct coverage: {direct} < 45")
     return {
         "source_sha": expected_head,
-        "event_ref": event_ref,
+        "event_ref": expected_ref,
         "manifests": len(manifests),
         "resolved": len(resolved),
         "direct": direct,
-        "production_evidence": False,
+        "production_evidence": production_evidence,
     }
+
+
+def verify_graph(
+    directory: Path,
+    expected_head: str,
+    event_ref: str,
+    build_gradle: str,
+) -> dict:
+    require(SHA.fullmatch(expected_head or "") is not None,
+            "invalid expected PR HEAD")
+    require(isinstance(event_ref, str) and event_ref.startswith("refs/pull/"),
+            "dependency fixture did not run in pull_request ref context")
+    require(event_ref != "refs/heads/main",
+            "PR dependency fixture cannot use protected-main provenance")
+    return _verify_graph(
+        directory,
+        expected_head,
+        event_ref,
+        required_coordinates(build_gradle),
+        False,
+    )
+
+
+def verify_main_graph(
+    directory: Path,
+    expected_head: str,
+    build_gradle: str,
+) -> dict:
+    require(SHA.fullmatch(expected_head or "") is not None,
+            "invalid expected main HEAD")
+    return _verify_graph(
+        directory,
+        expected_head,
+        "refs/heads/main",
+        required_coordinates(build_gradle),
+        True,
+    )
 
 
 def self_test() -> None:
     import tempfile
     sha = "a" * 40
+    fixture_version = "9.9.9-test"
+    build_gradle = (
+        'plugins {\n'
+        f'    id("org.jetbrains.intellij.platform") version "{fixture_version}"\n'
+        '}\n'
+    )
+    required = required_coordinates(build_gradle)
+    assert required == frozenset({f"{COORDINATE_KEY}:{fixture_version}"})
+
     pull = {"head": {"sha": sha}, "changed_files": 1}
     assert classify(pull, [[{
         "filename": "scripts/trusted_dependency_submission_validation.py",
         "status": "modified",
     }]], sha)
     assert not classify(pull, [[{"filename": "README.md", "status": "modified"}]], sha)
-    allowed_patch = (
-        "@@ -1 +1 @@\n"
-        "-        uses: gradle/actions/dependency-submission@" + "b" * 40 + " # v6.3.0\n"
-        "+        uses: gradle/actions/dependency-submission@" + "c" * 40 + " # v6.4.1"
-    )
     assert classify(pull, [[{
         "filename": ".github/workflows/dependency-submission.yml",
         "status": "modified",
-        "patch": allowed_patch,
+        "patch": "@@ -1 +1 @@\n-old\n+new",
     }]], sha)
-    coordinate_patch = (
-        "@@ -1 +1 @@\n"
-        '-          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"}\n'
-        '+          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"}'
-    )
-    assert classify(pull, [[{
-        "filename": ".github/workflows/dependency-submission.yml",
-        "status": "modified",
-        "patch": coordinate_patch,
-    }]], sha)
+
     bad_cases = [
-        (pull, [[{
-            "filename": ".github/workflows/dependency-submission.yml",
-            "status": "modified",
-            "patch": (
-                "@@ -1 +1 @@\n"
-                '-          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.19.0"}\n'
-                '+          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.1"}'
-            ),
-        }]], sha),
         ({"head": {"sha": sha}, "changed_files": 2},
          [[{"filename": "README.md", "status": "modified"}]], sha),
         (pull, [[{"filename": "../bad", "status": "modified"}]], sha),
         (pull, [[{"filename": "new", "status": "renamed"}]], sha),
         (pull, [[{
             "filename": ".github/workflows/dependency-submission.yml",
-            "status": "modified",
-            "patch": "@@ -1 +1 @@\n-permissions: {}\n+permissions: write-all",
-        }]], sha),
-        (pull, [[{
-            "filename": ".github/workflows/dependency-submission.yml",
             "status": "removed",
-            "patch": allowed_patch,
+            "patch": "@@ -1 +0 @@\n-old",
         }]], sha),
         (pull, [[{"filename": "README.md", "status": "modified"}]], "d" * 40),
     ]
@@ -297,6 +293,7 @@ def self_test() -> None:
             pass
         else:
             raise AssertionError("unsafe changed-file classification was accepted")
+
     prod = (
         "on:\n  push:\npermissions: {}\njobs:\n  submitGraph:\n"
         "    permissions:\n      contents: write\n    steps:\n"
@@ -306,7 +303,9 @@ def self_test() -> None:
         "        with:\n          cache-read-only: true\n"
         "          dependency-graph: generate-and-submit\n"
         "          dependency-graph-continue-on-failure: false\n"
-        '          required = {"org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"}\n'
+        "      - run: python3 scripts/trusted_dependency_submission_validation.py verify-main "
+        "--dir dependency-graph-reports --head \"$GITHUB_SHA\" "
+        "--build-gradle build.gradle.kts\n"
     )
     pr = (
         "jobs:\n  dependencySubmissionValidation:\n"
@@ -323,22 +322,28 @@ def self_test() -> None:
         "          dependency-graph: generate-and-upload\n"
         "          dependency-graph-report-dir: dependency-graph-reports-pr\n"
         "          dependency-graph-continue-on-failure: false\n"
+        "      - run: python3 scripts/trusted_dependency_submission_validation.py verify "
+        "--dir dependency-graph-reports-pr --head \"$EXPECTED_HEAD\" "
+        "--event-ref \"$EVENT_REF\" --build-gradle build.gradle.kts\n"
     )
-    check_contract(prod, pr)
+    check_contract(prod, pr, build_gradle)
+
     for mutated in (
         pr.replace("dependency-graph: generate-and-upload",
                    "dependency-graph: generate-and-submit"),
         pr.replace("contents: read", "contents: write", 1),
         pr.replace("cache-read-only: true", "cache-read-only: false"),
+        pr.replace("--build-gradle build.gradle.kts", "--build-gradle other.gradle.kts"),
         pr.replace("gradle/actions/dependency-submission@" + "3" * 40,
                    "gradle/actions/dependency-submission@" + "4" * 40),
     ):
         try:
-            check_contract(prod, mutated)
+            check_contract(prod, mutated, build_gradle)
         except ValueError:
             pass
         else:
             raise AssertionError("unsafe PR dependency adapter contract was accepted")
+
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         resolved = {
@@ -347,29 +352,27 @@ def self_test() -> None:
         }
         for i in range(44):
             resolved[f"example:direct:{i}"] = {"relationship": "direct"}
-        resolved[
-            "org.jetbrains.intellij.platform:intellij-platform-gradle-plugin:2.20.0"
-        ] = {"relationship": "direct"}
+        resolved[next(iter(required))] = {"relationship": "direct"}
         graph = {
             "sha": sha,
             "ref": "refs/pull/7/merge",
             "manifests": {"root": {"resolved": resolved}},
         }
         (root / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
-        result = verify_graph(root, sha, "refs/pull/7/merge")
+        result = verify_graph(root, sha, "refs/pull/7/merge", build_gradle)
         assert result["resolved"] == 750
         assert result["direct"] == 45
         assert result["production_evidence"] is False
-        try:
-            verify_graph(root, sha, "refs/heads/main")
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("protected-main provenance was accepted for PR fixture")
+
+        graph["ref"] = "refs/heads/main"
+        (root / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+        result = verify_main_graph(root, sha, build_gradle)
+        assert result["production_evidence"] is True
+
         graph["sha"] = "b" * 40
         (root / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
         try:
-            verify_graph(root, sha, "refs/pull/7/merge")
+            verify_main_graph(root, sha, build_gradle)
         except ValueError:
             pass
         else:
@@ -387,10 +390,16 @@ def main() -> int:
     contract_p = sub.add_parser("check-contract")
     contract_p.add_argument("--production", type=Path, required=True)
     contract_p.add_argument("--pr-workflow", type=Path, required=True)
+    contract_p.add_argument("--build-gradle", type=Path, required=True)
     verify_p = sub.add_parser("verify")
     verify_p.add_argument("--dir", type=Path, required=True)
     verify_p.add_argument("--head", required=True)
     verify_p.add_argument("--event-ref", required=True)
+    verify_p.add_argument("--build-gradle", type=Path, required=True)
+    verify_main_p = sub.add_parser("verify-main")
+    verify_main_p.add_argument("--dir", type=Path, required=True)
+    verify_main_p.add_argument("--head", required=True)
+    verify_main_p.add_argument("--build-gradle", type=Path, required=True)
     sub.add_parser("self-test")
     args = parser.parse_args()
     try:
@@ -405,10 +414,25 @@ def main() -> int:
             check_contract(
                 args.production.read_text(encoding="utf-8"),
                 args.pr_workflow.read_text(encoding="utf-8"),
+                args.build_gradle.read_text(encoding="utf-8"),
             )
         elif args.command == "verify":
             print(json.dumps(
-                verify_graph(args.dir, args.head, args.event_ref),
+                verify_graph(
+                    args.dir,
+                    args.head,
+                    args.event_ref,
+                    args.build_gradle.read_text(encoding="utf-8"),
+                ),
+                sort_keys=True,
+            ))
+        elif args.command == "verify-main":
+            print(json.dumps(
+                verify_main_graph(
+                    args.dir,
+                    args.head,
+                    args.build_gradle.read_text(encoding="utf-8"),
+                ),
                 sort_keys=True,
             ))
         else:
