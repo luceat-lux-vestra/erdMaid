@@ -820,7 +820,8 @@ jobs:
           python3 scripts/trusted_dependency_submission_validation.py self-test
           python3 scripts/trusted_dependency_submission_validation.py check-contract \
             --production .github/workflows/dependency-submission.yml \
-            --pr-workflow .github/workflows/build.yml
+            --pr-workflow .github/workflows/build.yml \
+            --build-gradle build.gradle.kts
 
       - name: Classify dependency-submission validation scope
         id: dependency-scope
@@ -866,7 +867,8 @@ jobs:
           python3 scripts/trusted_dependency_submission_validation.py verify \
             --dir dependency-graph-reports-pr \
             --head "$EXPECTED_HEAD" \
-            --event-ref "$EVENT_REF"
+            --event-ref "$EVENT_REF" \
+            --build-gradle build.gradle.kts
 
   dependencyReview:
     name: Dependency Review
