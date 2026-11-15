@@ -112,18 +112,36 @@ val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
     )
 
     doLast {
+        val declared = configurations.getByName("integrationTestImplementation")
+        fun dependencyVersion(group: String, name: String): String =
+            declared.dependencies
+                .firstOrNull { it.group == group && it.name == name }
+                ?.version
+                ?: throw GradleException("Missing declared dependency version for $group:$name")
+        fun constraintVersion(group: String, name: String): String =
+            declared.dependencyConstraints
+                .firstOrNull { it.group == group && it.name == name }
+                ?.version
+                ?: throw GradleException("Missing declared dependency constraint for $group:$name")
+
+        // Keep dependency declarations as the single source of truth. Dependabot updates
+        // those declarations; this evidence task verifies the resolved graph against them
+        // instead of duplicating current versions in a second hard-coded map.
+        val jackson2Version = dependencyVersion("com.fasterxml.jackson", "jackson-bom")
+        val jackson3Version = dependencyVersion("tools.jackson", "jackson-bom")
+        val nettyVersion = dependencyVersion("io.netty", "netty-bom")
         val expected = mapOf(
-            "org.jsoup:jsoup" to "1.24.1",
-            "com.fasterxml.jackson.core:jackson-core" to "2.22.4",
-            "com.fasterxml.jackson.core:jackson-databind" to "2.22.4",
-            "tools.jackson.core:jackson-core" to "3.2.4",
-            "tools.jackson.core:jackson-databind" to "3.2.4",
-            "io.netty:netty-handler" to "4.2.20.Final",
-            "io.netty:netty-codec-compression" to "4.2.20.Final",
-            "org.bouncycastle:bcprov-jdk18on" to "1.87",
-            "org.bouncycastle:bcpkix-jdk18on" to "1.87",
-            "org.bouncycastle:bcutil-jdk18on" to "1.87",
-            "at.yawk.lz4:lz4-java" to "1.14.0",
+            "org.jsoup:jsoup" to constraintVersion("org.jsoup", "jsoup"),
+            "com.fasterxml.jackson.core:jackson-core" to jackson2Version,
+            "com.fasterxml.jackson.core:jackson-databind" to jackson2Version,
+            "tools.jackson.core:jackson-core" to jackson3Version,
+            "tools.jackson.core:jackson-databind" to jackson3Version,
+            "io.netty:netty-handler" to nettyVersion,
+            "io.netty:netty-codec-compression" to nettyVersion,
+            "org.bouncycastle:bcprov-jdk18on" to constraintVersion("org.bouncycastle", "bcprov-jdk18on"),
+            "org.bouncycastle:bcpkix-jdk18on" to constraintVersion("org.bouncycastle", "bcpkix-jdk18on"),
+            "org.bouncycastle:bcutil-jdk18on" to constraintVersion("org.bouncycastle", "bcutil-jdk18on"),
+            "at.yawk.lz4:lz4-java" to constraintVersion("at.yawk.lz4", "lz4-java"),
         )
         val resolved = configurations.getByName("integrationTestRuntimeClasspath")
             .incoming.resolutionResult.allComponents
