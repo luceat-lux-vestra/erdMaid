@@ -6,6 +6,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "dependency-submission.yml"
+VALIDATOR = ROOT / "scripts" / "trusted_dependency_submission_validation.py"
 
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
@@ -45,9 +46,10 @@ def check(path: Path) -> None:
     require(text, "--build-gradle build.gradle.kts", "build declaration source of truth")
     if "intellij-platform-gradle-plugin:" in text:
         raise AssertionError("workflow hard-codes the current IntelliJ Platform Gradle Plugin coordinate")
-    require(text, "len(resolved) < 750", "node coverage floor")
-    require(text, "direct < 45", "direct coverage floor")
-    require(text, 'graph.get("ref") != "refs/heads/main"', "exact-main provenance")
+    validator = VALIDATOR.read_text(encoding="utf-8")
+    require(validator, "len(resolved) >= 750", "node coverage floor")
+    require(validator, "direct >= 45", "direct coverage floor")
+    require(validator, '"refs/heads/main"', "exact-main provenance")
     require(text, "gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c", "action pin")
 
 def expect_fail(name: str, old: str, new: str) -> None:
