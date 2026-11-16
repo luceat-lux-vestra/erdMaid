@@ -39,8 +39,8 @@ class DatabaseHostApiPathTest {
         val build = "$productCode-$buildNumber"
 
         assertEquals("IntelliJ IDEA", product)
-        assertEquals("2026.2.0.1", version)
-        assertEquals("IU-262.8665.337", build)
+        assertEquals("2026.3", version)
+        assertEquals("IU-263.7307.200", build)
 
         val databaseToolsLib = ideHome.resolve("plugins/DatabaseTools/lib")
         assertTrue(
@@ -85,7 +85,7 @@ class DatabaseHostApiPathTest {
         val databasePluginVersion = pluginXmlValue("version")
 
         assertEquals("com.intellij.database", databasePluginId)
-        assertEquals("262.8665.337", databasePluginVersion)
+        assertEquals("263.7307.200", databasePluginVersion)
 
         val reports = Path.of("build/reports/hostApiEvidence/idea")
         Files.createDirectories(reports)
