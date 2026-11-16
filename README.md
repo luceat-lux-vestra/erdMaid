@@ -50,7 +50,7 @@ Output details:
 - Mermaid relationship end markers are compiled from proven multiplicity bounds. Unknown required bounds produce a degraded unpublished result rather than a guessed edge.
 - Identifying and non-identifying relationships use Mermaid's `--` and `..` connectors when that semantic fact is established.
 
-The **IntelliJ IDEA 2026.3 / `IU-263.7307.200`** compile/test and Plugin Verifier rebaseline is an **unverified candidate** under #228 until exact-HEAD CI and host inventory prove it. The established pre-migration evidence remains:
+The **IntelliJ IDEA Ultimate 2026.3 / `IU-263.7307.200`** release is the maintained compile/test SDK, exact DatabaseTools Host API Inventory target, and a Plugin Verifier-compatible binary target (issue #228). These evidence classes are distinct; earlier maintained evidence remains:
 
 - IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337`: historical compile/test runtime and exact DatabaseTools Host API Inventory.
 - IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`: Plugin Verifier binary compatibility only; full runtime/Host API Inventory is unverified.
@@ -101,13 +101,14 @@ Evidence classes are deliberately separate. A PASS in one class does not imply t
 
 | Evidence class | Host | Exact version/build | What it proves |
 | --- | --- | --- | --- |
-| Compile + automated test runtime | IntelliJ IDEA Ultimate | 2026.2.0.1 / `IU-262.8665.337` | Plugin compilation plus repository automated tests on the maintained baseline runtime. |
-| Exact DatabaseTools Host API Inventory | IntelliJ IDEA Ultimate | 2026.2.0.1 / `IU-262.8665.337` | Required DatabaseTools classes/symbols used by the host boundary are present with the reviewed exact-binary shape. |
-| Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.2.2 / `IU-262.10315.125` | Packaged-plugin binary compatibility for this exact target. |
+| Compile + automated test runtime | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | Plugin compilation and repository automated tests on the current SDK. |
+| Exact DatabaseTools Host API Inventory | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | The reviewed DatabaseTools classes/symbols and selection boundary are present for this exact binary. |
+| Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | Packaged-plugin binary compatibility for the current SDK. |
+| Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.2.2 / `IU-262.10315.125` | Packaged-plugin backward binary compatibility only for this exact 262 target. |
 | Plugin Verifier binary compatibility | DataGrip | 2026.2.5 / `DB-262.10315.132` | Packaged-plugin binary compatibility for this exact target. |
 | Exact DatabaseTools Host API Inventory | DataGrip | 2026.2.5 / `DB-262.10315.132` | Reviewed relation/FK DatabaseTools binary surface for this exact target. |
 
-The repository does **not** currently claim a live GUI/database-tool-window integration runtime test on DataGrip 2026.2.5. It also does not claim a full Host API Inventory for IntelliJ IDEA Ultimate 2026.2.2. Those states remain unverified rather than being inferred from Plugin Verifier results.
+IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337` retains historical compile/test and exact host API inventory evidence; it is no longer the current test SDK. The repository does **not** currently claim a live GUI/database-tool-window integration runtime test on DataGrip 2026.2.5. It also does not claim a full Host API Inventory for IntelliJ IDEA Ultimate 2026.2.2. Those states remain unverified rather than being inferred from Plugin Verifier results.
 
 The packaged plugin descriptor declares `since-build="262"` and no `until-build`. That controls load eligibility only. It does not establish maintained support for every 262 patch, later platform line, or other IntelliJ-based product.
 
@@ -128,7 +129,7 @@ For local development builds, install the generated ZIP from `build/distribution
 - Plugin compatibility: `./gradlew verifyPlugin` plus the repository's pinned DataGrip verifier gate.
 - Development builds use a timestamp-based plugin version by default.
 - Production publication uses stable SemVer from a protected `vMAJOR.MINOR.PATCH` GitHub Release tag; `release.yml` derives the effective version from that tag, passes it through `-PbuildVersion=x.y.z`, and validates source/artifact identity before publication.
-- CI uses Java 25 for the IntelliJ Platform 2026.2 baseline.
+- CI uses Java 25 for the IntelliJ Platform 2026.3 compile/test SDK; the 2026.2 Starter/Driver smoke target is retained separately.
 - Product/fidelity authority: [`docs/product-fidelity-contract.md`](docs/product-fidelity-contract.md).
 - Architecture-neutral falsification scenarios: [`docs/product-baseline-scenarios.yaml`](docs/product-baseline-scenarios.yaml).
 - Mermaid grammar evidence: [`docs/mermaid-grammar-evidence.md`](docs/mermaid-grammar-evidence.md).
