@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.Project
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import com.intellij.testFramework.runInEdtAndWait
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
@@ -24,11 +25,11 @@ class ErdMaidExportActionTest {
     private val action = ErdMaidExportAction()
     private lateinit var ideFixture: IdeaProjectTestFixture
 
-    // AnActionEvent now resolves ActionManager through the live application.
-    // Use the real light IDE fixture; never stub a global ApplicationManager or
-    // silently change the action's enabled/visible contract to satisfy tests.
+    // AnActionEvent resolves ActionManager through the live application.
+    // Light fixture setup and teardown own EDT-bound platform lifecycle work,
+    // so both must execute on EDT with write intent (2026.3 enforces this).
     @Before
-    fun startIdeFixture() {
+    fun startIdeFixture() = runInEdtAndWait {
         ideFixture = IdeaTestFixtureFactory.getFixtureFactory()
             .createLightFixtureBuilder(null, "erdMaid-export-action")
             .fixture
@@ -36,12 +37,12 @@ class ErdMaidExportActionTest {
     }
 
     @After
-    fun stopIdeFixture() {
+    fun stopIdeFixture() = runInEdtAndWait {
         ideFixture.tearDown()
     }
 
     @Test
-    fun `action declares bounded EDT update policy`() {
+    fun `action declares bounded EDT update policy`() = runInEdtAndWait {
         assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
 
         val project = project(disposed = false)
@@ -51,7 +52,7 @@ class ErdMaidExportActionTest {
     }
 
     @Test
-    fun `update hides action without a live project`() {
+    fun `update hides action without a live project`() = runInEdtAndWait {
         val noProject = createEvent(null)
         action.update(noProject)
         assertFalse(noProject.presentation.isEnabledAndVisible)
