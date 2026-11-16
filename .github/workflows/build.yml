@@ -181,6 +181,14 @@ jobs:
               sleep 5
               continue
             fi
+            # Ready-for-review cancels the prior draft run under the repository's
+            # concurrency policy. A cancelled run provides no reusable evidence;
+            # execute this job's actual Fast checks instead of failing on absence.
+            if [ "$conclusion" = "cancelled" ]; then
+              echo "reuse=false" >> "$GITHUB_OUTPUT"
+              echo "Previous exact-SHA run was cancelled; running the local '$EXPECTED_JOB' checks."
+              exit 0
+            fi
             if [ "$conclusion" != "success" ]; then
               echo "::error::Canonical Build workflow for exact HEAD $EXPECTED_SHA concluded '$conclusion'; refusing stale or failed evidence."
               exit 1
@@ -302,6 +310,14 @@ jobs:
             if [ "$status" != "completed" ]; then
               sleep 5
               continue
+            fi
+            # Ready-for-review cancels the prior draft run under the repository's
+            # concurrency policy. A cancelled run provides no reusable evidence;
+            # execute this job's actual Fast checks instead of failing on absence.
+            if [ "$conclusion" = "cancelled" ]; then
+              echo "reuse=false" >> "$GITHUB_OUTPUT"
+              echo "Previous exact-SHA run was cancelled; running the local '$EXPECTED_JOB' checks."
+              exit 0
             fi
             if [ "$conclusion" != "success" ]; then
               echo "::error::Canonical Build workflow for exact HEAD $EXPECTED_SHA concluded '$conclusion'; refusing stale or failed evidence."
