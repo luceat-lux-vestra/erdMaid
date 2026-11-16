@@ -4,6 +4,10 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.Project
+import com.intellij.testFramework.fixtures.IdeaProjectTestFixture
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,6 +22,23 @@ import java.nio.file.Path
 
 class ErdMaidExportActionTest {
     private val action = ErdMaidExportAction()
+    private lateinit var ideFixture: IdeaProjectTestFixture
+
+    // AnActionEvent now resolves ActionManager through the live application.
+    // Use the real light IDE fixture; never stub a global ApplicationManager or
+    // silently change the action's enabled/visible contract to satisfy tests.
+    @Before
+    fun startIdeFixture() {
+        ideFixture = IdeaTestFixtureFactory.getFixtureFactory()
+            .createLightFixtureBuilder(null, "erdMaid-export-action")
+            .fixture
+        ideFixture.setUp()
+    }
+
+    @After
+    fun stopIdeFixture() {
+        ideFixture.tearDown()
+    }
 
     @Test
     fun `action declares bounded EDT update policy`() {
