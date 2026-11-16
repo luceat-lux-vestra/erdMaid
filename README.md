@@ -50,9 +50,9 @@ Output details:
 - Mermaid relationship end markers are compiled from proven multiplicity bounds. Unknown required bounds produce a degraded unpublished result rather than a guessed edge.
 - Identifying and non-identifying relationships use Mermaid's `--` and `..` connectors when that semantic fact is established.
 
-Maintained host evidence is limited to these exact targets and evidence classes:
+The **IntelliJ IDEA 2026.3 / `IU-263.7307.200`** compile/test and Plugin Verifier rebaseline is an **unverified candidate** under #228 until exact-HEAD CI and host inventory prove it. The established pre-migration evidence remains:
 
-- IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337`: compile/test runtime and exact DatabaseTools Host API Inventory.
+- IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337`: historical compile/test runtime and exact DatabaseTools Host API Inventory.
 - IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`: Plugin Verifier binary compatibility only; full runtime/Host API Inventory is unverified.
 - DataGrip 2026.2.5 / `DB-262.10315.132`: Plugin Verifier binary compatibility and exact DatabaseTools Host API Inventory; live GUI/database-tool-window integration runtime is unverified.
 
