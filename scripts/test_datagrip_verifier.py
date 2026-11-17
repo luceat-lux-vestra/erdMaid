@@ -53,6 +53,42 @@ class DataGripVerifierPolicyTests(unittest.TestCase):
         self.assertEqual(gate.DATAGRIP_BUILD, selected.build)
         self.assertEqual(123, selected.size)
 
+    def test_exact_263_release_is_selected_with_separate_pin(self) -> None:
+        selected = gate.select_datagrip_release(
+            release_payload(
+                version=gate.DATAGRIP_263_VERSION,
+                build=gate.DATAGRIP_263_BUILD,
+                link="https://download.jetbrains.com/datagrip/datagrip-2026.3.tar.gz",
+                checksum_link="https://download.jetbrains.com/datagrip/datagrip-2026.3.tar.gz.sha256",
+            ),
+            version=gate.DATAGRIP_263_VERSION,
+            build=gate.DATAGRIP_263_BUILD,
+        )
+        self.assertEqual(gate.DATAGRIP_263_VERSION, selected.version)
+        self.assertEqual(gate.DATAGRIP_263_BUILD, selected.build)
+        # The older standalone compatibility gate must still use its 262 pin.
+        self.assertEqual("2026.2.5", gate.DATAGRIP_VERSION)
+        self.assertEqual("262.10315.132", gate.DATAGRIP_BUILD)
+
+    def test_263_target_does_not_accept_262_release(self) -> None:
+        with self.assertRaises(gate.GateError):
+            gate.select_datagrip_release(
+                release_payload(),
+                version=gate.DATAGRIP_263_VERSION,
+                build=gate.DATAGRIP_263_BUILD,
+            )
+
+    def test_263_target_rejects_unapproved_build(self) -> None:
+        with self.assertRaises(gate.GateError):
+            gate.select_datagrip_release(
+                release_payload(
+                    version=gate.DATAGRIP_263_VERSION,
+                    build="263.0.0",
+                ),
+                version=gate.DATAGRIP_263_VERSION,
+                build="263.0.0",
+            )
+
     def test_wrong_build_is_rejected(self) -> None:
         with self.assertRaises(gate.GateError):
             gate.select_datagrip_release(release_payload(build="262.0.0"))
@@ -92,6 +128,27 @@ class DataGripVerifierPolicyTests(unittest.TestCase):
     def test_checksum_parser_rejects_non_sha256(self) -> None:
         with self.assertRaises(gate.GateError):
             gate.parse_sha256("not-a-sha256 datagrip.tar.gz")
+
+    def test_263_product_info_must_match_exact_host(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            valid = {
+                "name": "DataGrip",
+                "productCode": gate.DATAGRIP_PRODUCT_CODE,
+                "version": gate.DATAGRIP_263_VERSION,
+                "buildNumber": gate.DATAGRIP_263_BUILD,
+            }
+            (root / "product-info.json").write_text(json.dumps(valid), encoding="utf-8")
+            self.assertEqual(
+                valid,
+                gate.validate_product_info(
+                    root,
+                    version=gate.DATAGRIP_263_VERSION,
+                    build=gate.DATAGRIP_263_BUILD,
+                ),
+            )
+            with self.assertRaises(gate.GateError):
+                gate.validate_product_info(root)  # 263 identity is not the 262 target.
 
     def test_product_info_must_match_product_version_and_build(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

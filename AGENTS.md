@@ -190,7 +190,7 @@ the product contract and README. Descriptor load eligibility is not a broader su
 `com.intellij.database.*` is a closed-source and partly unstable API surface. Before depending on a
 symbol:
 
-1. inspect the actual API for the exact target host (maintained 2026.3 SDK/host inventory; separately bounded 2026.2 backward evidence under #228);
+1. inspect the actual API for the exact target host (2026.3 IDEA SDK and independent 2026.3 DataGrip host inventory under #230; separately bounded 2026.2 backward evidence under #228);
 2. prefer maintained/non-reflective access;
 3. isolate unavoidable unstable/reflected access behind one host adapter;
 4. convert failure into a typed platform outcome rather than `null`, empty collection, or false;

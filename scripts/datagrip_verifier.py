@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Fail-closed standalone DataGrip compatibility gate.
 
-IJPGP 2.18.1 currently cannot resolve DataGrip because the JetBrains release
-feed uses product code DG while the IntelliJ Platform type uses DB. This gate
-resolves one exact DataGrip 2026.2 release from JetBrains' release feed,
-verifies the vendor-published archive checksum and extracted product identity,
-then runs one pinned Plugin Verifier CLI release against the plugin artifact.
+IJPGP 2.18.1 could not resolve DataGrip because the JetBrains release feed
+uses code DG while the platform product code is DB. IJPGP 2.20.1 supports
+native DataGrip 2026.3 verification. Keep this independent standalone gate
+for the existing, exact DataGrip 2026.2.5 backward-compatibility target.
+It resolves that release from JetBrains' feed, verifies the vendor archive
+checksum and extracted product identity, then runs pinned Plugin Verifier.
 
 The process exit code of Plugin Verifier alone is not an authoritative
 compatibility verdict. We therefore inspect the generated reports and enforce
-the same failure levels as IJPGP 2.18.1's default verifyPlugin task:
+the same blocking failure levels as IJPGP's default verifyPlugin task:
 COMPATIBILITY_PROBLEMS, INTERNAL_API_USAGES, and OVERRIDE_ONLY_API_USAGES.
 Invalid plugin reports are always fatal as they are in verifyPlugin.
 """
@@ -35,6 +36,10 @@ DATAGRIP_FEED_CODE = "DG"
 DATAGRIP_PRODUCT_CODE = "DB"
 DATAGRIP_VERSION = "2026.2.5"
 DATAGRIP_BUILD = "262.10315.132"
+# New exact released host for independent inventory. The standalone verifier
+# continues to default to the earlier maintained DataGrip 262 target.
+DATAGRIP_263_VERSION = "2026.3"
+DATAGRIP_263_BUILD = "263.7307.216"
 DATAGRIP_RELEASE_API = (
     "https://data.services.jetbrains.com/products/releases"
     "?code=DG&latest=false&type=release"
@@ -106,7 +111,17 @@ def _require_https_url(url: str, *, hosts: set[str], path_prefix: str) -> None:
         raise GateError(f"Unexpected URL components: {url}")
 
 
-def select_datagrip_release(payload: dict[str, Any]) -> DataGripRelease:
+def select_datagrip_release(
+    payload: dict[str, Any],
+    *,
+    version: str = DATAGRIP_VERSION,
+    build: str = DATAGRIP_BUILD,
+) -> DataGripRelease:
+    if (version, build) not in {
+        (DATAGRIP_VERSION, DATAGRIP_BUILD),
+        (DATAGRIP_263_VERSION, DATAGRIP_263_BUILD),
+    }:
+        raise GateError(f"Unsupported exact DataGrip release target: {version} / {build}")
     releases = payload.get(DATAGRIP_FEED_CODE)
     if not isinstance(releases, list):
         raise GateError(f"Release feed has no {DATAGRIP_FEED_CODE!r} list")
@@ -116,13 +131,13 @@ def select_datagrip_release(payload: dict[str, Any]) -> DataGripRelease:
         for item in releases
         if isinstance(item, dict)
         and item.get("type") == "release"
-        and item.get("version") == DATAGRIP_VERSION
-        and item.get("build") == DATAGRIP_BUILD
+        and item.get("version") == version
+        and item.get("build") == build
     ]
     if len(matches) != 1:
         raise GateError(
             "Expected exactly one DataGrip release "
-            f"{DATAGRIP_VERSION} / {DATAGRIP_BUILD}, found {len(matches)}"
+            f"{version} / {build}, found {len(matches)}"
         )
 
     linux = matches[0].get("downloads", {}).get("linux")
@@ -144,8 +159,8 @@ def select_datagrip_release(payload: dict[str, Any]) -> DataGripRelease:
         raise GateError(f"Unexpected DataGrip checksum URL: {checksum_url}")
 
     return DataGripRelease(
-        version=DATAGRIP_VERSION,
-        build=DATAGRIP_BUILD,
+        version=version,
+        build=build,
         download_url=download_url,
         checksum_url=checksum_url,
         size=size,
@@ -252,7 +267,17 @@ def extract_datagrip(archive: Path, destination: Path) -> Path:
     return candidates[0]
 
 
-def validate_product_info(ide_home: Path) -> dict[str, Any]:
+def validate_product_info(
+    ide_home: Path,
+    *,
+    version: str = DATAGRIP_VERSION,
+    build: str = DATAGRIP_BUILD,
+) -> dict[str, Any]:
+    if (version, build) not in {
+        (DATAGRIP_VERSION, DATAGRIP_BUILD),
+        (DATAGRIP_263_VERSION, DATAGRIP_263_BUILD),
+    }:
+        raise GateError(f"Unsupported exact DataGrip product target: {version} / {build}")
     info_path = ide_home / "product-info.json"
     try:
         info = json.loads(info_path.read_text(encoding="utf-8"))
@@ -263,8 +288,8 @@ def validate_product_info(ide_home: Path) -> dict[str, Any]:
 
     expected = {
         "productCode": DATAGRIP_PRODUCT_CODE,
-        "version": DATAGRIP_VERSION,
-        "buildNumber": DATAGRIP_BUILD,
+        "version": version,
+        "buildNumber": build,
     }
     for key, value in expected.items():
         if info.get(key) != value:
