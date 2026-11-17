@@ -21,12 +21,16 @@ Do not rebuild between evidence collection steps. If the artifact changes, previ
 
 ## Maintained hosts
 
-At minimum execute the user flow on:
+Execute the full user flow independently for every exact host/version whose **live GUI export**
+support is being proposed. Maintained binary/inventory evidence targets include:
 
-1. IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125`;
-2. DataGrip 2026.2.5 / `DB-262.10315.132`.
+1. IntelliJ IDEA Ultimate 2026.3 / `IU-263.7307.200`;
+2. DataGrip 2026.3 / `DB-263.7307.216`;
+3. IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125` (backward binary evidence only);
+4. DataGrip 2026.2.5 / `DB-262.10315.132` (backward binary/inventory evidence only).
 
-Passing one host must not be generalized to the other.
+No listed host acquires a live GUI PASS from verifier, inventory or Starter results.
+Passing one host/version must not be generalized to another.
 
 ## Fixture
 
@@ -97,4 +101,4 @@ Screenshots or a short screen recording are useful corroboration but are not sub
 
 Where practical, mirror this acceptance flow with JetBrains Starter + Driver / `testIdeUi` so an actual IDE process installs the plugin and exercises UI behavior. Automated UI evidence supplements, but does not retroactively convert an unexecuted maintained-host scenario into PASS.
 
-Do not promote either maintained host's live GUI/database-tool-window runtime status from `UNVERIFIED` to a supported/PASS claim until its positive user flow is executed against an exact reviewed artifact.
+Do not promote any listed host's live GUI/database-tool-window runtime status from `UNVERIFIED` to a supported/PASS claim until its positive user flow is executed against an exact reviewed artifact.

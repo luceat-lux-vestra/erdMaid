@@ -77,8 +77,11 @@ jobs:
       - name: Check inventory negative controls
         run: python3 scripts/test_database_host_api_inventory.py
 
-      - name: Collect exact DataGrip host API evidence
+      - name: Collect exact DataGrip 2026.2.5 host API evidence
         run: python3 scripts/datagrip_host_api_evidence.py
+
+      - name: Collect exact DataGrip 2026.3 host API evidence
+        run: python3 scripts/datagrip_host_api_evidence.py --release 2026.3
 
       - name: Upload DataGrip API evidence
         if: ${{ always() }}

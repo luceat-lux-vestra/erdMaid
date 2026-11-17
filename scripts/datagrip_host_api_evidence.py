@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Collect exact DataGrip 2026.2 host-boundary API evidence."""
+"""Collect exact 2026.2.5 and 2026.3 DataGrip host-boundary API evidence."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import tempfile
@@ -14,9 +15,25 @@ from database_host_api_inventory import InventoryError, collect_inventory, rende
 REPORTS_DIR = Path("build/reports/hostApiEvidence/datagrip")
 
 
-def run() -> None:
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    release = gate.select_datagrip_release(gate.fetch_json(gate.DATAGRIP_RELEASE_API))
+def run(target_version: str = gate.DATAGRIP_VERSION) -> None:
+    targets = {
+        gate.DATAGRIP_VERSION: gate.DATAGRIP_BUILD,
+        gate.DATAGRIP_263_VERSION: gate.DATAGRIP_263_BUILD,
+    }
+    try:
+        target_build = targets[target_version]
+    except KeyError as exc:
+        raise gate.GateError(f"Unsupported exact DataGrip inventory target: {target_version}") from exc
+    reports_dir = (
+        REPORTS_DIR if target_version == gate.DATAGRIP_VERSION
+        else REPORTS_DIR / target_version
+    )
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    release = gate.select_datagrip_release(
+        gate.fetch_json(gate.DATAGRIP_RELEASE_API),
+        version=target_version,
+        build=target_build,
+    )
     try:
         checksum = gate.parse_sha256(
             gate.fetch_bytes(release.checksum_url).decode("utf-8")
@@ -35,16 +52,18 @@ def run() -> None:
             expected_size=release.size,
         )
         ide_home = gate.extract_datagrip(archive, extracted)
-        product_info = gate.validate_product_info(ide_home)
+        product_info = gate.validate_product_info(
+            ide_home, version=target_version, build=target_build
+        )
         try:
             inventory = collect_inventory(ide_home)
         except InventoryError as exc:
             raise gate.GateError(f"Host API inventory failed: {exc}") from exc
 
-        write_inventory(REPORTS_DIR / "api-inventory.json", inventory)
+        write_inventory(reports_dir / "api-inventory.json", inventory)
         target = {
-            "dataGripVersion": gate.DATAGRIP_VERSION,
-            "dataGripBuild": gate.DATAGRIP_BUILD,
+            "dataGripVersion": target_version,
+            "dataGripBuild": target_build,
             "dataGripProductCode": gate.DATAGRIP_PRODUCT_CODE,
             "dataGripArchiveSha256": checksum,
             "dataGripArchiveSize": release.size,
@@ -52,14 +71,14 @@ def run() -> None:
             "inventoryScope": inventory["scope"],
             "anchorCount": inventory["anchorCount"],
         }
-        (REPORTS_DIR / "target-evidence.json").write_text(
+        (reports_dir / "target-evidence.json").write_text(
             json.dumps(target, indent=2, sort_keys=True, ensure_ascii=True) + "\n",
             encoding="utf-8",
         )
 
         print(
             "Exact DataGrip host API evidence target: "
-            f"{gate.DATAGRIP_VERSION} ({gate.DATAGRIP_PRODUCT_CODE}-{gate.DATAGRIP_BUILD}) "
+            f"{target_version} ({gate.DATAGRIP_PRODUCT_CODE}-{target_build}) "
             f"sha256={checksum}",
             flush=True,
         )
@@ -67,8 +86,14 @@ def run() -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--release", choices=[gate.DATAGRIP_VERSION, gate.DATAGRIP_263_VERSION],
+        default=gate.DATAGRIP_VERSION,
+    )
+    args = parser.parse_args()
     try:
-        run()
+        run(args.release)
     except gate.GateError as exc:
         print(f"::error::DataGrip host API evidence failed: {exc}", file=sys.stderr)
         return 1

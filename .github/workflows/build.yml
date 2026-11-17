@@ -433,10 +433,10 @@ jobs:
   # sampled root free space >=67.97 GiB on x64; see issue #169.
   # Do not mistake hosted runners for unlimited storage; monitor regressions.
   #
-  # One required job owns both supported hosts on the 2026.2 platform line.
-  # IntelliJ IDEA runs via IJPGP's verifyPlugin task; DataGrip runs through the
-  # pinned standalone gate because IJPGP 2.18.1 still has the DB/DG catalog-code
-  # mismatch. Either step failing fails this same required context.
+  # This required job runs IJPGP 2.20.1 against IDEA 2026.2.2, IDEA 2026.3,
+  # and DataGrip 2026.3 (native DG release-catalog to DB product mapping).
+  # Retain the independently checksum-pinned DataGrip 2026.2.5 standalone
+  # verifier. Every target must pass against the same immutable plugin ZIP.
   verify:
     name: Verify plugin
     needs: [ scope ]

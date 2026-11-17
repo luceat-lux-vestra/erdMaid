@@ -215,16 +215,15 @@ intellijPlatform {
     // Verify the retained 262 runtime line as well as the new 263 compile baseline;
     // a newer compile SDK does not establish backward binary compatibility.
     //
-    // DataGrip is intentionally NOT declared here yet. IJPGP 2.18.1 identifies
-    // the DataGrip IntelliJPlatformType as `DB`, while JetBrains' product release
-    // feed uses `DG`; native DataGrip resolution is fixed upstream after 2.18.1
-    // but is not available in a stable IJPGP release yet. The same required
-    // `Verify plugin` CI job verifies a separately pinned DataGrip 2026.2 release
-    // via scripts/datagrip_verifier.py.
+    // IJPGP 2.20.1 resolves DataGrip 2026.3 via the corrected DG release
+    // catalog -> DB platform mapping. Keep the standalone, checksum-verified
+    // DataGrip 2026.2.5 gate as independent older-host binary evidence.
+    // Both paths verify the same packaged plugin artifact in the required CI job.
     pluginVerification {
         ides {
             create(IntelliJPlatformType.IntellijIdea, "2026.2.2")
             create(IntelliJPlatformType.IntellijIdea, "2026.3")
+            create(IntelliJPlatformType.DataGrip, "2026.3")
         }
     }
 
