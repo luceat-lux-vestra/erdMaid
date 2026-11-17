@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -103,7 +104,106 @@ def check_gradle_seed_input_paths(root):
     print("ok: dependency-only Gradle cache seed trigger")
 
 
+
+def check_ready_for_review_fast_evidence_fallback(root):
+    """Exercise the actual workflow shell, not a duplicated policy predicate."""
+    path = os.path.join(root, ".github", "workflows", "build.yml")
+    with open(path, encoding="utf-8") as handle:
+        workflow = handle.read()
+    scripts = re.findall(
+        r"(?ms)^      - name: Reuse exact-SHA Fast evidence\n"
+        r".*?^        run: \|\n(.*?)"
+        r"(?=^      - name: Fetch Sources)",
+        workflow,
+    )
+    if len(scripts) != 2:
+        raise AssertionError(f"expected Build and Test evidence steps; found {len(scripts)}")
+
+    fake_gh = r'''#!/usr/bin/env python3
+import json
+import os
+import sys
+
+args = " ".join(sys.argv[1:])
+if "/contents/.github/workflows/build.yml?" in args:
+    print("same-workflow-blob")
+elif "/actions/workflows/build.yml/runs?" in args:
+    print(json.dumps({"workflow_runs": [{
+        "id": 1234,
+        "head_sha": os.environ["EXPECTED_SHA"],
+        "event": "pull_request",
+        "status": "completed",
+        "conclusion": os.environ["MOCK_RUN_CONCLUSION"]
+    }]}))
+elif "/actions/runs/1234/jobs?" in args:
+    print(json.dumps({"jobs": [{
+        "name": os.environ["EXPECTED_JOB"],
+        "status": "completed",
+        "conclusion": os.environ.get("MOCK_JOB_CONCLUSION", "success")
+    }]}))
+else:
+    print(f"unexpected mock gh command: {args}", file=sys.stderr)
+    sys.exit(2)
+'''
+
+    for name, source in zip(("Build", "Test"), scripts):
+        body = textwrap.dedent(source)
+        with tempfile.TemporaryDirectory() as temp:
+            gh = os.path.join(temp, "gh")
+            with open(gh, "w", encoding="utf-8") as handle:
+                handle.write(fake_gh)
+            os.chmod(gh, 0o755)
+            for conclusion, job_conclusion, expected_rc, expected_output in (
+                ("cancelled", "success", 0, "reuse=false"),
+                ("success", "success", 0, "reuse=true"),
+                ("failure", "success", 1, ""),
+                ("success", "failure", 1, ""),
+            ):
+                output_path = os.path.join(temp, "result")
+                with open(output_path, "w", encoding="utf-8"):
+                    pass
+                env = os.environ.copy()
+                env.update({
+                    "PATH": temp + os.pathsep + env.get("PATH", ""),
+                    "GH_TOKEN": "mock",
+                    "BASE_SHA": "b" * 40,
+                    "EXPECTED_SHA": "a" * 40,
+                    "EXPECTED_JOB": name,
+                    "SAME_REPOSITORY": "true",
+                    "GITHUB_REPOSITORY": "luceat-lux-vestra/erdMaid",
+                    "GITHUB_RUN_ID": "9999",
+                    "GITHUB_OUTPUT": output_path,
+                    "MOCK_RUN_CONCLUSION": conclusion,
+                    "MOCK_JOB_CONCLUSION": job_conclusion,
+                })
+                result = subprocess.run(
+                    ["bash", "-c", body],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=15,
+                )
+                with open(output_path, encoding="utf-8") as handle:
+                    outputs = handle.read()
+                if (result.returncode == 0) != (expected_rc == 0):
+                    raise AssertionError(
+                        f"{name}/{conclusion}/{job_conclusion}: rc={result.returncode}\n"
+                        + result.stdout + result.stderr
+                    )
+                if expected_output and expected_output not in outputs:
+                    raise AssertionError(
+                        f"{name}/{conclusion}/{job_conclusion}: expected {expected_output!r}, "
+                        f"got {outputs!r}"
+                    )
+                if expected_rc != 0 and "reuse=true" in outputs:
+                    raise AssertionError(
+                        f"{name}/{conclusion}/{job_conclusion}: failed evidence was reused"
+                    )
+        print(f"ok: {name} cancelled-run fallback, success reuse, failure fail-closed")
+
 def main():
+    check_ready_for_review_fast_evidence_fallback(ROOT)
     check_gradle_seed_input_paths(ROOT)
     baseline = run(ROOT)
     if baseline.returncode != 0:

@@ -4,6 +4,11 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.Project
+import com.intellij.testFramework.fixtures.IdeaProjectTestFixture
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import com.intellij.testFramework.runInEdtAndWait
+import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,9 +23,26 @@ import java.nio.file.Path
 
 class ErdMaidExportActionTest {
     private val action = ErdMaidExportAction()
+    private lateinit var ideFixture: IdeaProjectTestFixture
+
+    // AnActionEvent resolves ActionManager through the live application.
+    // Light fixture setup and teardown own EDT-bound platform lifecycle work,
+    // so both must execute on EDT with write intent (2026.3 enforces this).
+    @Before
+    fun startIdeFixture() = runInEdtAndWait {
+        ideFixture = IdeaTestFixtureFactory.getFixtureFactory()
+            .createLightFixtureBuilder(null, "erdMaid-export-action")
+            .fixture
+        ideFixture.setUp()
+    }
+
+    @After
+    fun stopIdeFixture() = runInEdtAndWait {
+        ideFixture.tearDown()
+    }
 
     @Test
-    fun `action declares bounded EDT update policy`() {
+    fun `action declares bounded EDT update policy`() = runInEdtAndWait {
         assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
 
         val project = project(disposed = false)
@@ -30,7 +52,7 @@ class ErdMaidExportActionTest {
     }
 
     @Test
-    fun `update hides action without a live project`() {
+    fun `update hides action without a live project`() = runInEdtAndWait {
         val noProject = createEvent(null)
         action.update(noProject)
         assertFalse(noProject.presentation.isEnabledAndVisible)

@@ -137,8 +137,9 @@ Support claims are bounded to exact maintained evidence. Compile/test runtime, P
 
 | Exact host/version | Maintained claim | Evidence |
 | --- | --- | --- |
-| IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337` | **SUPPORTED compile/test runtime target; exact Host API Inventory target** | `buildPlugin` + `check`, plus deterministic inspection of the resolved DatabaseTools runtime. |
-| IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125` | **SUPPORTED binary-compatibility target; full Host API Inventory/runtime-test status UNVERIFIED** | IJPGP 2.18.1 Plugin Verifier: `Compatible`. No broader runtime or inventory claim is inferred. |
+| IntelliJ IDEA Ultimate 2026.3 / `IU-263.7307.200` | **MAINTAINED compile/test SDK, binary-compatibility target, exact Host API Inventory target** | #228 full `buildPlugin` + `check`, IJPGP Plugin Verifier `Compatible`, and exact DatabaseTools symbol/selection inventory. This does not establish a separate live GUI/database-tool-window integration claim. |
+| IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125` | **SUPPORTED backward binary-compatibility target; full Host API Inventory/runtime-test status UNVERIFIED** | IJPGP Plugin Verifier: `Compatible`. No broader runtime or inventory claim is inferred. |
+| IntelliJ IDEA Ultimate 2026.2.0.1 / `IU-262.8665.337` | **HISTORICAL 2026.2 compile/test and exact Host API Inventory evidence** | Original `buildPlugin` + `check` and deterministic DatabaseTools inspection; no longer the maintained compile/test SDK. |
 | DataGrip 2026.2.5 / `DB-262.10315.132` | **SUPPORTED binary-compatibility target; exact Host API Inventory target; live GUI/database integration runtime UNVERIFIED** | Pinned standalone Plugin Verifier 1.410: `Compatible`, plus deterministic exact-binary DatabaseTools relation/FK inventory. |
 | Other IntelliJ IDEA Ultimate/DataGrip versions | **UNKNOWN / not maintained** | No exact maintained evidence claim. |
 | Other IntelliJ-based products | **UNKNOWN / not maintained** | Database tooling/load eligibility is not product-specific proof. |

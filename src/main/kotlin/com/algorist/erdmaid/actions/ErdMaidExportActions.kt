@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
 import kotlin.coroutines.coroutineContext
 
-/** Stateless 2026.2 host entry point. All database work starts only after invocation. */
+/** Stateless JetBrains host entry point. All database work starts only after invocation. */
 open class ErdMaidExportAction : DumbAwareAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT

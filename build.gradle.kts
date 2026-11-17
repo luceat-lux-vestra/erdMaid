@@ -24,9 +24,9 @@ val resolvedPluginVersion = providers.gradleProperty("buildVersion").orElse(buil
 version = resolvedPluginVersion.get()
 
 // JetBrains Starter 2026.2 splits product descriptors into dedicated artifacts.
-// Pin the Starter framework and IDEA product descriptor to the exact baseline
-// build instead of LATEST-EAP-SNAPSHOT so integration-test compilation remains
-// reproducible and aligned with the project's minimum supported 2026.2 host.
+// Keep the separate, proven 2026.2 Starter framework/product-descriptor line pinned
+// instead of LATEST-EAP-SNAPSHOT. Its real-process smoke test remains an independent
+// 262 regression proof while the compile/test SDK moves to 2026.3.
 val starterBuild = "262.8665.337"
 
 sourceSets {
@@ -83,12 +83,10 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        // Run compilation and the IntelliJ test framework against the earliest
-        // stable 2026.2 patch release. This is the minimum supported build line,
-        // while newer 2026.2 hosts are checked independently by Plugin Verifier.
-        // Keeping tests on the baseline also avoids coupling unit-test startup to
-        // unrelated commercial-plugin startup changes in later IDEA patch builds.
-        intellijIdea("2026.2.0.1")
+        // Compile and run the IntelliJ unit-test framework on released IDEA 2026.3.
+        // The 262 minimum remains an independent binary/Starter compatibility claim,
+        // never inferred from this newer SDK or the bundled DatabaseTools API.
+        intellijIdea("2026.3")
 
         bundledPlugins("com.intellij.database")
 
@@ -213,10 +211,9 @@ intellijPlatform {
         }
     }
 
-    // IJPGP-owned verifier targets are declared explicitly and independently
-    // from the compile/test baseline. This lets the test suite exercise the
-    // minimum supported 262 release while compatibility verification exercises
-    // the latest supported IDEA patch release.
+    // IJPGP-owned verifier targets are declared explicitly and independently.
+    // Verify the retained 262 runtime line as well as the new 263 compile baseline;
+    // a newer compile SDK does not establish backward binary compatibility.
     //
     // DataGrip is intentionally NOT declared here yet. IJPGP 2.18.1 identifies
     // the DataGrip IntelliJPlatformType as `DB`, while JetBrains' product release
@@ -227,6 +224,7 @@ intellijPlatform {
     pluginVerification {
         ides {
             create(IntelliJPlatformType.IntellijIdea, "2026.2.2")
+            create(IntelliJPlatformType.IntellijIdea, "2026.3")
         }
     }
 
