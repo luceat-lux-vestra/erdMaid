@@ -30,6 +30,7 @@ import com.intellij.ide.starter.runner.startIdeWithoutProject
 import com.intellij.ide.starter.report.ErrorReporterToCI
 import com.intellij.ide.starter.runner.CurrentTestMethod
 import com.intellij.ide.starter.runner.Starter
+import com.intellij.tools.ide.starter.product.idea.ultimate.IdeaUltimate
 import org.h2.Driver as H2Driver
 import org.h2.tools.Server
 import org.sqlite.JDBC as SQLiteDriver
