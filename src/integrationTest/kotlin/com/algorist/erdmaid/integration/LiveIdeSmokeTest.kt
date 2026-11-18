@@ -73,6 +73,17 @@ private interface DatabaseTreeSelectionRef {
     fun setSelectionRows(rows: IntArray)
 }
 
+@Remote("com.intellij.openapi.application.ApplicationInfo")
+private interface ApplicationInfoRef {
+    fun getFullVersion(): String
+    fun getBuild(): BuildNumberRef
+}
+
+@Remote("com.intellij.openapi.util.BuildNumber")
+private interface BuildNumberRef {
+    fun asString(): String
+}
+
 @Remote("com.intellij.openapi.ide.CopyPasteManager")
 private interface IdeClipboard {
     fun getInstance(): IdeClipboard
@@ -144,6 +155,17 @@ class LiveIdeSmokeTest {
                     assertTrue(
                         isPluginLoaded("com.algorist.erdmaid"),
                         "the exact packaged erdMaid ZIP must be loaded in the IDEA process",
+                    )
+                    val applicationInfo = service<ApplicationInfoRef>()
+                    assertEquals(
+                        IDE_RELEASE,
+                        applicationInfo.getFullVersion(),
+                        "Starter must launch the exact maintained IDEA release",
+                    )
+                    println(
+                        "ERDMAID_E2E_HOST product=IDEA_ULTIMATE " +
+                            "version=${applicationInfo.getFullVersion()} " +
+                            "build=${applicationInfo.getBuild().asString()}",
                     )
 
                     createDataSourceThroughDatabaseTools(
