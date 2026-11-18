@@ -93,7 +93,7 @@ jobs:
             echo "plugin_sha256=$(sha256sum "$artifact" | awk '{print $1}')"
             echo "plugin_version=$plugin_version"
             echo "ide_release=2026.3"
-            echo "fixture_revision=idea-263-h2-sqlite-v3"
+            echo "fixture_revision=idea-263-h2-sqlite-v4"
           } | tee starter-e2e-artifact-manifest.txt
 
       - name: Run IDEA 2026.3 Database export E2E
