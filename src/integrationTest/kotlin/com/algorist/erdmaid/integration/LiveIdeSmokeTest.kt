@@ -483,7 +483,7 @@ class LiveIdeSmokeTest {
         val groupCandidates = databaseTree.collectExpandedPaths().filter { path ->
             path.path.last().equals("Tables", ignoreCase = true) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) } &&
-                path.path.none { it.contains("INFORMATION_SCHEMA", ignoreCase = true) }
+                path.path.any { it.equals("PUBLIC", ignoreCase = true) }
         }
         assertEquals(
             1,
@@ -629,7 +629,9 @@ class LiveIdeSmokeTest {
 
     private fun entityIdForLabel(document: String, table: String): String {
         val line = document.lineSequence().single { candidate ->
-            candidate.contains("[\"$table\"] {")
+            candidate.contains("[\"") &&
+                candidate.contains(table) &&
+                candidate.contains("\"] {")
         }
         return line.trimStart().substringBefore("[")
     }
