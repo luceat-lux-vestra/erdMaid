@@ -208,6 +208,7 @@ class LiveIdeSmokeTest {
                         h2Second,
                         "unchanged H2 Database Tools selection must export byte-identical Mermaid text",
                     )
+                    assertSelectionOrderInvariantH2Scenario()
 
                     val richH2 = exportRichH2Scenario()
                     assertRichH2Scenario(richH2)
@@ -390,6 +391,57 @@ class LiveIdeSmokeTest {
             }
         }
         waitForIndicators(5.minutes)
+    }
+
+    private fun Driver.assertSelectionOrderInvariantH2Scenario() {
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        databaseTree.expandAll(2.minutes)
+        val expanded = databaseTree.collectExpandedPaths()
+        val orders = expanded.single { path ->
+            path.path.last().equals(H2_ORDERS_TABLE, ignoreCase = true) &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+        }
+        val users = expanded.single { path ->
+            path.path.last().equals(H2_USERS_TABLE, ignoreCase = true) &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+        }
+
+        fun exportWithOrder(rows: IntArray, sentinel: String): String {
+            expireNotifications()
+            copyThroughIde(sentinel)
+            withContext(OnDispatcher.EDT) {
+                cast(databaseTree.component, DatabaseTreeSelectionRef::class).setSelectionRows(rows)
+            }
+            assertEquals(2, databaseTree.collectSelectedPaths().size)
+            databaseTree.rightClickRow(orders.row)
+            ui.popup().list().waitOneText(
+                EXPORT_ACTION_TEXT,
+                message = "erdMaid action must remain available for reordered table selection",
+                timeout = 30.seconds,
+            ).click()
+            waitForErdMaidNotification("Mermaid ERD copied to clipboard")
+            return waitForClipboardDocument(sentinel)
+        }
+
+        val forward = exportWithOrder(
+            intArrayOf(users.row, orders.row),
+            "ERDMAID_E2E_SELECTION_ORDER_FORWARD",
+        )
+        val reverse = exportWithOrder(
+            intArrayOf(orders.row, users.row),
+            "ERDMAID_E2E_SELECTION_ORDER_REVERSE",
+        )
+        assertEquals(
+            forward,
+            reverse,
+            "canonical Mermaid output must not depend on actual JTree selection order",
+        )
     }
 
     private fun Driver.exportRichH2Scenario(): String =
@@ -993,6 +1045,12 @@ class LiveIdeSmokeTest {
         )
         assertTrue("USER_ID" in document, "readable FK column name must survive $dataSourceName capture")
         assertTrue("NOTE" in document, "unrelated UNIQUE(NOTE) column must remain readable")
+        if (dataSourceName == SQLITE_DRIVER_NAME) {
+            assertFalse(
+                Regex("""\bTEXT\s*\(\s*0\s*\)""", RegexOption.IGNORE_CASE).containsMatchIn(document),
+                "authoritatively absent SQLite TEXT length must not be fabricated as zero",
+            )
+        }
         if (expectedFkName != null) {
             assertTrue(
                 expectedFkName in document,
