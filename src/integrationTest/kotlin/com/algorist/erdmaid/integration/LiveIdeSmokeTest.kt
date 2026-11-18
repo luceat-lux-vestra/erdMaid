@@ -2,6 +2,7 @@ package com.algorist.erdmaid.integration
 
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
+import com.intellij.driver.model.OnDispatcher
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.expireNotifications
 import com.intellij.driver.sdk.getNotifications
@@ -65,6 +66,11 @@ private interface TrialStateServiceRemote {
 @Remote("kotlinx.coroutines.flow.StateFlow")
 private interface TrialAvailabilityRemote {
     fun getValue(): Boolean?
+}
+
+@Remote("javax.swing.JTree")
+private interface DatabaseTreeSelectionRef {
+    fun setSelectionRows(rows: IntArray)
 }
 
 @Remote("com.intellij.openapi.ide.CopyPasteManager")
