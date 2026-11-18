@@ -218,6 +218,7 @@ class LiveIdeSmokeTest {
                     assertSelectedSubgraphH2Scenario()
                     assertTablesGroupH2Scenario()
                     assertDuplicateNamesAcrossSchemasH2Scenario()
+                    assertQuotedCaseSensitiveH2Scenario()
                     assertViewOnlyActionSuppressed()
 
                     createDataSourceThroughDatabaseTools(
@@ -621,6 +622,8 @@ class LiveIdeSmokeTest {
             H2_PURCHASE_ORDER_TABLE,
             H2_EMPLOYEE_TABLE,
             H2_PROFILE_TABLE,
+            H2_QUOTED_UPPER_TABLE,
+            H2_QUOTED_LOWER_TABLE,
         )) {
             assertEquals(
                 1,
@@ -703,6 +706,56 @@ class LiveIdeSmokeTest {
             relation.contains(archiveOrdersId),
             "archive.orders must not be cross-wired into the sales FK",
         )
+    }
+
+    private fun Driver.assertQuotedCaseSensitiveH2Scenario() {
+        expireNotifications()
+        val sentinel = "ERDMAID_E2E_H2_QUOTED_CASE"
+        copyThroughIde(sentinel)
+
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        databaseTree.expandAll(2.minutes)
+        val expanded = databaseTree.collectExpandedPaths()
+        val upper = expanded.single { path ->
+            path.path.last() == H2_QUOTED_UPPER_TABLE &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+        }
+        val lower = expanded.single { path ->
+            path.path.last() == H2_QUOTED_LOWER_TABLE &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+        }
+        withContext(OnDispatcher.EDT) {
+            cast(databaseTree.component, DatabaseTreeSelectionRef::class)
+                .setSelectionRows(intArrayOf(upper.row, lower.row))
+        }
+        assertEquals(2, databaseTree.collectSelectedPaths().size)
+        databaseTree.rightClickRow(upper.row)
+        ui.popup().list().waitOneText(
+            EXPORT_ACTION_TEXT,
+            message = "erdMaid action must preserve quoted case-sensitive table identities",
+            timeout = 30.seconds,
+        ).click()
+
+        waitForErdMaidNotification("Mermaid ERD copied to clipboard")
+        val document = waitForClipboardDocument(sentinel)
+        assertEquals(
+            1,
+            document.lineSequence().count { "[\"$H2_QUOTED_UPPER_TABLE\"]" in it },
+            "quoted upper-case table identity must survive exactly once",
+        )
+        assertEquals(
+            1,
+            document.lineSequence().count { "[\"$H2_QUOTED_LOWER_TABLE\"]" in it },
+            "quoted lower-case table identity must remain distinct",
+        )
+        val block = entityBlock(document, H2_QUOTED_UPPER_TABLE)
+        assertColumnOrder(block, listOf("ItemID", "itemid"))
     }
 
     private fun Driver.assertViewOnlyActionSuppressed() {
@@ -1235,6 +1288,21 @@ class LiveIdeSmokeTest {
                     )
                     """.trimIndent(),
                 )
+                statement.execute(
+                    """
+                    CREATE TABLE "$H2_QUOTED_UPPER_TABLE" (
+                      "ItemID" BIGINT PRIMARY KEY,
+                      "itemid" BIGINT
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute(
+                    """
+                    CREATE TABLE "$H2_QUOTED_LOWER_TABLE" (
+                      "ID" BIGINT PRIMARY KEY
+                    )
+                    """.trimIndent(),
+                )
                 statement.execute("CREATE SCHEMA $H2_SALES_SCHEMA")
                 statement.execute("CREATE SCHEMA $H2_ARCHIVE_SCHEMA")
                 statement.execute(
@@ -1353,6 +1421,8 @@ class LiveIdeSmokeTest {
         const val H2_SELF_FK = "FK_ERDMAID_EMPLOYEE_MANAGER"
         const val H2_PROFILE_TABLE = "ERDMAID_PROFILE"
         const val H2_PROFILE_FK = "FK_ERDMAID_PROFILE_USER"
+        const val H2_QUOTED_UPPER_TABLE = "ERDMAID Order Items"
+        const val H2_QUOTED_LOWER_TABLE = "erdmaid order items"
         const val H2_VIEW_NAME = "ERDMAID_H2_ORDER_VIEW"
         const val H2_SALES_SCHEMA = "ERDMAID_SALES"
         const val H2_ARCHIVE_SCHEMA = "ERDMAID_ARCHIVE"
