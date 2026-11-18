@@ -18,6 +18,10 @@ jobs:
     timeout-minutes: 75
     permissions:
       contents: read
+    env:
+      # Both Gradle invocations must address the same distribution archive. The default
+      # timestamp version changes per Gradle process and would invalidate artifact identity.
+      ORG_GRADLE_PROJECT_buildVersion: 0.0.0-e2e-${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Fetch exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
