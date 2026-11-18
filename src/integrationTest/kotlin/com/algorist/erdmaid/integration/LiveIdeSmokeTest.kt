@@ -680,15 +680,15 @@ class LiveIdeSmokeTest {
         assertEquals(3, selected.size, "multi-schema scenario must select exactly three physical tables")
         assertTrue(
             selected.any { path ->
-                path.path.last().equals("ORDERS", ignoreCase = true) &&
-                    path.path.any { it.equals(H2_SALES_SCHEMA, ignoreCase = true) }
+                path.path.last().matchesDatabaseTreeLabel("ORDERS") &&
+                    path.path.any { it.matchesDatabaseTreeLabel(H2_SALES_SCHEMA) }
             },
             "sales.orders must be selected by authoritative tree path",
         )
         assertTrue(
             selected.any { path ->
-                path.path.last().equals("ORDERS", ignoreCase = true) &&
-                    path.path.any { it.equals(H2_ARCHIVE_SCHEMA, ignoreCase = true) }
+                path.path.last().matchesDatabaseTreeLabel("ORDERS") &&
+                    path.path.any { it.matchesDatabaseTreeLabel(H2_ARCHIVE_SCHEMA) }
             },
             "archive.orders must remain a distinct selected object",
         )
