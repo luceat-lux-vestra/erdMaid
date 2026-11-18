@@ -347,6 +347,241 @@ class LiveIdeSmokeTest {
         waitForIndicators(5.minutes)
     }
 
+    private fun Driver.exportRichH2Scenario(): String =
+        exportSelectedTables(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedTables = setOf(H2_ACCOUNT_TABLE, H2_PURCHASE_ORDER_TABLE),
+            rightClickName = H2_PURCHASE_ORDER_TABLE,
+            sentinel = "ERDMAID_E2E_H2_RICH",
+        )
+
+    private fun assertRichH2Scenario(document: String) {
+        assertEquals(
+            1,
+            document.lineSequence().count { "[\"$H2_ACCOUNT_TABLE\"]" in it },
+            "rich H2 parent table must be rendered exactly once",
+        )
+        assertEquals(
+            1,
+            document.lineSequence().count { "[\"$H2_PURCHASE_ORDER_TABLE\"]" in it },
+            "rich H2 child table must be rendered exactly once",
+        )
+
+        assertColumnOrder(
+            entityBlock(document, H2_ACCOUNT_TABLE),
+            listOf("TENANT_ID", "ACCOUNT_ID", "DISPLAY_NAME", "EXTERNAL_REF", "CREATED_AT"),
+        )
+        assertColumnOrder(
+            entityBlock(document, H2_PURCHASE_ORDER_TABLE),
+            listOf(
+                "TENANT_ID",
+                "ORDER_ID",
+                "ACCOUNT_ID",
+                "APPROVER_ACCOUNT_ID",
+                "AMOUNT",
+                "MEMO",
+                "CREATED_AT",
+            ),
+        )
+        assertTrue(
+            document.contains("Customer account fixture") &&
+                document.contains("Purchase order fixture") &&
+                document.contains("Order amount") &&
+                document.contains("Optional memo"),
+            "table and column comments must survive real H2 metadata capture",
+        )
+        assertTrue(
+            Regex("""\S+\s+AMOUNT\b.*Order amount""").containsMatchIn(document),
+            "representative DECIMAL type metadata must be rendered with AMOUNT",
+        )
+
+        val compositeAnnotation = document.lineSequence().single { line ->
+            line.contains("%% FK: physical") &&
+                line.contains(".TENANT_ID ->") &&
+                line.contains(".ACCOUNT_ID ->")
+        }
+        assertTrue(
+            compositeAnnotation.indexOf(".TENANT_ID ->") < compositeAnnotation.indexOf(".ACCOUNT_ID ->"),
+            "composite FK mapping order must remain TENANT_ID then ACCOUNT_ID",
+        )
+        assertEquals(1, document.lineSequence().count { it.contains("physical:$H2_ACCOUNT_FK") })
+        assertEquals(1, document.lineSequence().count { it.contains("physical:$H2_APPROVER_FK") })
+
+        val requiredEdge = document.lineSequence().single { it.contains("physical:$H2_ACCOUNT_FK") }
+        val nullableEdge = document.lineSequence().single { it.contains("physical:$H2_APPROVER_FK") }
+        assertTrue(
+            " ||..o{ " in requiredEdge,
+            "non-null composite FK must require exactly one parent and allow many children",
+        )
+        assertTrue(
+            " o|..o{ " in nullableEdge,
+            "nullable composite FK must allow zero-or-one parent without inventing uniqueness",
+        )
+    }
+
+    private fun Driver.assertSelfReferenceH2Scenario() {
+        val document = exportSelectedTables(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedTables = setOf(H2_EMPLOYEE_TABLE),
+            sentinel = "ERDMAID_E2E_H2_SELF",
+        )
+        assertEquals(1, document.lineSequence().count { "[\"$H2_EMPLOYEE_TABLE\"]" in it })
+        assertTrue(
+            document.lineSequence().any {
+                it.contains("%% FK: physical") &&
+                    it.contains(".MANAGER_ID ->") &&
+                    it.contains(".ID")
+            },
+            "self-FK mapping must be present",
+        )
+        val edge = document.lineSequence().single { it.contains("physical:$H2_SELF_FK") }
+        assertTrue(
+            " o|..o{ " in edge,
+            "nullable self-FK must preserve optional parent multiplicity",
+        )
+    }
+
+    private fun Driver.assertSelectedSubgraphH2Scenario() {
+        val document = exportSelectedTables(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedTables = setOf(H2_PURCHASE_ORDER_TABLE),
+            sentinel = "ERDMAID_E2E_H2_SUBGRAPH",
+        )
+        assertEquals(1, document.lineSequence().count { "[\"$H2_PURCHASE_ORDER_TABLE\"]" in it })
+        assertFalse(
+            document.lineSequence().any { "[\"$H2_ACCOUNT_TABLE\"]" in it },
+            "unselected FK parent must not be auto-included",
+        )
+        assertFalse(
+            document.contains("physical:$H2_ACCOUNT_FK") || document.contains("physical:$H2_APPROVER_FK"),
+            "relations whose parent endpoint is outside the selected snapshot must be omitted",
+        )
+    }
+
+    private fun Driver.assertTablesGroupH2Scenario() {
+        expireNotifications()
+        val sentinel = "ERDMAID_E2E_H2_TABLES_GROUP"
+        copyThroughIde(sentinel)
+
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        databaseTree.expandAll(2.minutes)
+
+        val groupCandidates = databaseTree.collectExpandedPaths().filter { path ->
+            path.path.last().equals("Tables", ignoreCase = true) &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) } &&
+                path.path.none { it.contains("INFORMATION_SCHEMA", ignoreCase = true) }
+        }
+        assertEquals(
+            1,
+            groupCandidates.size,
+            "the H2 datasource must expose one unambiguous non-system Tables group",
+        )
+        val tablesRow = groupCandidates.single().row
+        databaseTree.clickRow(tablesRow)
+        databaseTree.rightClickRow(tablesRow)
+        ui.popup().list().waitOneText(
+            EXPORT_ACTION_TEXT,
+            message = "erdMaid action must be enabled for the schema Tables node",
+            timeout = 30.seconds,
+        ).click()
+
+        waitForErdMaidNotification("Mermaid ERD copied to clipboard")
+        val document = waitForClipboardDocument(sentinel)
+        for (table in listOf(
+            H2_USERS_TABLE,
+            H2_ORDERS_TABLE,
+            H2_ACCOUNT_TABLE,
+            H2_PURCHASE_ORDER_TABLE,
+            H2_EMPLOYEE_TABLE,
+        )) {
+            assertEquals(
+                1,
+                document.lineSequence().count { "[\"$table\"]" in it },
+                "Tables-group expansion must include physical table $table exactly once",
+            )
+        }
+        assertFalse(
+            document.lineSequence().any { "[\"$H2_VIEW_NAME\"]" in it },
+            "Tables-group expansion must not silently treat a view as a physical table",
+        )
+    }
+
+    private fun Driver.assertRelevantUniqueSQLiteFailsClosed() {
+        assertFailClosedSelection(
+            dataSourceName = SQLITE_DRIVER_NAME,
+            selectedObjects = setOf(SQLITE_RELEVANT_ORDERS_TABLE, SQLITE_RELEVANT_USERS_TABLE),
+            rightClickName = SQLITE_RELEVANT_ORDERS_TABLE,
+            sentinel = "ERDMAID_E2E_SQLITE_RELEVANT_UNIQUE",
+            expectedDiagnostic = "mermaid-cardinality-unavailable",
+        )
+    }
+
+    private fun Driver.assertMixedViewSelectionFailsClosed() {
+        assertFailClosedSelection(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedObjects = setOf(H2_ORDERS_TABLE, H2_VIEW_NAME),
+            rightClickName = H2_ORDERS_TABLE,
+            sentinel = "ERDMAID_E2E_H2_MIXED_VIEW",
+            expectedDiagnostic = "selection-mixed-or-unsupported",
+        )
+    }
+
+    private fun Driver.assertCrossDataSourceSelectionFailsClosed() {
+        assertFailClosedSelection(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedObjects = setOf(H2_ORDERS_TABLE, SQLITE_USERS_TABLE),
+            rightClickName = H2_ORDERS_TABLE,
+            sentinel = "ERDMAID_E2E_CROSS_DATASOURCE",
+            expectedDiagnostic = "selection-cross-origin",
+        )
+    }
+
+    private fun Driver.assertFailClosedSelection(
+        dataSourceName: String,
+        selectedObjects: Set<String>,
+        rightClickName: String,
+        sentinel: String,
+        expectedDiagnostic: String,
+    ) {
+        expireNotifications()
+        copyThroughIde(sentinel)
+        invokeExportThroughDatabasePopup(
+            dataSourceName = dataSourceName,
+            selectedObjects = selectedObjects,
+            rightClickName = rightClickName,
+        )
+        waitForErdMaidNotification(expectedDiagnostic)
+        assertEquals(
+            sentinel,
+            clipboardText(),
+            "fail-closed scenario $expectedDiagnostic must preserve the existing clipboard",
+        )
+    }
+
+    private fun entityBlock(document: String, tableName: String): String {
+        val marker = "[\"$tableName\"] {"
+        val start = document.indexOf(marker)
+        require(start >= 0) { "missing Mermaid entity block for $tableName" }
+        val end = document.indexOf("\n    }", start)
+        require(end > start) { "unterminated Mermaid entity block for $tableName" }
+        return document.substring(start, end)
+    }
+
+    private fun assertColumnOrder(block: String, expectedColumns: List<String>) {
+        var previous = -1
+        for (column in expectedColumns) {
+            val position = block.indexOf(column)
+            assertTrue(position > previous, "column $column must preserve authoritative source order")
+            previous = position
+        }
+    }
+
     private fun Driver.exportUnrelatedUniqueScenario(
         dataSourceName: String,
         ordersTable: String,
