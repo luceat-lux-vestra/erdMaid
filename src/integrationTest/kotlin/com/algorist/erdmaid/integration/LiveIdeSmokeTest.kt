@@ -167,6 +167,12 @@ class LiveIdeSmokeTest {
                         "unchanged H2 Database Tools selection must export byte-identical Mermaid text",
                     )
 
+                    val richH2 = exportRichH2Scenario()
+                    assertRichH2Scenario(richH2)
+                    assertSelfReferenceH2Scenario()
+                    assertSelectedSubgraphH2Scenario()
+                    assertTablesGroupH2Scenario()
+
                     createDataSourceThroughDatabaseTools(
                         dataSourceType = "SQLite",
                         driverName = SQLITE_DRIVER_NAME,
@@ -192,6 +198,10 @@ class LiveIdeSmokeTest {
                         sqliteSecond,
                         "unchanged SQLite Database Tools selection must export byte-identical Mermaid text",
                     )
+
+                    assertRelevantUniqueSQLiteFailsClosed()
+                    assertMixedViewSelectionFailsClosed()
+                    assertCrossDataSourceSelectionFailsClosed()
                 }
 
             assertNull(
