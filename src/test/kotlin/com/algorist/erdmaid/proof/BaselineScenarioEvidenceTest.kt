@@ -85,6 +85,12 @@ class BaselineScenarioEvidenceTest {
                 test(HOST, "fun `ordinary physical relation publishes one exact complete document`"),
                 test(RENDERER, "fun `ordinary physical FK serializes one exact complete document`"),
             ),
+            "unrelated-unverified-unique-index" to listOf(
+                test(HOST, "fun `unrelated SQLite-style UNIQUE index does not block complete physical ER export`"),
+            ),
+            "relevant-unverified-unique-index" to listOf(
+                test(HOST, "fun `possibly relevant SQLite-style UNIQUE index still leaves clipboard untouched`"),
+            ),
             "selection-order-invariance" to listOf(
                 test(HOST, "fun `permuted snapshot table order publishes byte-identical document`"),
                 test(GRAPH, "fun `permuted snapshot table order produces exactly equal graph`"),
