@@ -620,6 +620,67 @@ class LiveIdeSmokeTest {
                 statement.execute(
                     "CREATE UNIQUE INDEX UX_ERDMAID_H2_ORDERS_NOTE ON $H2_ORDERS_TABLE(NOTE)"
                 )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_ACCOUNT_TABLE (
+                      TENANT_ID BIGINT NOT NULL,
+                      ACCOUNT_ID BIGINT NOT NULL,
+                      DISPLAY_NAME VARCHAR(120) NOT NULL,
+                      EXTERNAL_REF VARCHAR(64),
+                      CREATED_AT TIMESTAMP NOT NULL,
+                      CONSTRAINT PK_ERDMAID_ACCOUNT PRIMARY KEY (TENANT_ID, ACCOUNT_ID),
+                      CONSTRAINT UK_ERDMAID_ACCOUNT_EXTERNAL UNIQUE (TENANT_ID, EXTERNAL_REF)
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute("COMMENT ON TABLE $H2_ACCOUNT_TABLE IS 'Customer account fixture'")
+                statement.execute(
+                    "COMMENT ON COLUMN $H2_ACCOUNT_TABLE.DISPLAY_NAME IS 'Display name shown to users'"
+                )
+                statement.execute(
+                    "COMMENT ON COLUMN $H2_ACCOUNT_TABLE.EXTERNAL_REF IS 'Optional external reference'"
+                )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_PURCHASE_ORDER_TABLE (
+                      TENANT_ID BIGINT NOT NULL,
+                      ORDER_ID BIGINT NOT NULL,
+                      ACCOUNT_ID BIGINT NOT NULL,
+                      APPROVER_ACCOUNT_ID BIGINT,
+                      AMOUNT DECIMAL(18, 2) NOT NULL,
+                      MEMO VARCHAR(255),
+                      CREATED_AT TIMESTAMP NOT NULL,
+                      CONSTRAINT PK_ERDMAID_PURCHASE_ORDER PRIMARY KEY (TENANT_ID, ORDER_ID),
+                      CONSTRAINT $H2_ACCOUNT_FK
+                        FOREIGN KEY (TENANT_ID, ACCOUNT_ID)
+                        REFERENCES $H2_ACCOUNT_TABLE (TENANT_ID, ACCOUNT_ID),
+                      CONSTRAINT $H2_APPROVER_FK
+                        FOREIGN KEY (TENANT_ID, APPROVER_ACCOUNT_ID)
+                        REFERENCES $H2_ACCOUNT_TABLE (TENANT_ID, ACCOUNT_ID)
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute("COMMENT ON TABLE $H2_PURCHASE_ORDER_TABLE IS 'Purchase order fixture'")
+                statement.execute(
+                    "COMMENT ON COLUMN $H2_PURCHASE_ORDER_TABLE.AMOUNT IS 'Order amount'"
+                )
+                statement.execute(
+                    "COMMENT ON COLUMN $H2_PURCHASE_ORDER_TABLE.MEMO IS 'Optional memo'"
+                )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_EMPLOYEE_TABLE (
+                      ID BIGINT PRIMARY KEY,
+                      MANAGER_ID BIGINT,
+                      NAME VARCHAR(120) NOT NULL,
+                      CONSTRAINT $H2_SELF_FK
+                        FOREIGN KEY (MANAGER_ID) REFERENCES $H2_EMPLOYEE_TABLE(ID)
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute(
+                    "CREATE VIEW $H2_VIEW_NAME AS SELECT ID, USER_ID, NOTE FROM $H2_ORDERS_TABLE"
+                )
             }
         }
 
@@ -662,6 +723,29 @@ class LiveIdeSmokeTest {
                     statement.execute(
                         "CREATE UNIQUE INDEX UX_ERDMAID_SQLITE_ORDERS_NOTE ON $SQLITE_ORDERS_TABLE(NOTE)"
                     )
+                    statement.execute(
+                        """
+                        CREATE TABLE $SQLITE_RELEVANT_USERS_TABLE (
+                          ID INTEGER PRIMARY KEY
+                        )
+                        """.trimIndent(),
+                    )
+                    statement.execute(
+                        """
+                        CREATE TABLE $SQLITE_RELEVANT_ORDERS_TABLE (
+                          ID INTEGER PRIMARY KEY,
+                          USER_ID INTEGER NOT NULL,
+                          CONSTRAINT FK_ERDMAID_SQLITE_RELEVANT_USERS
+                            FOREIGN KEY (USER_ID) REFERENCES $SQLITE_RELEVANT_USERS_TABLE(ID)
+                        )
+                        """.trimIndent(),
+                    )
+                    // Negative counterpart to #238: index coverage overlaps the FK tuple and
+                    // therefore must not be treated as proven non-unique.
+                    statement.execute(
+                        "CREATE UNIQUE INDEX UX_ERDMAID_SQLITE_RELEVANT_USER_ID " +
+                            "ON $SQLITE_RELEVANT_ORDERS_TABLE(USER_ID)"
+                    )
                 }
             }
         }
@@ -676,8 +760,17 @@ class LiveIdeSmokeTest {
         const val H2_USERS_TABLE = "ERDMAID_H2_USERS"
         const val H2_ORDERS_TABLE = "ERDMAID_H2_ORDERS"
         const val H2_FK_NAME = "FK_ERDMAID_H2_ORDERS_USERS"
+        const val H2_ACCOUNT_TABLE = "ERDMAID_ACCOUNT"
+        const val H2_PURCHASE_ORDER_TABLE = "ERDMAID_PURCHASE_ORDER"
+        const val H2_ACCOUNT_FK = "FK_ERDMAID_PURCHASE_ORDER_ACCOUNT"
+        const val H2_APPROVER_FK = "FK_ERDMAID_PURCHASE_ORDER_APPROVER"
+        const val H2_EMPLOYEE_TABLE = "ERDMAID_EMPLOYEE"
+        const val H2_SELF_FK = "FK_ERDMAID_EMPLOYEE_MANAGER"
+        const val H2_VIEW_NAME = "ERDMAID_H2_ORDER_VIEW"
 
         const val SQLITE_USERS_TABLE = "ERDMAID_SQLITE_USERS"
         const val SQLITE_ORDERS_TABLE = "ERDMAID_SQLITE_ORDERS"
+        const val SQLITE_RELEVANT_USERS_TABLE = "ERDMAID_SQLITE_RELEVANT_USERS"
+        const val SQLITE_RELEVANT_ORDERS_TABLE = "ERDMAID_SQLITE_RELEVANT_ORDERS"
     }
 }
