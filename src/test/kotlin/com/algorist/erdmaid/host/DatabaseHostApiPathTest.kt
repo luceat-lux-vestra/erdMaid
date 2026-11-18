@@ -3,6 +3,7 @@ package com.algorist.erdmaid.host
 import com.algorist.erdmaid.core.ExportOutcome
 import com.intellij.openapi.actionSystem.DataContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
@@ -97,6 +98,22 @@ class DatabaseHostApiPathTest {
                 "build=$build\n" +
                 "databasePlugin=$databasePluginId\n" +
                 "databasePluginVersion=$databasePluginVersion\n"
+        )
+    }
+
+    @Test
+    fun `maintained IDEA runtime exposes nonexpanding direct selection preflight symbols`() {
+        val clazz = Class.forName("com.intellij.database.view.DatabaseContextFun")
+        for (methodName in listOf("getSelectedNodes", "getSelectedDbElements")) {
+            assertTrue(
+                "Missing required bounded selection API: $methodName",
+                clazz.getMethod(methodName, DataContext::class.java).returnType.name
+                    .contains("JBIterable"),
+            )
+        }
+
+        assertFalse(
+            DatabaseToolsCompatibility.hasPotentialExportSelection(DataContext.EMPTY_CONTEXT),
         )
     }
 

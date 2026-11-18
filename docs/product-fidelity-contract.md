@@ -37,7 +37,7 @@ A legitimately absent optional value is not degraded. A read failure that cannot
 | Exact duplicate UI selections of the same authoritative object | **SUPPORTED** | Normalize duplicates before snapshotting. Name coincidence alone is not identity proof. |
 | Views, materialized views, routines, or other non-table objects | **UNSUPPORTED** | Do not silently treat them as exported tables. |
 | Mixed supported tables + unsupported objects | **UNSUPPORTED** | Reject the whole mixed export. Never silently filter the unsupported portion. |
-| Legitimate empty selection | **SUPPORTED UI state; no export** | Distinguish it from selection/platform failure; do not fabricate an empty ERD. |
+| Legitimate empty selection | **SUPPORTED UI state; no export** | Disable the menu action for a provably empty tree selection; do not fabricate an empty ERD. |
 | Selection/platform-access failure | **FAILURE** | Surface failure and leave the clipboard unchanged. |
 
 One export contains exactly one datasource/origin. Canonical identity therefore carries origin evidence even though cross-origin export is unsupported.

@@ -51,8 +51,54 @@ import kotlin.coroutines.coroutineContext
 internal object DatabaseToolsCompatibility {
     private const val CONTEXT_FUN = "com.intellij.database.view.DatabaseContextFun"
     private const val EXPAND_METHOD = "getSelectedDbElementsExpandingGroups"
+    private const val SELECTED_NODES_METHOD = "getSelectedNodes"
+    private const val DIRECT_ELEMENTS_METHOD = "getSelectedDbElements"
     private const val EXTRA_RELATION =
         "com.intellij.database.model.ModelRelationManager\$ExtraRelation"
+
+    /**
+     * An intentionally bounded preflight for the frequently called DatabaseViewPopupMenu
+     * update path. These methods inspect the direct tree selection only: they MUST NOT
+     * expand groups, enumerate selected schemas, or read database metadata.
+     *
+     * If a tree group has no direct DbElement, keep the action available: the authoritative
+     * invocation-time expanded selection decides whether the group contains tables. Mixed
+     * selections and unsupported members are still rejected there, not filtered here.
+     */
+    internal fun hasPotentialExportSelection(
+        dataContext: DataContext,
+        selectedNodesReader: ((DataContext) -> Any?)? = null,
+        directElementsReader: ((DataContext) -> Any?)? = null,
+    ): Boolean {
+        return try {
+            val nodes = if (selectedNodesReader == null) {
+                invokeSelectionMethod(SELECTED_NODES_METHOD, dataContext)
+            } else {
+                selectedNodesReader(dataContext)
+            }
+            val nodesIterator = (nodes as? Iterable<*>)?.iterator() ?: return false
+            if (!nodesIterator.hasNext()) return false
+
+            val direct = if (directElementsReader == null) {
+                invokeSelectionMethod(DIRECT_ELEMENTS_METHOD, dataContext)
+            } else {
+                directElementsReader(dataContext)
+            }
+            val directIterator = (direct as? Iterable<*>)?.iterator() ?: return false
+            !directIterator.hasNext() || directIterator.next() is DbTable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: ReflectiveOperationException) {
+            false
+        } catch (_: RuntimeException) {
+            false
+        } catch (_: LinkageError) {
+            false
+        }
+    }
+
+    private fun invokeSelectionMethod(name: String, dataContext: DataContext): Any? =
+        Class.forName(CONTEXT_FUN).getMethod(name, DataContext::class.java).invoke(null, dataContext)
 
     internal fun expandedSelection(
         dataContext: DataContext,

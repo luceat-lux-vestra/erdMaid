@@ -2,6 +2,7 @@ package com.algorist.erdmaid.actions
 
 import com.algorist.erdmaid.core.CoreDiagnostic
 import com.algorist.erdmaid.core.ExportOutcome
+import com.algorist.erdmaid.host.DatabaseToolsCompatibility
 import com.algorist.erdmaid.host.CapturedHostExport
 import com.algorist.erdmaid.host.HostExportPipeline
 import com.algorist.erdmaid.host.HostFreshnessToken
@@ -33,9 +34,11 @@ open class ErdMaidExportAction : DumbAwareAction() {
 
     override fun update(e: AnActionEvent) {
         val project = e.project
-        // This is deliberately selection-agnostic: group expansion is an invocation-time operation
-        // and must never run on the frequently-called update path.
-        e.presentation.isEnabledAndVisible = project != null && !project.isDisposed
+        // Cheap selection preflight only. Group expansion and full validation remain
+        // invocation-time work, never part of the frequently called EDT update path.
+        e.presentation.isEnabledAndVisible =
+            project != null && !project.isDisposed &&
+                DatabaseToolsCompatibility.hasPotentialExportSelection(e.dataContext)
     }
 
     override fun actionPerformed(e: AnActionEvent) {
