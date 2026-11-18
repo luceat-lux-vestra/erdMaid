@@ -1,9 +1,12 @@
 erDiagram
     e_v6F_n_n_v41["A"] {
-        t_INT c_id PK ""
+        INT id PK ""
     }
     e_v6F_n_n_v42["B"] {
-        t_INT c_parent_u005F_id
+        INT parent_id
+        VARCHAR(255) customer_name
+        NUMERIC(18,2) unit_price
+        TEXT `display name`
     }
     e_v6F_n_n_v41 ||--|| e_v6F_n_n_v42 : "physical:one-one"
     e_v6F_n_n_v41 |o..o| e_v6F_n_n_v42 : "physical:zero-one"
