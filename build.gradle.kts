@@ -49,6 +49,10 @@ dependencies {
     // The custom integrationTest source set needs Kotlin stdlib explicitly; do not rely on
     // an unrelated library such as kotlinx-coroutines to pull it in transitively.
     add("integrationTestImplementation", kotlin("stdlib"))
+    // Starter 263's host test JVM initializes CommonScope/EventsBus before the IDE process.
+    // The framework excludes IDE-provided coroutines from its own executable graph, so keep
+    // this explicit harness prerequisite; without it CommonScope fails on SupervisorKt.
+    add("integrationTestImplementation", "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
     // Real Database Tools E2E fixture only. The H2 driver is copied into Starter's isolated
     // IDE config and registered as a local Database Tools driver; it is never shipped.
     add("integrationTestImplementation", "com.h2database:h2:2.5.252")
