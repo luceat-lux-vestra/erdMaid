@@ -30,6 +30,50 @@ scenarios:
         - the relation exists exactly once
         - cardinality is emitted only if separately proven
 
+  - id: unrelated-unverified-unique-index
+    purpose: Preserve a valid physical FK export when an unrelated SQLite UNIQUE index cannot be proven as a global unique key.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: app, name: orders}
+        - {kind: table, schema: app, name: users}
+    facts:
+      columns:
+        orders: [id, user_id, email]
+        users: [id]
+      primary_keys:
+        orders: [id]
+        users: [id]
+      unverified_unique_index_columns:
+        orders: [email]
+      relations:
+        - {provenance: physical, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+    obligations:
+      outcome: complete
+      assertions:
+        - an unverified index on email does not make user_id unique
+        - exactly one complete ER diagram is published with proven 1-to-many cardinality
+        - no unrelated index may turn the document into a degraded unpublished outcome
+
+  - id: relevant-unverified-unique-index
+    purpose: Refuse a plausible 1-to-many diagram when an unverified index could make the FK tuple unique.
+    selection:
+      origins: [ds-a]
+      objects:
+        - {kind: table, schema: app, name: orders}
+        - {kind: table, schema: app, name: users}
+    facts:
+      unverified_unique_index_columns:
+        orders: [user_id]
+      relations:
+        - {provenance: physical, child: orders, child_columns: [user_id], parent: users, parent_columns: [id]}
+    obligations:
+      outcome: degraded
+      assertions:
+        - potentially applicable index coverage remains unknown rather than non-unique
+        - no fabricated 1-to-many relationship is published
+        - the existing clipboard content remains unchanged
+
   - id: selection-order-invariance
     purpose: Prove table ordering is canonical rather than inherited from incidental UI selection order.
     selection_variants:
