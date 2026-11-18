@@ -18,6 +18,7 @@ import com.algorist.erdmaid.core.SchemaSnapshot
 import com.algorist.erdmaid.core.TableId
 import com.algorist.erdmaid.core.TableReferenceEvidence
 import com.algorist.erdmaid.core.TableSnapshot
+import com.algorist.erdmaid.core.UnverifiedUniqueIndexFact
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -88,6 +89,85 @@ class HostExportPipelineTest {
 """,
             published,
         )
+    }
+
+    @Test
+    fun `unrelated SQLite-style UNIQUE index does not block complete physical ER export`() = runBlocking {
+        val original = relationSnapshot(RelationProvenance.PHYSICAL)
+        val orders = original.tables.single { it.id.name == "orders" }
+        val email = column(orders.id, "email", 2)
+        val withUnrelatedIndex = orders.copy(
+            columns = FrozenList.copyOf(orders.columns.toList() + email),
+            unverifiedUniqueIndexes = FrozenList.of(
+                UnverifiedUniqueIndexFact(FrozenList.of(email.id))
+            ),
+        )
+        val snapshot = original.copy(
+            tables = FrozenList.copyOf(
+                original.tables.map { if (it.id == orders.id) withUnrelatedIndex else it }
+            )
+        )
+        var writes = 0
+        var document: String? = null
+
+        val outcome = HostExportPipeline.execute(
+            capturedOutcome = ExportOutcome.Complete(CapturedHostExport(snapshot, token)),
+            publish = { text, _ ->
+                writes++
+                document = text
+                ExportOutcome.Complete(Unit)
+            },
+        )
+
+        assertTrue(outcome is ExportOutcome.Complete)
+        assertEquals(1, writes)
+        assertEquals(
+            """erDiagram
+    e_v6F726967696E2D31_n_n_v6F7264657273["orders"] {
+        INT id PK
+        INT user_id
+        INT email
+    }
+    e_v6F726967696E2D31_n_n_v7573657273["users"] {
+        INT id PK
+    }
+    %% FK: physical e_v6F726967696E2D31_n_n_v6F7264657273.user_id -> e_v6F726967696E2D31_n_n_v7573657273.id
+    e_v6F726967696E2D31_n_n_v7573657273 ||..o{ e_v6F726967696E2D31_n_n_v6F7264657273 : "physical:fk_orders_users"
+""",
+            document,
+        )
+    }
+
+    @Test
+    fun `possibly relevant SQLite-style UNIQUE index still leaves clipboard untouched`() = runBlocking {
+        val original = relationSnapshot(RelationProvenance.PHYSICAL)
+        val orders = original.tables.single { it.id.name == "orders" }
+        val withRelevantIndex = orders.copy(
+            unverifiedUniqueIndexes = FrozenList.of(
+                UnverifiedUniqueIndexFact(FrozenList.of(ColumnId(orders.id, "user_id")))
+            ),
+        )
+        val snapshot = original.copy(
+            tables = FrozenList.copyOf(
+                original.tables.map { if (it.id == orders.id) withRelevantIndex else it }
+            )
+        )
+        var writes = 0
+
+        val outcome = HostExportPipeline.execute(
+            capturedOutcome = ExportOutcome.Complete(CapturedHostExport(snapshot, token)),
+            publish = { _, _ ->
+                writes++
+                ExportOutcome.Complete(Unit)
+            },
+        )
+
+        assertTrue(outcome is ExportOutcome.Degraded)
+        assertEquals(
+            "mermaid-cardinality-unavailable",
+            (outcome as ExportOutcome.Degraded).diagnostics.values.single().code,
+        )
+        assertEquals(0, writes)
     }
 
     @Test
