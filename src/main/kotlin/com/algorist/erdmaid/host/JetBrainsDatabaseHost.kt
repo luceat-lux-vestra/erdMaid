@@ -351,10 +351,14 @@ internal object JetBrainsDatabaseHost {
                 )
             } ?: OptionalValue.Absent
 
+            val candidateMarkers = columns
+                .filter { column -> DasColumn.Attribute.CANDIDATE_KEY in table.getColumnAttrs(column) }
+                .mapTo(linkedSetOf()) { it.name }
             val indexEvidence = partitionUnverifiedUniqueIndexes(
                 indices = DasUtil.getIndices(table).toList(),
                 tableKeys = tableKeys,
                 columnIds = byName,
+                candidateMarkedColumns = candidateMarkers,
             )
             val uniqueKeys = captureUniqueKeys(
                 table = table,
@@ -407,10 +411,14 @@ internal object JetBrainsDatabaseHost {
         indices: List<DasIndex>,
         tableKeys: List<DasTableKey>,
         columnIds: Map<String, ColumnId>,
+        candidateMarkedColumns: Set<String> = emptySet(),
     ): UniqueIndexPartition {
-        val groupedKeys = tableKeys.mapTo(linkedSetOf()) { it.columnsRef.names().toSet() }
+        val groupedKeys = tableKeys.mapTo(linkedSetOf<Set<String>>()) {
+            it.columnsRef.names().toSet()
+        }
+        val coveredByGroupedKeys = groupedKeys.flatten().toSet()
         val remaining = ArrayList<DasIndex>(indices.size)
-        val candidates = ArrayList<UnverifiedUniqueIndexFact>()
+        val candidates = linkedSetOf<UnverifiedUniqueIndexFact>()
         for (index in indices) {
             if (!index.isUnique) {
                 remaining += index
@@ -428,6 +436,17 @@ internal object JetBrainsDatabaseHost {
             candidates += UnverifiedUniqueIndexFact(
                 FrozenList.copyOf(names.map { columnIds.getValue(it) })
             )
+        }
+        // A loose column CANDIDATE_KEY marker without a grouped table key is also possible
+        // uniqueness evidence. Treat it conservatively as a *singleton candidate* rather than
+        // globally poisoning all unrelated FK tuples. Even if it originated in a composite
+        // constraint, a singleton candidate only increases uncertainty, never invents a key.
+        for (name in candidateMarkedColumns) {
+            if (name !in coveredByGroupedKeys) {
+                val id = columnIds[name]
+                    ?: continue // A missing source column is still caught by the table snapshot.
+                candidates += UnverifiedUniqueIndexFact(FrozenList.of(id))
+            }
         }
         return UniqueIndexPartition(
             indicesRequiringAuthorityCheck = Collections.unmodifiableList(remaining),
@@ -448,12 +467,7 @@ internal object JetBrainsDatabaseHost {
             ?.names()
             ?.toList()
             .orEmpty()
-        val candidateNames = columns
-            .filter { column -> DasColumn.Attribute.CANDIDATE_KEY in table.getColumnAttrs(column) }
-            .mapTo(linkedSetOf()) { it.name }
-            .apply { removeAll(primaryNames.toSet()) }
         val alternateKeys = tableKeys.filterNot(DasTableKey::isPrimary)
-        val groupedCandidateNames = linkedSetOf<String>()
         val provenGroups = linkedSetOf<Set<String>>()
         if (primaryNames.isNotEmpty() && primaryNames.all(columnIds::containsKey)) {
             provenGroups += primaryNames.toSet()
@@ -471,7 +485,6 @@ internal object JetBrainsDatabaseHost {
             ) {
                 return uniqueUnavailable("non-primary-table-key-not-candidate-marked")
             }
-            groupedCandidateNames += names
             provenGroups += names.toSet()
             facts += UniqueKeyFact(
                 name = optionalName(key.name),
@@ -479,9 +492,8 @@ internal object JetBrainsDatabaseHost {
             )
         }
 
-        if (candidateNames.any { it !in groupedCandidateNames }) {
-            return uniqueUnavailable("candidate-key-column-without-table-key")
-        }
+        // Candidate markers without a grouped table key are represented separately as
+        // unverified index coverage; absence of a proven key is not a non-unique claim.
 
         for (index in indices) {
             if (!index.isUnique) continue
