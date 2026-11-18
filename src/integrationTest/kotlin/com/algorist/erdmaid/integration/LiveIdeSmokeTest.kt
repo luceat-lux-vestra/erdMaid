@@ -189,6 +189,7 @@ class LiveIdeSmokeTest {
                         jdbcUrlPrefix = "jdbc:h2:",
                         jdbcUrl = h2.jdbcUrl,
                         user = "sa",
+                        password = H2_PASSWORD,
                     )
                     val h2First = exportUnrelatedUniqueScenario(
                         dataSourceName = H2_DRIVER_NAME,
@@ -322,6 +323,7 @@ class LiveIdeSmokeTest {
         jdbcUrlPrefix: String,
         jdbcUrl: String,
         user: String? = null,
+        password: String? = null,
     ) {
         ideFrame {
             invokeAction("ActivateDatabaseToolWindow", now = false)
@@ -368,6 +370,11 @@ class LiveIdeSmokeTest {
                     textField(
                         "//div[@accessiblename='User:' and @class='JBTextField']",
                     ).text = user
+                }
+                if (password != null) {
+                    textField(
+                        "//div[@accessiblename='Password:' and @class='JBPasswordField']",
+                    ).text = password
                 }
                 okButton.click()
             }
@@ -1190,7 +1197,7 @@ class LiveIdeSmokeTest {
         private val keeper = DriverManager.getConnection(
             "jdbc:h2:mem:$databaseName;DB_CLOSE_DELAY=-1",
             "sa",
-            "",
+            H2_PASSWORD,
         )
 
         val jdbcUrl: String =
@@ -1410,6 +1417,7 @@ class LiveIdeSmokeTest {
         const val IDE_RELEASE = "2026.3"
         const val FIXTURE_REVISION = "idea-263-h2-sqlite-v4"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
+        const val H2_PASSWORD = "erdmaid-e2e"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
         const val EXPORT_ACTION_TEXT = "Export as Mermaid ERD (erdMaid)"
 
