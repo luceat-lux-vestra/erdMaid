@@ -178,6 +178,8 @@ class LiveIdeSmokeTest {
                     assertSelfReferenceH2Scenario()
                     assertSelectedSubgraphH2Scenario()
                     assertTablesGroupH2Scenario()
+                    assertDuplicateNamesAcrossSchemasH2Scenario()
+                    assertViewOnlyActionSuppressed()
 
                     createDataSourceThroughDatabaseTools(
                         dataSourceType = "SQLite",
