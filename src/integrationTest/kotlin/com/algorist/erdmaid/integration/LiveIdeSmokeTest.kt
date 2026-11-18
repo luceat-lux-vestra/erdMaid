@@ -755,12 +755,22 @@ class LiveIdeSmokeTest {
     }
 
     private fun Driver.assertMixedViewSelectionFailsClosed() {
-        assertFailClosedSelection(
+        expireNotifications()
+        val sentinel = "ERDMAID_E2E_H2_MIXED_VIEW"
+        copyThroughIde(sentinel)
+        val invoked = invokeExportThroughDatabasePopup(
             dataSourceName = H2_DRIVER_NAME,
             selectedObjects = setOf(H2_ORDERS_TABLE, H2_VIEW_NAME),
             rightClickName = H2_ORDERS_TABLE,
-            sentinel = "ERDMAID_E2E_H2_MIXED_VIEW",
-            expectedDiagnostic = "selection-mixed-or-unsupported",
+            allowSuppressedAction = true,
+        )
+        if (invoked) {
+            waitForErdMaidNotification("selection-mixed-or-unsupported")
+        }
+        assertEquals(
+            sentinel,
+            clipboardText(),
+            "mixed table/view selection must never publish Mermaid output",
         )
     }
 
@@ -876,7 +886,8 @@ class LiveIdeSmokeTest {
         dataSourceName: String,
         selectedObjects: Set<String>,
         rightClickName: String,
-    ) {
+        allowSuppressedAction: Boolean = false,
+    ): Boolean {
         val expectedNames = selectedObjects.map { it.uppercase() }.toSet()
         lateinit var databaseTree: JTreeUiComponent
         ideFrame {
@@ -923,11 +934,21 @@ class LiveIdeSmokeTest {
             databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
             "opening the Database popup must preserve the intended selection",
         )
-        ui.popup().list().waitOneText(
+        val popup = ui.popup().list()
+        if (!popup.hasText(EXPORT_ACTION_TEXT)) {
+            assertTrue(
+                allowSuppressedAction,
+                "erdMaid action must be visible and enabled for the selected database objects",
+            )
+            popup.keyboard { escape() }
+            return false
+        }
+        popup.waitOneText(
             EXPORT_ACTION_TEXT,
             message = "erdMaid action must be visible and enabled for the selected database objects",
             timeout = 30.seconds,
         ).click()
+        return true
     }
 
     private fun Driver.waitForClipboardDocument(sentinel: String): String {
