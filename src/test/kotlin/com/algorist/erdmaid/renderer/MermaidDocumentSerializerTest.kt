@@ -59,10 +59,10 @@ class MermaidDocumentSerializerTest {
         assertEquals(
             """erDiagram
     $parentId["A"] {
-        t_INT c_id PK
+        INT id PK
     }
     $childId["B"] {
-        t_INT c_parent_u005F_id
+        INT parent_id
     }
     %% FK: physical $childId.parent_id -> $parentId.id
     $parentId ||..o{ $childId : "physical:fk_ab"
@@ -87,10 +87,10 @@ class MermaidDocumentSerializerTest {
         )
         val prefix = """erDiagram
     $parentId["A"] {
-        t_INT c_id PK
+        INT id PK
     }
     $childId["B"] {
-        t_INT c_parent_u005F_id
+        INT parent_id
     }
 """
 
@@ -244,17 +244,16 @@ class MermaidDocumentSerializerTest {
             "~u005B~~u005D~~u007C~~u003A~~u003C~~u003E~~u0001~~u2028~~u007E~"
         val attributeComment = "x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_" +
             "_u005B__u005D__u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
-        val encodedColumn = "c_x_u000D_Y_u000A_Z_u000D__u000A__u0025__u0025__u0022__u005C__u007B__u007D_[]" +
-            "_u007C__u003A__u003C__u003E__u0001__u2028__u007E_"
+        val encodedColumn = "ERDMAID_C_780D590A5A0D0A2525225C7B7D5B5D7C3A3C3E01E280A87E"
 
         assertEquals(
             """erDiagram
     %% table-comment: $escaped
     $parentId["A"] {
-        t_INT c_id PK "$attributeComment"
+        INT id PK "$attributeComment"
     }
     $childId["B"] {
-        t_INT $encodedColumn
+        INT $encodedColumn
     }
     %% FK: physical $childId.$escaped -> $parentId.id
     $parentId ||..o{ $childId : "physical:$escaped"
@@ -287,12 +286,12 @@ class MermaidDocumentSerializerTest {
 
         val expected = """erDiagram
     $parentId["A"] {
-        t_INT c_id1 PK
-        t_INT c_id2 PK
+        INT id1 PK
+        INT id2 PK
     }
     $childId["B"] {
-        t_INT c_a
-        t_INT c_b
+        INT a
+        INT b
     }
     %% FK: physical $childId.a -> $parentId.id2, $childId.b -> $parentId.id1
     $parentId ||..o{ $childId : "physical:composite"
@@ -315,11 +314,11 @@ class MermaidDocumentSerializerTest {
         )
         val expected = """erDiagram
     $parentId["A"] {
-        t_INT c_id PK
+        INT id PK
     }
     $childId["B"] {
-        t_INT c_a
-        t_INT c_b
+        INT a
+        INT b
     }
     %% FK: physical $childId.a -> $parentId.id
     $parentId ||..o{ $childId : "physical:fk1"
@@ -350,8 +349,8 @@ class MermaidDocumentSerializerTest {
         assertEquals(
             """erDiagram
     $parentId["A"] {
-        t_INT c_id PK
-        t_INT c_parent
+        INT id PK
+        INT parent
     }
     %% FK: physical $parentId.parent -> $parentId.id
     $parentId ||..o{ $parentId : "physical:self"
@@ -439,7 +438,7 @@ class MermaidDocumentSerializerTest {
         assertEquals(
             """erDiagram
     $parentId["A"] {
-        t_INT c_value ""
+        INT value ""
     }
 """,
             complete(columnEmpty),
@@ -448,7 +447,7 @@ class MermaidDocumentSerializerTest {
         assertEquals(
             """erDiagram
     $parentId["A"] {
-        t_INT c_value
+        INT value
     }
 """,
             complete(columnAbsent),
@@ -566,10 +565,10 @@ class MermaidDocumentSerializerTest {
 
     private fun entityOnlyPrefix(): String = """erDiagram
     $parentId["A"] {
-        t_INT c_id PK
+        INT id PK
     }
     $childId["B"] {
-        t_INT c_parent_u005F_id
+        INT parent_id
     }
 """
 
