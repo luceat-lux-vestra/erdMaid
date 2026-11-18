@@ -1,5 +1,6 @@
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
@@ -163,6 +164,9 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
         // Starter 263 touches JDK-internal BasicFileAttributesHolder while unpacking the IDE.
         jvmArgs("--add-exports=java.base/sun.nio.fs=ALL-UNNAMED")
         // TestIdeUiTask supplies path.to.build.plugin from its buildPlugin archiveFile.
