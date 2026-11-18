@@ -42,13 +42,13 @@ class ErdMaidExportActionTest {
     }
 
     @Test
-    fun `action declares bounded EDT update policy`() = runInEdtAndWait {
+    fun `action declares bounded EDT update and suppresses empty database context`() = runInEdtAndWait {
         assertEquals(ActionUpdateThread.EDT, action.actionUpdateThread)
 
         val project = project(disposed = false)
         val event = createEvent(project)
         action.update(event)
-        assertTrue(event.presentation.isEnabledAndVisible)
+        assertFalse(event.presentation.isEnabledAndVisible)
     }
 
     @Test
@@ -77,6 +77,8 @@ class ErdMaidExportActionTest {
         assertTrue(source.contains("Dispatchers.EDT"))
         assertFalse(source.contains("Class.forName"))
         assertFalse(source.contains("getSelectedDbElementsExpandingGroups"))
+        assertTrue(source.contains("hasPotentialExportSelection"))
+        assertFalse(source.contains("getSelectedNodesExpandingGroups"))
         assertFalse(source.contains("MermaidGenerator"))
         assertFalse(source.contains("LOG.error"))
     }
