@@ -345,6 +345,10 @@ class LiveIdeSmokeTest {
         copyThroughIde(sentinel)
         invokeExportThroughDatabasePopup(dataSourceName, ordersTable, usersTable)
         return waitForClipboardDocument(sentinel).also { document ->
+            println("ERDMAID_E2E_DOCUMENT_BEGIN datasource=$dataSourceName sentinel=$sentinel")
+            print(document)
+            if (!document.endsWith("\n")) println()
+            println("ERDMAID_E2E_DOCUMENT_END datasource=$dataSourceName sentinel=$sentinel")
             assertReadableUnrelatedUniqueExport(
                 document = document,
                 ordersTable = ordersTable,
