@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 ### Fixed
+- Prevent unrelated SQLite-style `UNIQUE` indices or ungrouped candidate-key markers from suppressing otherwise valid foreign-key ERDs; still fail closed when index coverage may constrain the FK tuple or cannot be resolved.
 - Restore readable SQL column and type names in exported Mermaid attributes (for example `INT user_id`, `VARCHAR(255) customer_name`, `NUMERIC(18,2) unit_price`) instead of opaque `c_...` / `t_...` tokens. Preserve grammar-safe quoting and an injective fallback for unrepresentable source text.
 
 ### Added
