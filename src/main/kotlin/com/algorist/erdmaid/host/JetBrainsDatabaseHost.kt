@@ -68,8 +68,9 @@ internal object DatabaseToolsCompatibility {
         dataContext: DataContext,
         selectedNodesReader: ((DataContext) -> Any?)? = null,
         directElementsReader: ((DataContext) -> Any?)? = null,
-    ): Boolean = try {
-        val nodes = if (selectedNodesReader == null) {
+    ): Boolean {
+        return try {
+            val nodes = if (selectedNodesReader == null) {
             invokeSelectionMethod(SELECTED_NODES_METHOD, dataContext)
         } else {
             selectedNodesReader(dataContext)
@@ -92,8 +93,9 @@ internal object DatabaseToolsCompatibility {
         false
     } catch (_: RuntimeException) {
         false
-    } catch (_: LinkageError) {
-        false
+        } catch (_: LinkageError) {
+            false
+        }
     }
 
     private fun invokeSelectionMethod(name: String, dataContext: DataContext): Any? =
