@@ -6,6 +6,7 @@ import com.intellij.driver.model.OnDispatcher
 import com.intellij.driver.sdk.invokeAction
 import com.intellij.driver.sdk.expireNotifications
 import com.intellij.driver.sdk.getNotifications
+import com.intellij.driver.sdk.getPlugin
 import com.intellij.driver.sdk.arePluginsInitialized
 import com.intellij.driver.sdk.isPluginLoaded
 import com.intellij.driver.sdk.ui.StringSelectionRef
@@ -110,6 +111,7 @@ private fun Driver.clipboardText(): String? =
  */
 class LiveIdeSmokeTest {
     private val pluginPath = pathOf(System.getProperty("path.to.build.plugin")).toAbsolutePath()
+    private val expectedPluginVersion = System.getProperty("erdmaid.e2e.expectedPluginVersion")
 
     @Test
     fun `IDEA 2026_3 exports real H2 and SQLite Database selections through the popup`(
@@ -155,6 +157,18 @@ class LiveIdeSmokeTest {
                     assertTrue(
                         isPluginLoaded("com.algorist.erdmaid"),
                         "the exact packaged erdMaid ZIP must be loaded in the IDEA process",
+                    )
+                    val installedPlugin = checkNotNull(getPlugin("com.algorist.erdmaid")) {
+                        "erdMaid plugin descriptor must be visible in the live IDEA process"
+                    }
+                    assertEquals(
+                        expectedPluginVersion,
+                        installedPlugin.getVersion(),
+                        "live IDEA must load the exact packaged plugin version",
+                    )
+                    println(
+                        "ERDMAID_E2E_PLUGIN id=com.algorist.erdmaid version=${installedPlugin.getVersion()} " +
+                            "fixture_revision=$FIXTURE_REVISION",
                     )
                     val applicationInfo = service<ApplicationInfoRef>()
                     assertEquals(
@@ -1161,6 +1175,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
+        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v2"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
         const val EXPORT_ACTION_TEXT = "Export as Mermaid ERD (erdMaid)"
