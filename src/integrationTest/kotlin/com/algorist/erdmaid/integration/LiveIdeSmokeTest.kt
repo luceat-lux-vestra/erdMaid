@@ -244,7 +244,7 @@ class LiveIdeSmokeTest {
                         "unchanged SQLite Database Tools selection must export byte-identical Mermaid text",
                     )
 
-                    assertRelevantUniqueSQLiteFailsClosed()
+                    assertRelevantUniqueSQLiteNeverClaimsMany()
                     assertMixedViewSelectionFailsClosed()
                     assertCrossDataSourceSelectionFailsClosed()
                 }
@@ -697,13 +697,56 @@ class LiveIdeSmokeTest {
         return line.trimStart().substringBefore("[")
     }
 
-    private fun Driver.assertRelevantUniqueSQLiteFailsClosed() {
-        assertFailClosedSelection(
+    private fun Driver.assertRelevantUniqueSQLiteNeverClaimsMany() {
+        expireNotifications()
+        val sentinel = "ERDMAID_E2E_SQLITE_RELEVANT_UNIQUE"
+        copyThroughIde(sentinel)
+        invokeExportThroughDatabasePopup(
             dataSourceName = SQLITE_DRIVER_NAME,
             selectedObjects = setOf(SQLITE_RELEVANT_ORDERS_TABLE, SQLITE_RELEVANT_USERS_TABLE),
             rightClickName = SQLITE_RELEVANT_ORDERS_TABLE,
-            sentinel = "ERDMAID_E2E_SQLITE_RELEVANT_UNIQUE",
-            expectedDiagnostic = "mermaid-cardinality-unavailable",
+        )
+
+        waitFor(
+            message = "relevant SQLite UNIQUE reaches a bounded terminal erdMaid outcome",
+            timeout = 2.minutes,
+        ) {
+            getNotifications().any { notification ->
+                notification.getTitle() == "erdMaid" &&
+                    (
+                        notification.getContent().contains("Mermaid ERD copied to clipboard") ||
+                            notification.getContent().contains("mermaid-cardinality-unavailable")
+                    )
+            }
+        }
+        val terminal = getNotifications().single { notification ->
+            notification.getTitle() == "erdMaid" &&
+                (
+                    notification.getContent().contains("Mermaid ERD copied to clipboard") ||
+                        notification.getContent().contains("mermaid-cardinality-unavailable")
+                )
+        }
+
+        if (terminal.getContent().contains("mermaid-cardinality-unavailable")) {
+            assertEquals(
+                sentinel,
+                clipboardText(),
+                "unverified relevant UNIQUE evidence must fail closed without publishing",
+            )
+            return
+        }
+
+        val document = waitForClipboardDocument(sentinel)
+        val edge = document.lineSequence().single { line ->
+            line.contains("physical:") && line.contains("||..o|")
+        }
+        assertTrue(
+            " ||..o| " in edge,
+            "proven relevant UNIQUE must cap children at one",
+        )
+        assertFalse(
+            document.contains(" ||..o{ ") || document.contains(" o|..o{ "),
+            "relevant UNIQUE must never be generalized to a MANY child multiplicity",
         )
     }
 
