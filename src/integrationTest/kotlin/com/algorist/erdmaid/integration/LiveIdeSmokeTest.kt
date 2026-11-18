@@ -64,7 +64,7 @@ private fun Driver.clipboardText(): String? =
 /**
  * Real-process release acceptance slice.
  *
- * The fixture deliberately includes an unrelated UNIQUE index on ORDERS.NOTE. A successful export
+ * The fixture deliberately includes an unrelated UNIQUE index on ERDMAID_ORDERS.NOTE. A successful export
  * therefore proves the #238 fix through the actual Database Tools metadata path while the visible
  * SQL identifiers and popup gesture simultaneously cover the #234 readability and #237 eligibility
  * regressions. Unit tests still own exhaustive semantic truth tables; this test owns the real IDE
@@ -246,9 +246,11 @@ class LiveIdeSmokeTest {
                     row.equals(USERS_TABLE, ignoreCase = true)
             }
         }
+        val selected = databaseTree.collectSelectedPaths()
+        assertEquals(2, selected.size, "real Database tree must select exactly two table nodes")
         assertEquals(
             setOf(ORDERS_TABLE, USERS_TABLE),
-            databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
+            selected.map { it.path.last().uppercase() }.toSet(),
             "real Database tree must own exactly the two intended table selections",
         )
 
@@ -298,6 +300,10 @@ class LiveIdeSmokeTest {
         assertTrue(
             "%% FK: physical" in document,
             "real physical relation annotation must be present",
+        )
+        assertTrue(
+            " ||..o{ " in document,
+            "unrelated UNIQUE(NOTE) must not collapse the USER_ID FK to one-to-one",
         )
         assertFalse(
             Regex("""\bc_[A-Za-z0-9_]""").containsMatchIn(document),
