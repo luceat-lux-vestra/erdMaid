@@ -416,11 +416,11 @@ class LiveIdeSmokeTest {
         databaseTree.expandAll(2.minutes)
         val expanded = databaseTree.collectExpandedPaths()
         val orders = expanded.single { path ->
-            path.path.last().equals(H2_ORDERS_TABLE, ignoreCase = true) &&
+            path.path.last().matchesDatabaseTreeLabel(H2_ORDERS_TABLE) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
         val users = expanded.single { path ->
-            path.path.last().equals(H2_USERS_TABLE, ignoreCase = true) &&
+            path.path.last().matchesDatabaseTreeLabel(H2_USERS_TABLE) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
 
@@ -605,7 +605,7 @@ class LiveIdeSmokeTest {
         databaseTree.expandAll(2.minutes)
 
         val groupCandidates = databaseTree.collectExpandedPaths().filter { path ->
-            path.path.last().equals("Tables", ignoreCase = true) &&
+            path.path.last().matchesDatabaseTreeLabel("Tables", ignoreCase = true) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) } &&
                 path.path.any { it.equals("PUBLIC", ignoreCase = true) }
         }
@@ -663,8 +663,8 @@ class LiveIdeSmokeTest {
         val expanded = databaseTree.collectExpandedPaths()
         fun exactRow(schema: String, table: String) =
             expanded.single { path ->
-                path.path.last().equals(table, ignoreCase = true) &&
-                    path.path.any { it.equals(schema, ignoreCase = true) } &&
+                path.path.last().matchesDatabaseTreeLabel(table) &&
+                    path.path.any { it.matchesDatabaseTreeLabel(schema) } &&
                     path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
             }
 
@@ -733,11 +733,11 @@ class LiveIdeSmokeTest {
         databaseTree.expandAll(2.minutes)
         val expanded = databaseTree.collectExpandedPaths()
         val upper = expanded.single { path ->
-            path.path.last() == H2_QUOTED_UPPER_TABLE &&
+            path.path.last().matchesDatabaseTreeLabel(H2_QUOTED_UPPER_TABLE) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
         val lower = expanded.single { path ->
-            path.path.last() == H2_QUOTED_LOWER_TABLE &&
+            path.path.last().matchesDatabaseTreeLabel(H2_QUOTED_LOWER_TABLE) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
         withContext(OnDispatcher.EDT) {
@@ -780,7 +780,7 @@ class LiveIdeSmokeTest {
         }
         databaseTree.expandAll(2.minutes)
         val view = databaseTree.collectExpandedPaths().single { path ->
-            path.path.last().equals(H2_VIEW_NAME, ignoreCase = true) &&
+            path.path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
         databaseTree.clickRow(view.row)
@@ -792,6 +792,15 @@ class LiveIdeSmokeTest {
         )
         popup.keyboard { escape() }
         assertEquals(sentinel, clipboardText(), "view-only menu inspection must not mutate clipboard")
+    }
+
+    private fun String.matchesDatabaseTreeLabel(
+        expected: String,
+        ignoreCase: Boolean = false,
+    ): Boolean {
+        val rendered = trim()
+        return rendered.equals(expected, ignoreCase = ignoreCase) ||
+            rendered.startsWith("$expected ", ignoreCase = ignoreCase)
     }
 
     private fun entityIdForQualifiedLabel(document: String, schema: String, table: String): String {
@@ -1004,7 +1013,6 @@ class LiveIdeSmokeTest {
         rightClickName: String,
         allowSuppressedAction: Boolean = false,
     ): Boolean {
-        val expectedNames = selectedObjects.map { it.uppercase() }.toSet()
         lateinit var databaseTree: JTreeUiComponent
         ideFrame {
             invokeAction("ActivateDatabaseToolWindow", now = false)
@@ -1023,12 +1031,19 @@ class LiveIdeSmokeTest {
             message = "$selectedObjects are visible in the synchronized Database tree",
             timeout = 2.minutes,
         ) {
-            val visible = databaseTree.collectExpandedPaths().map { it.path.last().uppercase() }.toSet()
-            expectedNames.all { it in visible }
+            val visible = databaseTree.collectExpandedPaths()
+            selectedObjects.all { expected ->
+                visible.count { path -> path.path.last().matchesDatabaseTreeLabel(expected) } == 1
+            }
         }
 
-        databaseTree.selectRows { visibleRows ->
-            visibleRows.filter { row -> row.uppercase() in expectedNames }
+        val visible = databaseTree.collectExpandedPaths()
+        val selectedRows = selectedObjects.map { expected ->
+            visible.single { path -> path.path.last().matchesDatabaseTreeLabel(expected) }
+        }
+        withContext(OnDispatcher.EDT) {
+            cast(databaseTree.component, DatabaseTreeSelectionRef::class)
+                .setSelectionRows(selectedRows.map { it.row }.toIntArray())
         }
         val selected = databaseTree.collectSelectedPaths()
         assertEquals(
@@ -1036,20 +1051,33 @@ class LiveIdeSmokeTest {
             selected.size,
             "real Database tree must select exactly the intended database objects",
         )
-        assertEquals(
-            expectedNames,
-            selected.map { it.path.last().uppercase() }.toSet(),
-            "real Database tree must own exactly the intended selection",
-        )
+        for (expected in selectedObjects) {
+            assertEquals(
+                1,
+                selected.count { path -> path.path.last().matchesDatabaseTreeLabel(expected) },
+                "real Database tree must own exactly one selected row for $expected",
+            )
+        }
 
         // Use the shipping popup registration, not direct action invocation. Right-clicking one
         // already-selected row must preserve the multi-selection used to build AnActionEvent.
-        databaseTree.rightClickRow { it.equals(rightClickName, ignoreCase = true) }
+        val rightClickRow = selectedRows.single {
+            it.path.last().matchesDatabaseTreeLabel(rightClickName)
+        }.row
+        databaseTree.rightClickRow(rightClickRow)
+        val popupSelection = databaseTree.collectSelectedPaths()
         assertEquals(
-            expectedNames,
-            databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
-            "opening the Database popup must preserve the intended selection",
+            selectedObjects.size,
+            popupSelection.size,
+            "opening the Database popup must preserve the intended selection size",
         )
+        for (expected in selectedObjects) {
+            assertEquals(
+                1,
+                popupSelection.count { path -> path.path.last().matchesDatabaseTreeLabel(expected) },
+                "opening the Database popup must preserve selected row $expected",
+            )
+        }
         val popup = ui.popup().list()
         if (!popup.hasText(EXPORT_ACTION_TEXT)) {
             assertTrue(
