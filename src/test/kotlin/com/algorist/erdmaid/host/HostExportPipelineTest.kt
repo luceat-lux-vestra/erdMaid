@@ -48,7 +48,7 @@ class HostExportPipelineTest {
         assertEquals(
             """erDiagram
     e_v6F726967696E2D31_n_n_v6F7264657273["orders"] {
-        t_INT c_id
+        INT id
     }
 """,
             published,
@@ -77,11 +77,11 @@ class HostExportPipelineTest {
         assertEquals(
             """erDiagram
     e_v6F726967696E2D31_n_n_v6F7264657273["orders"] {
-        t_INT c_id PK
-        t_INT c_user_u005F_id
+        INT id PK
+        INT user_id
     }
     e_v6F726967696E2D31_n_n_v7573657273["users"] {
-        t_INT c_id PK
+        INT id PK
     }
     %% FK: physical e_v6F726967696E2D31_n_n_v6F7264657273.user_id -> e_v6F726967696E2D31_n_n_v7573657273.id
     e_v6F726967696E2D31_n_n_v7573657273 ||..o{ e_v6F726967696E2D31_n_n_v6F7264657273 : "physical:fk_orders_users"
@@ -116,10 +116,10 @@ class HostExportPipelineTest {
         assertEquals(
             """erDiagram
     e_v6F726967696E2D31_n_v61726368697665_v6F7264657273["archive.orders"] {
-        t_INT c_id
+        INT id
     }
     e_v6F726967696E2D31_n_v73616C6573_v6F7264657273["sales.orders"] {
-        t_INT c_id
+        INT id
     }
 """,
             published,
