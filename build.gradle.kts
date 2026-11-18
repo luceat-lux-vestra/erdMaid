@@ -162,11 +162,9 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
         classpath = integrationTestSourceSet.runtimeClasspath
         // Starter 263 touches JDK-internal BasicFileAttributesHolder while unpacking the IDE.
         jvmArgs("--add-exports=java.base/sun.nio.fs=ALL-UNNAMED")
-        systemProperty(
-            "path.to.build.plugin",
-            tasks.prepareSandbox.get().pluginDirectory.get().asFile,
-        )
-        dependsOn(tasks.prepareSandbox, verifyStarterSecurityGraph)
+        // TestIdeUiTask supplies path.to.build.plugin from its buildPlugin archiveFile.
+        // Do not replace it with prepareSandbox: this E2E must install the packaged ZIP.
+        dependsOn(tasks.buildPlugin, verifyStarterSecurityGraph)
         useJUnitPlatform()
         testLogging {
             events("passed", "failed")
