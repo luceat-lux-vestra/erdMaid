@@ -78,20 +78,36 @@ class DatabaseMetadataEvidenceTest {
     }
 
     @Test
-    fun `candidate marker without grouped table key stays unavailable`() {
+    fun `unmatched candidate marker stays unverified and is never promoted to key`() {
         val email = column("email")
+        val id = ColumnId(tableId, "email")
         val table = table(mapOf("email" to setOf(DasColumn.Attribute.CANDIDATE_KEY)))
+        val ids = mapOf("email" to id)
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = emptyList(),
+            tableKeys = emptyList(),
+            columnIds = ids,
+            candidateMarkedColumns = setOf("email"),
+        )
+        assertEquals(
+            listOf(listOf(id)),
+            partition.unverifiedUniqueIndexes.map { it.columns.toList() },
+        )
 
         val result = invokeCaptureUniqueKeys(
             table = table,
             columns = listOf(email),
-            columnIds = mapOf("email" to ColumnId(tableId, "email")),
+            columnIds = ids,
             columnObjects = mapOf("email" to email),
             tableKeys = emptyList(),
             primaryKeys = emptyList(),
+            indices = partition.indicesRequiringAuthorityCheck,
         )
 
-        assertUnavailable(result, "candidate-key-column-without-table-key")
+        // Proven grouped key evidence is empty, but the snapshot separately retains
+        // the possible singleton key for tuple-scoped fail-closed cardinality.
+        assertTrue(result is Evidence.Known)
+        assertTrue((result as Evidence.Known).value.isEmpty())
     }
 
     @Test
@@ -164,6 +180,25 @@ class DatabaseMetadataEvidenceTest {
         )
         assertTrue(proven is Evidence.Known)
         assertTrue((proven as Evidence.Known).value.isEmpty())
+    }
+
+    @Test
+    fun `unmatched candidate marker on unrelated column does not taint FK index coverage`() {
+        val ids = mapOf(
+            "parent_id" to ColumnId(tableId, "parent_id"),
+            "email" to ColumnId(tableId, "email"),
+        )
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = listOf(index(unique = true, functionBased = false, "email")),
+            tableKeys = emptyList(),
+            columnIds = ids,
+            candidateMarkedColumns = setOf("email"),
+        )
+        assertTrue(partition.indicesRequiringAuthorityCheck.isEmpty())
+        assertEquals(
+            listOf(listOf(ids.getValue("email"))),
+            partition.unverifiedUniqueIndexes.map { it.columns.toList() }.distinct(),
+        )
     }
 
     @Test
