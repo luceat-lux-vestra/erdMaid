@@ -229,7 +229,11 @@ class DatabaseMetadataEvidenceTest {
         )
 
         assertTrue(partition.unverifiedUniqueIndexes.isEmpty())
-        assertEquals(listOf(functionIndex, missingColumn), partition.indicesRequiringAuthorityCheck)
+        assertEquals(2, partition.indicesRequiringAuthorityCheck.size)
+        // These IntelliJ API proxies deliberately do not implement value equality.
+        // Verify exact object identity and iteration order, not proxy.equals().
+        assertTrue(partition.indicesRequiringAuthorityCheck[0] === functionIndex)
+        assertTrue(partition.indicesRequiringAuthorityCheck[1] === missingColumn)
     }
 
     @Test
@@ -244,7 +248,8 @@ class DatabaseMetadataEvidenceTest {
         )
 
         assertTrue(partition.unverifiedUniqueIndexes.isEmpty())
-        assertEquals(listOf(index), partition.indicesRequiringAuthorityCheck)
+        assertEquals(1, partition.indicesRequiringAuthorityCheck.size)
+        assertTrue(partition.indicesRequiringAuthorityCheck.single() === index)
     }
 
     @Test
