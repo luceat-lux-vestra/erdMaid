@@ -392,7 +392,10 @@ class LiveIdeSmokeTest {
                 }
             }
         }
-        waitForIndicators(5.minutes)
+        // Do not wait for all IDE background indicators here. Database Tools may keep
+        // unrelated long-lived background work active in headless CI. The following export
+        // helpers wait on the authoritative observable boundary instead: the datasource and
+        // exact fixture tables becoming visible in the real Database tree.
     }
 
     private fun Driver.assertSelectionOrderInvariantH2Scenario() {
