@@ -921,6 +921,33 @@ class LiveIdeSmokeTest {
                     )
                     """.trimIndent(),
                 )
+                statement.execute("CREATE SCHEMA $H2_SALES_SCHEMA")
+                statement.execute("CREATE SCHEMA $H2_ARCHIVE_SCHEMA")
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_SALES_SCHEMA.USERS (
+                      ID BIGINT PRIMARY KEY
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_SALES_SCHEMA.ORDERS (
+                      ID BIGINT PRIMARY KEY,
+                      USER_ID BIGINT NOT NULL,
+                      CONSTRAINT $H2_SALES_FK
+                        FOREIGN KEY (USER_ID) REFERENCES $H2_SALES_SCHEMA.USERS(ID)
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_ARCHIVE_SCHEMA.ORDERS (
+                      ID BIGINT PRIMARY KEY,
+                      NOTE VARCHAR(255)
+                    )
+                    """.trimIndent(),
+                )
                 statement.execute(
                     "CREATE VIEW $H2_VIEW_NAME AS SELECT ID, USER_ID, NOTE FROM $H2_ORDERS_TABLE"
                 )
@@ -1010,6 +1037,9 @@ class LiveIdeSmokeTest {
         const val H2_EMPLOYEE_TABLE = "ERDMAID_EMPLOYEE"
         const val H2_SELF_FK = "FK_ERDMAID_EMPLOYEE_MANAGER"
         const val H2_VIEW_NAME = "ERDMAID_H2_ORDER_VIEW"
+        const val H2_SALES_SCHEMA = "ERDMAID_SALES"
+        const val H2_ARCHIVE_SCHEMA = "ERDMAID_ARCHIVE"
+        const val H2_SALES_FK = "FK_ERDMAID_SALES_ORDERS_USERS"
 
         const val SQLITE_USERS_TABLE = "ERDMAID_SQLITE_USERS"
         const val SQLITE_ORDERS_TABLE = "ERDMAID_SQLITE_ORDERS"
