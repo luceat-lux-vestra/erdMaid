@@ -181,6 +181,12 @@ object RelationConstraintCompiler {
         if (uniqueKeys is Evidence.Unavailable) {
             unavailable += "unique-keys:${uniqueKeys.diagnostic.code}"
         }
+        // Unique indexes without proven global-key semantics are not promoted to keys.
+        // Only an index whose column set is contained in this FK tuple could establish
+        // tuple uniqueness. An unrelated index cannot make this tuple unique.
+        if (table.unverifiedUniqueIndexes.any { index -> keyIsContained(index.columns, tuple) }) {
+            unavailable += "unique-index:unverified-index-may-cover-tuple"
+        }
 
         return if (unavailable.isEmpty()) {
             Evidence.Known(RelationTupleUniqueness.NON_UNIQUE)
