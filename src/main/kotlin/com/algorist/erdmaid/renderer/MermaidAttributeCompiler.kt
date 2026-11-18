@@ -263,9 +263,12 @@ object MermaidAttributeCompiler {
     }
 
     private fun isSafeBacktickAttributeWord(value: String): Boolean =
-        value.isNotEmpty() && value.codePoints().allMatch { cp ->
-            cp >= 0x20 && cp != 0x7f && cp != 0x2028 && cp != 0x2029 &&
-                cp != '`'.code && cp !in 0xd800..0xdfff
+        value.isNotBlank() && value.codePoints().allMatch { cp ->
+            // Quoting is for readable one-line SQL names, not a way to admit hostile
+            // punctuation or markup into Mermaid's attribute/rendering context.
+            Character.isLetterOrDigit(cp) ||
+                cp in ATTRIBUTE_WORD_PUNCTUATION ||
+                cp == ' '.code
         }
 
     private fun isUnsafeCommentCodePoint(codePoint: Int): Boolean =
