@@ -132,6 +132,87 @@ class DatabaseMetadataEvidenceTest {
     }
 
     @Test
+    fun `unrelated plain unique index is preserved as unverified coverage without poisoning grouped keys`() {
+        val foreignKeyColumn = column("parent_id")
+        val email = column("email")
+        val ids = mapOf(
+            "parent_id" to ColumnId(tableId, "parent_id"),
+            "email" to ColumnId(tableId, "email"),
+        )
+        val index = index(unique = true, functionBased = false, "email")
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = listOf(index),
+            tableKeys = emptyList(),
+            columnIds = ids,
+        )
+
+        assertTrue(partition.indicesRequiringAuthorityCheck.isEmpty())
+        assertEquals(
+            listOf(listOf(ids.getValue("email"))),
+            partition.unverifiedUniqueIndexes.map { it.columns.toList() },
+        )
+
+        val table = table(mapOf("parent_id" to emptySet(), "email" to emptySet()))
+        val proven = invokeCaptureUniqueKeys(
+            table = table,
+            columns = listOf(foreignKeyColumn, email),
+            columnIds = ids,
+            columnObjects = mapOf("parent_id" to foreignKeyColumn, "email" to email),
+            tableKeys = emptyList(),
+            primaryKeys = emptyList(),
+            indices = partition.indicesRequiringAuthorityCheck,
+        )
+        assertTrue(proven is Evidence.Known)
+        assertTrue((proven as Evidence.Known).value.isEmpty())
+    }
+
+    @Test
+    fun `relevant plain unique index is retained as unverified instead of inventing a key`() {
+        val ids = mapOf("parent_id" to ColumnId(tableId, "parent_id"))
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = listOf(index(unique = true, functionBased = false, "parent_id")),
+            tableKeys = emptyList(),
+            columnIds = ids,
+        )
+
+        assertTrue(partition.indicesRequiringAuthorityCheck.isEmpty())
+        assertEquals(
+            listOf(listOf(ids.getValue("parent_id"))),
+            partition.unverifiedUniqueIndexes.map { it.columns.toList() },
+        )
+    }
+
+    @Test
+    fun `function indexes and unresolved index columns remain in fail-closed authority check`() {
+        val ids = mapOf("parent_id" to ColumnId(tableId, "parent_id"))
+        val functionIndex = index(unique = true, functionBased = true, "parent_id")
+        val missingColumn = index(unique = true, functionBased = false, "unknown")
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = listOf(functionIndex, missingColumn),
+            tableKeys = emptyList(),
+            columnIds = ids,
+        )
+
+        assertTrue(partition.unverifiedUniqueIndexes.isEmpty())
+        assertEquals(listOf(functionIndex, missingColumn), partition.indicesRequiringAuthorityCheck)
+    }
+
+    @Test
+    fun `unique index matching authoritative table key remains corroboration`() {
+        val ids = mapOf("email" to ColumnId(tableId, "email"))
+        val key = tableKey("uk_users_email", primary = false, "email")
+        val index = index(unique = true, functionBased = false, "email")
+        val partition = JetBrainsDatabaseHost.partitionUnverifiedUniqueIndexes(
+            indices = listOf(index),
+            tableKeys = listOf(key),
+            columnIds = ids,
+        )
+
+        assertTrue(partition.unverifiedUniqueIndexes.isEmpty())
+        assertEquals(listOf(index), partition.indicesRequiringAuthorityCheck)
+    }
+
+    @Test
     fun `function based unique index without stronger key evidence stays unavailable`() {
         val email = column("email")
         val table = table(mapOf("email" to emptySet()))
