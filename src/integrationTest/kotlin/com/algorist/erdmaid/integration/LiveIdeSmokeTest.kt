@@ -339,16 +339,14 @@ class LiveIdeSmokeTest {
                 message = "Database Tools New menu must expose Data Source",
                 timeout = 30.seconds,
             ).click()
-            waitFor("Database Tools datasource type submenu", timeout = 30.seconds) {
-                ui.popups().list().size >= 2
+            waitFor("Database Tools datasource type submenu exposes $dataSourceType", timeout = 30.seconds) {
+                ui.popups().list().lastOrNull()?.hasText(dataSourceType) == true
             }
-            ui.popups().list().last().list().apply {
-                setFocus()
-                keyboard {
-                    typeText(dataSourceType)
-                    enter()
-                }
-            }
+            ui.popups().list().last().waitOneText(
+                dataSourceType,
+                message = "Database Tools datasource type submenu must expose $dataSourceType",
+                timeout = 30.seconds,
+            ).click()
 
             dataSourcesAndDriversDialog {
                 button {
