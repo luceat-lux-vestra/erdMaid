@@ -1210,7 +1210,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
-        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v2"
+        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v3"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
         const val EXPORT_ACTION_TEXT = "Export as Mermaid ERD (erdMaid)"
