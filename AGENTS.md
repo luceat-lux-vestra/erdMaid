@@ -119,6 +119,7 @@ Rules:
 - Optional values that are known absent and values that could not be read have different type
   states.
 - Key/relation collections distinguish known-empty from unavailable evidence.
+- Proven grouped unique keys and unverified unique-index/candidate-marker coverage are separate immutable facts; an unrelated unverified index cannot poison a FK tuple, while overlapping or unreadable index coverage never becomes a guessed NON_UNIQUE.
 - Collection-valued canonical facts own immutable snapshots; caller-owned mutable collections are
   never retained or exposed as writable canonical state.
 - Composite PK/FK and unique-key column order is preserved exactly.
