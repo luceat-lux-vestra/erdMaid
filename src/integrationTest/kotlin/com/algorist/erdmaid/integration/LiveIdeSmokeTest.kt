@@ -373,11 +373,44 @@ class LiveIdeSmokeTest {
         }
     }
 
+    private fun Driver.exportSelectedTables(
+        dataSourceName: String,
+        selectedTables: Set<String>,
+        sentinel: String,
+        rightClickName: String = selectedTables.first(),
+    ): String {
+        expireNotifications()
+        copyThroughIde(sentinel)
+        invokeExportThroughDatabasePopup(
+            dataSourceName = dataSourceName,
+            selectedObjects = selectedTables,
+            rightClickName = rightClickName,
+        )
+        waitForErdMaidNotification("Mermaid ERD copied to clipboard")
+        return waitForClipboardDocument(sentinel).also { document ->
+            println("ERDMAID_E2E_DOCUMENT_BEGIN datasource=$dataSourceName sentinel=$sentinel")
+            print(document)
+            if (!document.endsWith("\n")) println()
+            println("ERDMAID_E2E_DOCUMENT_END datasource=$dataSourceName sentinel=$sentinel")
+        }
+    }
+
     private fun Driver.invokeExportThroughDatabasePopup(
         dataSourceName: String,
         ordersTable: String,
         usersTable: String,
+    ) = invokeExportThroughDatabasePopup(
+        dataSourceName = dataSourceName,
+        selectedObjects = setOf(ordersTable, usersTable),
+        rightClickName = ordersTable,
+    )
+
+    private fun Driver.invokeExportThroughDatabasePopup(
+        dataSourceName: String,
+        selectedObjects: Set<String>,
+        rightClickName: String,
     ) {
+        val expectedNames = selectedObjects.map { it.uppercase() }.toSet()
         lateinit var databaseTree: JTreeUiComponent
         ideFrame {
             invokeAction("ActivateDatabaseToolWindow", now = false)
@@ -393,38 +426,39 @@ class LiveIdeSmokeTest {
 
         databaseTree.expandAll(2.minutes)
         waitFor(
-            message = "$ordersTable and $usersTable are visible in the synchronized Database tree",
+            message = "$selectedObjects are visible in the synchronized Database tree",
             timeout = 2.minutes,
         ) {
             val visible = databaseTree.collectExpandedPaths().map { it.path.last().uppercase() }.toSet()
-            ordersTable in visible && usersTable in visible
+            expectedNames.all { it in visible }
         }
 
         databaseTree.selectRows { visibleRows ->
-            visibleRows.filter { row ->
-                row.equals(ordersTable, ignoreCase = true) ||
-                    row.equals(usersTable, ignoreCase = true)
-            }
+            visibleRows.filter { row -> row.uppercase() in expectedNames }
         }
         val selected = databaseTree.collectSelectedPaths()
-        assertEquals(2, selected.size, "real Database tree must select exactly two table nodes")
         assertEquals(
-            setOf(ordersTable, usersTable),
+            selectedObjects.size,
+            selected.size,
+            "real Database tree must select exactly the intended database objects",
+        )
+        assertEquals(
+            expectedNames,
             selected.map { it.path.last().uppercase() }.toSet(),
-            "real Database tree must own exactly the intended table pair",
+            "real Database tree must own exactly the intended selection",
         )
 
         // Use the shipping popup registration, not direct action invocation. Right-clicking one
         // already-selected row must preserve the multi-selection used to build AnActionEvent.
-        databaseTree.rightClickRow { it.equals(ordersTable, ignoreCase = true) }
+        databaseTree.rightClickRow { it.equals(rightClickName, ignoreCase = true) }
         assertEquals(
-            setOf(ordersTable, usersTable),
+            expectedNames,
             databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
-            "opening the Database popup must preserve the selected table pair",
+            "opening the Database popup must preserve the intended selection",
         )
         ui.popup().list().waitOneText(
             EXPORT_ACTION_TEXT,
-            message = "erdMaid action must be visible and enabled for selected database tables",
+            message = "erdMaid action must be visible and enabled for the selected database objects",
             timeout = 30.seconds,
         ).click()
     }
