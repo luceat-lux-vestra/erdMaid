@@ -23,11 +23,8 @@ val buildTimestampVersion: String = LocalDateTime.now().format(DateTimeFormatter
 val resolvedPluginVersion = providers.gradleProperty("buildVersion").orElse(buildTimestampVersion)
 version = resolvedPluginVersion.get()
 
-// JetBrains Starter 2026.2 splits product descriptors into dedicated artifacts.
-// Keep the separate, proven 2026.2 Starter framework/product-descriptor line pinned
-// instead of LATEST-EAP-SNAPSHOT. Its real-process smoke test remains an independent
-// 262 regression proof while the compile/test SDK moves to 2026.3.
-val starterBuild = "262.8665.337"
+// Starter/Driver follows the maintained 2026.3 IntelliJ Platform dependency.
+// Keep process-level evidence on the same released platform as compile/test and Host API gates.
 
 sourceSets {
     create("integrationTest") {
@@ -51,10 +48,9 @@ dependencies {
     // The custom integrationTest source set needs Kotlin stdlib explicitly; do not rely on
     // an unrelated library such as kotlinx-coroutines to pull it in transitively.
     add("integrationTestImplementation", kotlin("stdlib"))
-    add(
-        "integrationTestImplementation",
-        "com.jetbrains.intellij.tools:ide-starter-product-idea-ultimate:$starterBuild",
-    )
+    // Real Database Tools E2E fixture only. The H2 driver is copied into Starter's isolated
+    // IDE config and registered as a local Database Tools driver; it is never shipped.
+    add("integrationTestImplementation", "com.h2database:h2:2.5.252")
 
     // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
@@ -93,7 +89,6 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
         testFramework(
             TestFrameworkType.Starter,
-            starterBuild,
             configurationName = "integrationTestImplementation",
         )
     }
@@ -165,13 +160,18 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")
         testClassesDirs = integrationTestSourceSet.output.classesDirs
         classpath = integrationTestSourceSet.runtimeClasspath
-        jvmArgs("--add-opens=java.base/sun.nio.fs=ALL-UNNAMED")
+        // Starter 263 touches JDK-internal BasicFileAttributesHolder while unpacking the IDE.
+        jvmArgs("--add-exports=java.base/sun.nio.fs=ALL-UNNAMED")
         systemProperty(
             "path.to.build.plugin",
             tasks.prepareSandbox.get().pluginDirectory.get().asFile,
         )
         dependsOn(tasks.prepareSandbox, verifyStarterSecurityGraph)
         useJUnitPlatform()
+        testLogging {
+            events("passed", "failed")
+            showStandardStreams = true
+        }
     }
 }
 
