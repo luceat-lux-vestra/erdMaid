@@ -3,6 +3,8 @@ package com.algorist.erdmaid.integration
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
 import com.intellij.driver.sdk.invokeAction
+import com.intellij.driver.sdk.arePluginsInitialized
+import com.intellij.driver.sdk.isPluginLoaded
 import com.intellij.driver.sdk.ui.StringSelectionRef
 import com.intellij.driver.sdk.ui.components.elements.JTreeUiComponent
 import com.intellij.driver.sdk.ui.components.elements.actionButton
@@ -24,6 +26,7 @@ import com.intellij.ide.starter.models.IdeInfo
 import com.intellij.ide.starter.models.TestCase
 import com.intellij.ide.starter.plugins.PluginConfigurator
 import com.intellij.ide.starter.project.LocalProjectInfo
+import com.intellij.ide.starter.project.NoProject
 import com.intellij.ide.starter.report.ErrorReporterToCI
 import com.intellij.ide.starter.runner.CurrentTestMethod
 import com.intellij.ide.starter.runner.Starter
@@ -45,6 +48,19 @@ import java.util.UUID
 import kotlin.io.path.Path as pathOf
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+
+@Remote(
+    "com.intellij.platform.trialPromotion.common.TrialStateService",
+    plugin = "com.intellij/intellij.platform.trialPromotion.common",
+)
+private interface TrialStateServiceRemote {
+    fun getTrialAvailable(): TrialAvailabilityRemote
+}
+
+@Remote("kotlinx.coroutines.flow.StateFlow")
+private interface TrialAvailabilityRemote {
+    fun getValue(): Boolean?
+}
 
 @Remote("com.intellij.openapi.ide.CopyPasteManager")
 private interface IdeClipboard {
@@ -101,6 +117,7 @@ class LiveIdeSmokeTest {
                     ?.let(::setLicense)
                 PluginConfigurator(this).installPluginFromPath(pluginPath)
             }
+            ensureUltimateActivation(context)
             writeH2DatabaseToolsDriverFixture(context.paths.configDir, fixture.driverJar)
 
             val result = context
@@ -144,6 +161,44 @@ class LiveIdeSmokeTest {
                 },
             )
         }
+    }
+
+    private fun ensureUltimateActivation(context: com.intellij.ide.starter.ide.IDETestContext) {
+        if (!System.getenv("LICENSE_KEY").isNullOrBlank()) {
+            return
+        }
+
+        val seedContext = Starter.newContext(
+            CurrentTestMethod.hyphenateWithClass() + "-activation",
+            TestCase(IdeInfo.IdeaUltimate, NoProject).withVersion(IDE_RELEASE),
+        )
+        seedContext
+            .runIdeWithDriver()
+            .useDriverAndCloseIde {
+                waitFor("application plugins initialized", timeout = 2.minutes) {
+                    arePluginsInitialized()
+                }
+                if (!isPluginLoaded("com.intellij.modules.ultimate")) {
+                    waitFor("IDEA Ultimate trial is available", timeout = 2.minutes) {
+                        service(TrialStateServiceRemote::class).getTrialAvailable().getValue() == true
+                    }
+                    invokeAction("StartTrial", now = false)
+                }
+                waitFor("IDEA Ultimate activation completed", timeout = 2.minutes) {
+                    isPluginLoaded("com.intellij.modules.ultimate") && arePluginsInitialized()
+                }
+            }
+
+        val seedKey = seedContext.paths.configDir.resolve("idea.key")
+        check(Files.isRegularFile(seedKey)) {
+            "IDEA Ultimate activation must persist idea.key before Database Tools E2E"
+        }
+        Files.createDirectories(context.paths.configDir)
+        Files.copy(
+            seedKey,
+            context.paths.configDir.resolve("idea.key"),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
     }
 
     private fun Driver.createH2DataSourceThroughDatabaseTools(jdbcUrl: String) {
