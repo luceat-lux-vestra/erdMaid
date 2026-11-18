@@ -520,6 +520,120 @@ class LiveIdeSmokeTest {
         )
     }
 
+    private fun Driver.assertDuplicateNamesAcrossSchemasH2Scenario() {
+        expireNotifications()
+        val sentinel = "ERDMAID_E2E_H2_DUPLICATE_SCHEMA"
+        copyThroughIde(sentinel)
+
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        databaseTree.expandAll(2.minutes)
+        val expanded = databaseTree.collectExpandedPaths()
+        fun exactRow(schema: String, table: String) =
+            expanded.single { path ->
+                path.path.last().equals(table, ignoreCase = true) &&
+                    path.path.any { it.equals(schema, ignoreCase = true) } &&
+                    path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+            }
+
+        val salesOrders = exactRow(H2_SALES_SCHEMA, "ORDERS")
+        val archiveOrders = exactRow(H2_ARCHIVE_SCHEMA, "ORDERS")
+        val salesUsers = exactRow(H2_SALES_SCHEMA, "USERS")
+        val rows = intArrayOf(salesOrders.row, archiveOrders.row, salesUsers.row)
+        withContext(OnDispatcher.EDT) {
+            cast(databaseTree.component, DatabaseTreeSelectionRef::class).setSelectionRows(rows)
+        }
+
+        val selected = databaseTree.collectSelectedPaths()
+        assertEquals(3, selected.size, "multi-schema scenario must select exactly three physical tables")
+        assertTrue(
+            selected.any { path ->
+                path.path.last().equals("ORDERS", ignoreCase = true) &&
+                    path.path.any { it.equals(H2_SALES_SCHEMA, ignoreCase = true) }
+            },
+            "sales.orders must be selected by authoritative tree path",
+        )
+        assertTrue(
+            selected.any { path ->
+                path.path.last().equals("ORDERS", ignoreCase = true) &&
+                    path.path.any { it.equals(H2_ARCHIVE_SCHEMA, ignoreCase = true) }
+            },
+            "archive.orders must remain a distinct selected object",
+        )
+
+        databaseTree.rightClickRow(salesOrders.row)
+        ui.popup().list().waitOneText(
+            EXPORT_ACTION_TEXT,
+            message = "erdMaid action must support multiple schemas in one datasource",
+            timeout = 30.seconds,
+        ).click()
+
+        waitForErdMaidNotification("Mermaid ERD copied to clipboard")
+        val document = waitForClipboardDocument(sentinel)
+        val salesOrdersId = entityIdForQualifiedLabel(document, H2_SALES_SCHEMA, "ORDERS")
+        val archiveOrdersId = entityIdForQualifiedLabel(document, H2_ARCHIVE_SCHEMA, "ORDERS")
+        val salesUsersId = entityIdForLabel(document, "USERS")
+        assertTrue(salesOrdersId != archiveOrdersId, "same-named tables across schemas must not collapse")
+
+        val relation = document.lineSequence().single { it.contains("physical:$H2_SALES_FK") }
+        assertTrue(
+            relation.contains(salesOrdersId) && relation.contains(salesUsersId),
+            "physical FK must bind sales.orders to sales.users",
+        )
+        assertFalse(
+            relation.contains(archiveOrdersId),
+            "archive.orders must not be cross-wired into the sales FK",
+        )
+    }
+
+    private fun Driver.assertViewOnlyActionSuppressed() {
+        val sentinel = "ERDMAID_E2E_VIEW_ONLY"
+        copyThroughIde(sentinel)
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        databaseTree.expandAll(2.minutes)
+        val view = databaseTree.collectExpandedPaths().single { path ->
+            path.path.last().equals(H2_VIEW_NAME, ignoreCase = true) &&
+                path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+        }
+        databaseTree.clickRow(view.row)
+        databaseTree.rightClickRow(view.row)
+        val popup = ui.popup().list()
+        assertFalse(
+            popup.hasText(EXPORT_ACTION_TEXT),
+            "view-only selection must not expose an enabled erdMaid export action",
+        )
+        popup.keyboard { escape() }
+        assertEquals(sentinel, clipboardText(), "view-only menu inspection must not mutate clipboard")
+    }
+
+    private fun entityIdForQualifiedLabel(document: String, schema: String, table: String): String {
+        val line = document.lineSequence().single { candidate ->
+            candidate.contains("[\"") &&
+                candidate.contains(schema) &&
+                candidate.contains(table) &&
+                candidate.contains("\"] {")
+        }
+        return line.trimStart().substringBefore("[")
+    }
+
+    private fun entityIdForLabel(document: String, table: String): String {
+        val line = document.lineSequence().single { candidate ->
+            candidate.contains("[\"$table\"] {")
+        }
+        return line.trimStart().substringBefore("[")
+    }
+
     private fun Driver.assertRelevantUniqueSQLiteFailsClosed() {
         assertFailClosedSelection(
             dataSourceName = SQLITE_DRIVER_NAME,
