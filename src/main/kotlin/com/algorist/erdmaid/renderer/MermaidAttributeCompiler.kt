@@ -245,7 +245,7 @@ object MermaidAttributeCompiler {
 
     /** Conservative subset of the pinned Mermaid 11.17.2 ATTRIBUTE_WORD lexer. */
     private fun isReadableAttributeWord(value: String): Boolean {
-        if (value.isEmpty() || value.uppercase() in setOf("PK", "FK", "UK")) return false
+        if (value.isEmpty() || listOf("PK", "FK", "UK").any { value.equals(it, ignoreCase = true) }) return false
         var offset = 0
         while (offset < value.length) {
             val cp = value.codePointAt(offset)
@@ -253,7 +253,7 @@ object MermaidAttributeCompiler {
             val valid = if (offset == 0) {
                 letter || cp == '_'.code
             } else {
-                letter || Character.isDigit(cp) && cp <= 0xffff ||
+                letter || (Character.isDigit(cp) && cp <= 0xffff) ||
                     cp in ATTRIBUTE_WORD_PUNCTUATION
             }
             if (!valid) return false
@@ -296,7 +296,10 @@ object MermaidAttributeCompiler {
     }
 
     private const val OPAQUE_ATTRIBUTE_PREFIX = "ERDMAID_"
-    private val ATTRIBUTE_WORD_PUNCTUATION = setOf('_'.code, '-'.code, '['.code, ']'.code, '('.code, ')'.code, '.'.code, ','.code)
+    private val ATTRIBUTE_WORD_PUNCTUATION = setOf(
+        '_'.code, '-'.code, '['.code, ']'.code,
+        '('.code, ')'.code, '.'.code, ','.code,
+    )
     private val HEX = "0123456789ABCDEF".toCharArray()
     private val UNSAFE_COMMENT_ASCII = setOf(
         '_'.code,
