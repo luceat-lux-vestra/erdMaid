@@ -737,6 +737,10 @@ class LiveIdeSmokeTest {
         }
 
         val document = waitForClipboardDocument(sentinel)
+        println("ERDMAID_E2E_DOCUMENT_BEGIN datasource=$SQLITE_DRIVER_NAME sentinel=$sentinel")
+        print(document)
+        if (!document.endsWith("\n")) println()
+        println("ERDMAID_E2E_DOCUMENT_END datasource=$SQLITE_DRIVER_NAME sentinel=$sentinel")
         val edge = document.lineSequence().single { line ->
             line.contains("physical:") && line.contains("||..o|")
         }
