@@ -282,8 +282,12 @@ class MermaidAttributeCompilerTest {
 
         val reserved = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "ERDMAID_C_61")
         val unsafe = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "a\n")
+        val markup = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "<svg onload=alert(1)>")
+        val injected = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "name } %% injected")
         assertTrue(reserved.startsWith("ERDMAID_C_"))
         assertTrue(unsafe.startsWith("ERDMAID_C_"))
+        assertTrue(markup.startsWith("ERDMAID_C_"))
+        assertTrue(injected.startsWith("ERDMAID_C_"))
         assertNotEquals("ERDMAID_C_61", reserved)
         assertNotEquals(reserved, unsafe)
     }
