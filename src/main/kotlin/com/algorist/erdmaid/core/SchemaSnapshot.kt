@@ -114,6 +114,25 @@ data class UniqueKeyFact(
     }
 }
 
+/**
+ * An index flagged unique by the IDE whose global key semantics are *not* proven.
+ *
+ * It is not a UniqueKeyFact. An index on columns outside a relation's tuple cannot make that
+ * tuple unique, while a possibly relevant index prevents a negative uniqueness claim.
+ * Function-based or unresolvable indexes are not included: they keep unique-key metadata
+ * unavailable because even their column coverage cannot be established.
+ */
+data class UnverifiedUniqueIndexFact(
+    val columns: FrozenList<ColumnId>,
+) {
+    init {
+        require(columns.isNotEmpty()) { "Unverified unique index must have columns" }
+        require(columns.distinct().size == columns.size) {
+            "Unverified unique index columns must not contain duplicates"
+        }
+    }
+}
+
 enum class RelationProvenance {
     PHYSICAL,
     VIRTUAL,
@@ -179,10 +198,13 @@ data class TableSnapshot(
     val columns: FrozenList<ColumnSnapshot>,
     /** Absent means the table is authoritatively known to have no primary key. */
     val primaryKey: OptionalValue<PrimaryKeyFact>,
-    /** Known(frozenListOf()) means the table is authoritatively known to have no unique keys. */
+    /** Proven grouped/candidate key facts only; unknown key authority stays unavailable. */
     val uniqueKeys: Evidence<FrozenList<UniqueKeyFact>>,
     /** Known(frozenListOf()) means the table is authoritatively known to have no foreign keys. */
     val foreignKeys: Evidence<FrozenList<ForeignKeyFact>>,
+    /** Known index column sets that might (but do not yet prove) additional uniqueness. */
+    val unverifiedUniqueIndexes: FrozenList<UnverifiedUniqueIndexFact> =
+        FrozenList.copyOf(emptyList<UnverifiedUniqueIndexFact>()),
 ) {
     init {
         require(columns.all { it.id.table == id }) {
@@ -209,6 +231,11 @@ data class TableSnapshot(
             }) {
                 "Unique key columns must resolve to columns in the same table snapshot"
             }
+        }
+        require(unverifiedUniqueIndexes.all { index ->
+            index.columns.all { it.table == id && it in knownColumns }
+        }) {
+            "Unverified unique indexes must resolve to columns in the same table snapshot"
         }
         if (foreignKeys is Evidence.Known) {
             require(foreignKeys.value.all { it.childTable == id }) {
