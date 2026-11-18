@@ -26,7 +26,7 @@ import com.intellij.ide.starter.models.IdeInfo
 import com.intellij.ide.starter.models.TestCase
 import com.intellij.ide.starter.plugins.PluginConfigurator
 import com.intellij.ide.starter.project.LocalProjectInfo
-import com.intellij.ide.starter.project.NoProject
+import com.intellij.ide.starter.runner.startIdeWithoutProject
 import com.intellij.ide.starter.report.ErrorReporterToCI
 import com.intellij.ide.starter.runner.CurrentTestMethod
 import com.intellij.ide.starter.runner.Starter
@@ -120,7 +120,7 @@ class LiveIdeSmokeTest {
                     ?.let(::setLicense)
                 PluginConfigurator(this).installPluginFromPath(pluginPath)
             }
-            ensureUltimateActivation(context)
+            ensureUltimateActivation(context, projectDirectory)
             writeDatabaseToolsDriverFixture(
                 configDir = context.paths.configDir,
                 h2SourceJar = h2.driverJar,
@@ -206,17 +206,23 @@ class LiveIdeSmokeTest {
         }
     }
 
-    private fun ensureUltimateActivation(context: com.intellij.ide.starter.ide.IDETestContext) {
+    private fun ensureUltimateActivation(
+        context: com.intellij.ide.starter.ide.IDETestContext,
+        projectDirectory: Path,
+    ) {
         if (!System.getenv("LICENSE_KEY").isNullOrBlank()) {
             return
         }
 
         val seedContext = Starter.newContext(
             CurrentTestMethod.hyphenateWithClass() + "-activation",
-            TestCase(IdeInfo.IdeaUltimate, NoProject).withVersion(IDE_RELEASE),
+            TestCase(
+                IdeInfo.IdeaUltimate,
+                LocalProjectInfo(projectDirectory, isReusable = false),
+            ).withVersion(IDE_RELEASE),
         )
         seedContext
-            .runIdeWithDriver()
+            .runIdeWithDriver(commandLine = ::startIdeWithoutProject, launchName = "activation")
             .useDriverAndCloseIde {
                 waitFor("application plugins initialized", timeout = 2.minutes) {
                     arePluginsInitialized()
