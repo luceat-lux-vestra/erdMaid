@@ -339,14 +339,17 @@ class LiveIdeSmokeTest {
                 message = "Database Tools New menu must expose Data Source",
                 timeout = 30.seconds,
             ).click()
-            waitFor("Database Tools datasource type submenu exposes $dataSourceType", timeout = 30.seconds) {
-                ui.popups().list().lastOrNull()?.hasText(dataSourceType) == true
+            // The New menu remains the stable showing component. Explicitly open its submenu
+            // with keyboard navigation; do not parse text from transient HeavyWeightWindow
+            // instances because a hidden popup can throw from getLocationOnScreen().
+            addList.keyboard { right() }
+            waitFor("Database Tools datasource type submenu", timeout = 30.seconds) {
+                ui.popups().list().size >= 2
             }
-            ui.popups().list().last().waitOneText(
-                dataSourceType,
-                message = "Database Tools datasource type submenu must expose $dataSourceType",
-                timeout = 30.seconds,
-            ).click()
+            ui.keyboard {
+                typeText(dataSourceType)
+                enter()
+            }
 
             dataSourcesAndDriversDialog {
                 button {
