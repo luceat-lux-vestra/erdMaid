@@ -1030,12 +1030,27 @@ class LiveIdeSmokeTest {
         waitFor(
             message = "$selectedObjects are visible in the synchronized Database tree",
             timeout = 2.minutes,
-        ) {
-            val visible = databaseTree.collectExpandedPaths()
-            selectedObjects.all { expected ->
-                visible.count { path -> path.path.last().matchesDatabaseTreeLabel(expected) } == 1
-            }
-        }
+            errorMessage = { visiblePaths ->
+                buildString {
+                    appendLine("Database tree did not expose each requested object exactly once.")
+                    appendLine("Requested: $selectedObjects")
+                    appendLine("Visible paths:")
+                    visiblePaths.orEmpty().forEach { path ->
+                        appendLine("  " + path.joinToString(" | "))
+                    }
+                }.trimEnd()
+            },
+            getter = {
+                databaseTree.collectExpandedPaths().map { it.path }
+            },
+            checker = { visiblePaths ->
+                selectedObjects.all { expected ->
+                    visiblePaths.count { path ->
+                        path.last().matchesDatabaseTreeLabel(expected)
+                    } == 1
+                }
+            },
+        )
 
         val visible = databaseTree.collectExpandedPaths()
         val selectedRows = selectedObjects.map { expected ->
