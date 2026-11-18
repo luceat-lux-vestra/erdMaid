@@ -19,6 +19,7 @@ import com.algorist.erdmaid.core.TableId
 import com.algorist.erdmaid.core.TableReferenceEvidence
 import com.algorist.erdmaid.core.TableSnapshot
 import com.algorist.erdmaid.core.UniqueKeyFact
+import com.algorist.erdmaid.core.UnverifiedUniqueIndexFact
 import com.intellij.database.model.DasColumn
 import com.intellij.database.model.DasForeignKey
 import com.intellij.database.model.DasIndex
@@ -350,6 +351,11 @@ internal object JetBrainsDatabaseHost {
                 )
             } ?: OptionalValue.Absent
 
+            val indexEvidence = partitionUnverifiedUniqueIndexes(
+                indices = DasUtil.getIndices(table).toList(),
+                tableKeys = tableKeys,
+                columnIds = byName,
+            )
             val uniqueKeys = captureUniqueKeys(
                 table = table,
                 columns = columns,
@@ -357,7 +363,7 @@ internal object JetBrainsDatabaseHost {
                 columnObjects = columnObjectsByName,
                 tableKeys = tableKeys,
                 primaryKeys = primaryKeys,
-                indices = DasUtil.getIndices(table).toList(),
+                indices = indexEvidence.indicesRequiringAuthorityCheck,
             )
 
             ExportOutcome.Complete(
@@ -371,6 +377,7 @@ internal object JetBrainsDatabaseHost {
                         primaryKey = primaryKey,
                         uniqueKeys = uniqueKeys,
                         foreignKeys = Evidence.Known(FrozenList.copyOf(emptyList<ForeignKeyFact>())),
+                        unverifiedUniqueIndexes = indexEvidence.unverifiedUniqueIndexes,
                     ),
                 )
             )
@@ -385,12 +392,48 @@ internal object JetBrainsDatabaseHost {
 
     /**
      * DatabaseTools exposes grouped table keys, per-column CANDIDATE_KEY attributes, and indices.
-     * We claim alternate-key uniqueness only when the first two sources agree. A unique index is
-     * never promoted to a UniqueKeyFact by itself because the maintained API does not expose enough
-     * semantics to rule out filtered/expression-specific uniqueness. Instead it is an omission
-     * detector: a unique index must match a key already proved by stronger evidence, otherwise the
-     * entire unique-key collection remains unavailable rather than allowing a false NON_UNIQUE claim.
+     * We claim alternate-key uniqueness only when the first two sources agree. A unique index alone
+     * is not a proven global key: it may be filtered or expression-specific. When an uncorroborated
+     * index has a complete ordinary column set, preserve that set as *unverified coverage*, so
+     * only a matching FK tuple remains ambiguous. Unresolvable or expression-based indexes still
+     * fail the table-level authority check because their coverage cannot be trusted.
      */
+    internal data class UniqueIndexPartition(
+        val indicesRequiringAuthorityCheck: List<DasIndex>,
+        val unverifiedUniqueIndexes: FrozenList<UnverifiedUniqueIndexFact>,
+    )
+
+    internal fun partitionUnverifiedUniqueIndexes(
+        indices: List<DasIndex>,
+        tableKeys: List<DasTableKey>,
+        columnIds: Map<String, ColumnId>,
+    ): UniqueIndexPartition {
+        val groupedKeys = tableKeys.mapTo(linkedSetOf()) { it.columnsRef.names().toSet() }
+        val remaining = ArrayList<DasIndex>(indices.size)
+        val candidates = ArrayList<UnverifiedUniqueIndexFact>()
+        for (index in indices) {
+            if (!index.isUnique) {
+                remaining += index
+                continue
+            }
+            val names = index.columnsRef.names().toList()
+            // Invalid column references cannot be localized. Preserve the existing fail-closed
+            // authority check for this index instead of discarding evidence.
+            if (names.isEmpty() || names.any { it !in columnIds } || names.toSet().size != names.size ||
+                names.toSet() in groupedKeys || index.isFunctionBased
+            ) {
+                remaining += index
+                continue
+            }
+            candidates += UnverifiedUniqueIndexFact(
+                FrozenList.copyOf(names.map { columnIds.getValue(it) })
+            )
+        }
+        return UniqueIndexPartition(
+            indicesRequiringAuthorityCheck = Collections.unmodifiableList(remaining),
+            unverifiedUniqueIndexes = FrozenList.copyOf(candidates),
+        )
+    }
     private fun captureUniqueKeys(
         table: DasTable,
         columns: List<DasColumn>,
