@@ -55,7 +55,30 @@ class MermaidGrammarFixtureBindingTest {
                 graphTable(
                     table(
                         id = child,
-                        columns = frozenListOf(column(child, "parent_id", 0)),
+                        columns = frozenListOf(
+                            column(child, "parent_id", 0),
+                            column(
+                                child, "customer_name", 1,
+                                rawType = RawTypeMetadata(
+                                    "VARCHAR", OptionalValue.Present(255),
+                                    OptionalValue.Absent, OptionalValue.Absent,
+                                ),
+                            ),
+                            column(
+                                child, "unit_price", 2,
+                                rawType = RawTypeMetadata(
+                                    "NUMERIC", OptionalValue.Absent,
+                                    OptionalValue.Present(18), OptionalValue.Present(2),
+                                ),
+                            ),
+                            column(
+                                child, "display name", 3,
+                                rawType = RawTypeMetadata(
+                                    "TEXT", OptionalValue.Absent,
+                                    OptionalValue.Absent, OptionalValue.Absent,
+                                ),
+                            ),
+                        ),
                     )
                 ),
             ),
@@ -197,17 +220,16 @@ class MermaidGrammarFixtureBindingTest {
         name: String,
         position: Int,
         comment: OptionalValue<String> = OptionalValue.Absent,
+        rawType: RawTypeMetadata = RawTypeMetadata(
+            name = "INT",
+            length = OptionalValue.Absent,
+            precision = OptionalValue.Absent,
+            scale = OptionalValue.Absent,
+        ),
     ): ColumnSnapshot = ColumnSnapshot(
         id = ColumnId(table, name),
         sourcePosition = position,
-        rawType = known(
-            RawTypeMetadata(
-                name = "INT",
-                length = OptionalValue.Absent,
-                precision = OptionalValue.Absent,
-                scale = OptionalValue.Absent,
-            )
-        ),
+        rawType = known(rawType),
         nullable = known(true),
         comment = comment,
     )
