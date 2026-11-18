@@ -51,6 +51,9 @@ dependencies {
     // Real Database Tools E2E fixture only. The H2 driver is copied into Starter's isolated
     // IDE config and registered as a local Database Tools driver; it is never shipped.
     add("integrationTestImplementation", "com.h2database:h2:2.5.252")
+    // SQLite reproduces #238 against the actual JetBrains SQLite metadata adapter.
+    // The default Xerial JAR includes desktop native libraries and is copied only to Starter config.
+    add("integrationTestImplementation", "org.xerial:sqlite-jdbc:3.54.1.0")
 
     // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
