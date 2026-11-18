@@ -222,6 +222,7 @@ For the maintained 2026.3 SDK and separately retained 2026.2 compatibility targe
 - keep `update()` bounded and side-effect free;
 - `update()` must not expand schemas/groups, traverse metadata/relations, render, or perform work
   proportional to selected schema size;
+- use only a constant-work, nonexpanding DatabaseTools selection preflight in `update()`; an empty tree selection disables the action, directly unsupported elements can be disabled, and an unresolved group selection remains eligible for authoritative invocation-time expansion;
 - capture authoritative selection only after invocation;
 - run expensive work in current cancellable coroutine/read-action APIs, off the EDT where platform
   contracts permit;
