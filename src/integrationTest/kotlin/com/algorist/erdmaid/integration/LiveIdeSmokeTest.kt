@@ -71,7 +71,7 @@ private fun Driver.clipboardText(): String? =
  * process, Database tool-window selection, popup action and IDE clipboard boundary.
  */
 class LiveIdeSmokeTest {
-    private val pluginPath = pathOf(System.getProperty("path.to.build.plugin"))
+    private val pluginPath = pathOf(System.getProperty("path.to.build.plugin")).toAbsolutePath()
 
     @Test
     fun `IDEA 2026_3 exports selected H2 tables through the real Database popup`(
@@ -80,6 +80,10 @@ class LiveIdeSmokeTest {
         Files.writeString(
             projectDirectory.resolve("README.md"),
             "Disposable project for erdMaid Starter Database Tools E2E.\n",
+        )
+        assertTrue(
+            Files.isRegularFile(pluginPath) && pluginPath.fileName.toString().endsWith(".zip"),
+            "Starter E2E must install the exact buildPlugin ZIP, got: $pluginPath",
         )
 
         H2Fixture().use { fixture ->
