@@ -39,8 +39,8 @@ class DatabaseSelectionBoundaryTest {
         val context = DataContext { null }
         val selected = table(source("one", 1L))
         var reads = 0
-        val dangerousSelection = Iterable<DbElement> {
-            object : Iterator<DbElement> {
+        val dangerousSelection = object : Iterable<DbElement> {
+            override fun iterator(): Iterator<DbElement> = object : Iterator<DbElement> {
                 override fun hasNext() = true
                 override fun next(): DbElement {
                     reads++
