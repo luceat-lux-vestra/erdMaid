@@ -133,6 +133,10 @@ class LiveIdeSmokeTest {
                 .runIdeWithDriver()
                 .useDriverAndCloseIde {
                     waitForIndicators(5.minutes)
+                    assertTrue(
+                        isPluginLoaded("com.algorist.erdmaid"),
+                        "the exact packaged erdMaid ZIP must be loaded in the IDEA process",
+                    )
 
                     createDataSourceThroughDatabaseTools(
                         dataSourceType = "H2",
