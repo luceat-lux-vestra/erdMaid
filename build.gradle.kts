@@ -171,6 +171,7 @@ intellijPlatformTesting.testIdeUi.register("integrationTest") {
         jvmArgs("--add-exports=java.base/sun.nio.fs=ALL-UNNAMED")
         // TestIdeUiTask supplies path.to.build.plugin from its buildPlugin archiveFile.
         // Do not replace it with prepareSandbox: this E2E must install the packaged ZIP.
+        systemProperty("erdmaid.e2e.expectedPluginVersion", resolvedPluginVersion.get())
         dependsOn(tasks.buildPlugin, verifyStarterSecurityGraph)
         useJUnitPlatform()
         testLogging {
