@@ -344,8 +344,10 @@ class LiveIdeSmokeTest {
         expectedFkName: String?,
         sentinel: String,
     ): String {
+        expireNotifications()
         copyThroughIde(sentinel)
         invokeExportThroughDatabasePopup(dataSourceName, ordersTable, usersTable)
+        waitForErdMaidNotification("Mermaid ERD copied to clipboard")
         return waitForClipboardDocument(sentinel).also { document ->
             println("ERDMAID_E2E_DOCUMENT_BEGIN datasource=$dataSourceName sentinel=$sentinel")
             print(document)
@@ -425,6 +427,18 @@ class LiveIdeSmokeTest {
             clipboardText()?.let { it != sentinel && it.startsWith("erDiagram\n") } == true
         }
         return checkNotNull(clipboardText())
+    }
+
+    private fun Driver.waitForErdMaidNotification(contentFragment: String) {
+        waitFor(
+            message = "erdMaid terminal notification contains '$contentFragment'",
+            timeout = 2.minutes,
+        ) {
+            getNotifications().any { notification ->
+                notification.getTitle() == "erdMaid" &&
+                    notification.getContent().contains(contentFragment)
+            }
+        }
     }
 
     private fun assertReadableUnrelatedUniqueExport(
