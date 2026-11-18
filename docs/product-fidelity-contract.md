@@ -56,7 +56,7 @@ One export contains exactly one datasource/origin. Canonical identity therefore 
 | Primary key existence and ordered columns | **Structural** | Known-none and unavailable are distinct. Never infer keys from names. |
 | Foreign key existence and ordered mappings | **Structural** | Preserve ordered child/parent mappings and relation provenance. Known-none and unavailable are distinct. |
 | Nullability | **Semantic evidence** | Used only where authoritative evidence justifies a multiplicity rule. It is never generalized into unrelated referential-integrity semantics. |
-| Uniqueness | **Semantic evidence** | Used to derive relation maxima only when exact key/unique evidence supports the tuple claim. |
+| Uniqueness | **Semantic evidence** | Used to derive relation maxima only when exact key/unique evidence supports the tuple claim. Unverified index or candidate-key coverage is not a proven unique key; it blocks a negative uniqueness claim only if its columns could constrain that relation tuple. Unresolvable or function-based index coverage remains unavailable. |
 | Default value | **No current Mermaid output claim** | Do not invent or expose a product promise without a contract revision. |
 
 Structural read failure cannot become a plausible complete diagram. Optional presentation metadata may be omitted only when absence is authoritative.

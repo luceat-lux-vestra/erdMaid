@@ -18,6 +18,7 @@ import com.algorist.erdmaid.core.TableId
 import com.algorist.erdmaid.core.TableReferenceEvidence
 import com.algorist.erdmaid.core.TableSnapshot
 import com.algorist.erdmaid.core.UniqueKeyFact
+import com.algorist.erdmaid.core.UnverifiedUniqueIndexFact
 import com.algorist.erdmaid.core.frozenListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -195,6 +196,96 @@ class RelationConstraintCompilerTest {
 
         assertEquals(
             known(RelationTupleUniqueness.NON_UNIQUE),
+            only(RelationConstraintCompiler.compile(snapshot)).constraints.childUniqueness,
+        )
+    }
+
+    @Test
+    fun `unrelated unique-index candidate cannot make the FK tuple unique`() {
+        val child = tableId("child")
+        val parent = tableId("parent")
+        val relation = fk(child, parent, "fk_child_parent", "parent_id" to "id")
+        val snapshot = snapshot(
+            table(
+                child,
+                columns = nonNullColumns("id", "parent_id", "email"),
+                primaryKey = primaryKey(child, "id"),
+                // The adapter knows the index exists, but cannot prove it is an
+                // unfiltered global unique constraint.
+                unverifiedUniqueIndexes = frozenListOf(unverifiedIndex(child, "email")),
+                foreignKeys = known(frozenListOf(relation)),
+            ),
+            table(parent, columns = nonNullColumns("id"), primaryKey = primaryKey(parent, "id")),
+        )
+
+        val constraints = only(RelationConstraintCompiler.compile(snapshot)).constraints
+        assertEquals(known(RelationTupleUniqueness.NON_UNIQUE), constraints.childUniqueness)
+        assertEquals(known(RelationTupleUniqueness.UNIQUE), constraints.parentUniqueness)
+    }
+
+    @Test
+    fun `unique-index candidate covering FK tuple keeps negative uniqueness unknown`() {
+        val child = tableId("child")
+        val parent = tableId("parent")
+        val relation = fk(child, parent, "fk_child_parent", "parent_id" to "id")
+        val snapshot = snapshot(
+            table(
+                child,
+                columns = nonNullColumns("id", "parent_id"),
+                primaryKey = primaryKey(child, "id"),
+                unverifiedUniqueIndexes = frozenListOf(unverifiedIndex(child, "parent_id")),
+                foreignKeys = known(frozenListOf(relation)),
+            ),
+            table(parent, columns = nonNullColumns("id"), primaryKey = primaryKey(parent, "id")),
+        )
+
+        assertEquals(
+            unavailableTupleUniqueness(
+                context = "child",
+                detail = "unique-index:unverified-index-may-cover-tuple",
+            ),
+            only(RelationConstraintCompiler.compile(snapshot)).constraints.childUniqueness,
+        )
+    }
+
+    @Test
+    fun `composite unique-index candidates only affect tuples covering all their columns`() {
+        val child = tableId("child")
+        val parent = tableId("parent")
+        val fk = fk(child, parent, "fk_child_parent", "tenant_id" to "tenant_id")
+        val snapshot = snapshot(
+            table(
+                child,
+                columns = nonNullColumns("tenant_id", "email"),
+                unverifiedUniqueIndexes = frozenListOf(unverifiedIndex(child, "tenant_id", "email")),
+                foreignKeys = known(frozenListOf(fk)),
+            ),
+            table(parent, columns = nonNullColumns("tenant_id"), primaryKey = primaryKey(parent, "tenant_id")),
+        )
+
+        assertEquals(
+            known(RelationTupleUniqueness.NON_UNIQUE),
+            only(RelationConstraintCompiler.compile(snapshot)).constraints.childUniqueness,
+        )
+    }
+
+    @Test
+    fun `proven primary key takes precedence over possibly relevant unique index`() {
+        val child = tableId("child")
+        val parent = tableId("parent")
+        val fk = fk(child, parent, "fk_child_parent", "parent_id" to "id")
+        val snapshot = snapshot(
+            table(
+                child,
+                columns = nonNullColumns("parent_id"),
+                primaryKey = primaryKey(child, "parent_id"),
+                unverifiedUniqueIndexes = frozenListOf(unverifiedIndex(child, "parent_id")),
+                foreignKeys = known(frozenListOf(fk)),
+            ),
+            table(parent, columns = nonNullColumns("id"), primaryKey = primaryKey(parent, "id")),
+        )
+        assertEquals(
+            known(RelationTupleUniqueness.UNIQUE),
             only(RelationConstraintCompiler.compile(snapshot)).constraints.childUniqueness,
         )
     }
@@ -391,6 +482,7 @@ class RelationConstraintCompilerTest {
         primaryKey: OptionalValue<PrimaryKeyFact> = OptionalValue.Absent,
         uniqueKeys: Evidence<FrozenList<UniqueKeyFact>> = known(frozenListOf()),
         foreignKeys: Evidence<FrozenList<ForeignKeyFact>> = known(frozenListOf()),
+        unverifiedUniqueIndexes: FrozenList<UnverifiedUniqueIndexFact> = frozenListOf(),
     ): TableSnapshot = TableSnapshot(
         id = id,
         comment = OptionalValue.Absent,
@@ -408,6 +500,7 @@ class RelationConstraintCompilerTest {
         primaryKey = primaryKey,
         uniqueKeys = uniqueKeys,
         foreignKeys = foreignKeys,
+        unverifiedUniqueIndexes = unverifiedUniqueIndexes,
     )
 
     private fun primaryKey(table: TableId, vararg columns: String): OptionalValue<PrimaryKeyFact> =
@@ -416,6 +509,11 @@ class RelationConstraintCompilerTest {
                 name = OptionalValue.Present("pk_${table.name}"),
                 columns = FrozenList.copyOf(columns.map { ColumnId(table, it) }),
             )
+        )
+
+    private fun unverifiedIndex(table: TableId, vararg columns: String): UnverifiedUniqueIndexFact =
+        UnverifiedUniqueIndexFact(
+            FrozenList.copyOf(columns.map { ColumnId(table, it) })
         )
 
     private fun uniqueKey(table: TableId, vararg columns: String): UniqueKeyFact =

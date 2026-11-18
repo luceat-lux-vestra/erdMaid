@@ -294,6 +294,31 @@ class SchemaSnapshotTest {
     }
 
     @Test
+    fun `unverified unique-index coverage is frozen and must belong to its table`() {
+        val orders = TableId(origin, "app", "sales", "orders")
+        val users = TableId(origin, "app", "sales", "users")
+        val email = column(orders, "email", 0)
+        val mutableColumns = mutableListOf(email.id)
+        val index = UnverifiedUniqueIndexFact(FrozenList.copyOf(mutableColumns))
+        val table = tableSnapshot(orders, frozenListOf(email)).copy(
+            unverifiedUniqueIndexes = frozenListOf(index),
+        )
+
+        mutableColumns.clear()
+        assertEquals(listOf(email.id), table.unverifiedUniqueIndexes.single().columns)
+        assertThrows(IllegalArgumentException::class.java) {
+            table.copy(
+                unverifiedUniqueIndexes = frozenListOf(
+                    UnverifiedUniqueIndexFact(frozenListOf(ColumnId(users, "email")))
+                )
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            UnverifiedUniqueIndexFact(frozenListOf(email.id, email.id))
+        }
+    }
+
+    @Test
     fun `canonical collection property surface requires frozen fields`() {
         assertEquals(
             FrozenList::class.java,
@@ -306,6 +331,14 @@ class SchemaSnapshotTest {
         assertEquals(
             FrozenList::class.java,
             TableSnapshot::class.java.getDeclaredField("columns").type,
+        )
+        assertEquals(
+            FrozenList::class.java,
+            UnverifiedUniqueIndexFact::class.java.getDeclaredField("columns").type,
+        )
+        assertEquals(
+            FrozenList::class.java,
+            TableSnapshot::class.java.getDeclaredField("unverifiedUniqueIndexes").type,
         )
         assertEquals(
             FrozenList::class.java,
@@ -348,6 +381,7 @@ class SchemaSnapshotTest {
             ColumnSnapshot::class.java,
             PrimaryKeyFact::class.java,
             UniqueKeyFact::class.java,
+            UnverifiedUniqueIndexFact::class.java,
             RelationProvenance::class.java,
             TableReferenceEvidence::class.java,
             ForeignKeyColumnMapping::class.java,
