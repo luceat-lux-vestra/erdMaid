@@ -17,6 +17,75 @@ import java.lang.reflect.Proxy
 class DatabaseSelectionBoundaryTest {
 
     @Test
+    fun `nonexpanding preflight suppresses no selection and unsupported direct object`() {
+        val context = DataContext { null }
+        val source = source("one", 1L)
+        fun eligible(nodes: Iterable<*>, direct: Iterable<*>) =
+            DatabaseToolsCompatibility.hasPotentialExportSelection(
+                context,
+                selectedNodesReader = { nodes },
+                directElementsReader = { direct },
+            )
+
+        assertEquals(false, eligible(emptyList<Any>(), emptyList<DbElement>()))
+        assertEquals(false, eligible(listOf("node"), listOf(element())))
+        assertEquals(true, eligible(listOf("node"), listOf(table(source))))
+        // The Tables-group node has no direct DbElement; expanding it belongs to invocation.
+        assertEquals(true, eligible(listOf("tables-group"), emptyList<DbElement>()))
+    }
+
+    @Test
+    fun `nonexpanding preflight reads only the first directly selected item`() {
+        val context = DataContext { null }
+        val selected = table(source("one", 1L))
+        var reads = 0
+        val dangerousSelection = Iterable<DbElement> {
+            object : Iterator<DbElement> {
+                override fun hasNext() = true
+                override fun next(): DbElement {
+                    reads++
+                    check(reads == 1) { "EDT update must not enumerate the selection" }
+                    return selected
+                }
+            }
+        }
+        assertTrue(
+            DatabaseToolsCompatibility.hasPotentialExportSelection(
+                context,
+                selectedNodesReader = { listOf("node") },
+                directElementsReader = { dangerousSelection },
+            ),
+        )
+        assertEquals(1, reads)
+
+        // Update preflight is only an eligibility hint. Full invocation still rejects
+        // an entire mixed selection rather than silently retaining its first table.
+        val full = JetBrainsDatabaseHost.classifyExpandedSelection(listOf(selected, element()))
+        assertTrue(full is ExportOutcome.Unsupported)
+    }
+
+    @Test
+    fun `nonexpanding preflight fails closed on unreadable host context`() {
+        val context = DataContext { null }
+        assertEquals(
+            false,
+            DatabaseToolsCompatibility.hasPotentialExportSelection(
+                context,
+                selectedNodesReader = { throw IllegalStateException("not available") },
+                directElementsReader = { listOf(table(source("one", 1L))) },
+            ),
+        )
+        assertEquals(
+            false,
+            DatabaseToolsCompatibility.hasPotentialExportSelection(
+                context,
+                selectedNodesReader = { listOf("node") },
+                directElementsReader = { "not an iterable" },
+            ),
+        )
+    }
+
+    @Test
     fun `group expansion success and platform failure are different outcomes`() {
         val context = DataContext { null }
         val table = table(source("one", 1L))
