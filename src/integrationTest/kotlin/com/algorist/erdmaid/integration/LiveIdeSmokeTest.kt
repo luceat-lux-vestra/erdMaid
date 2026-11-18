@@ -3,6 +3,8 @@ package com.algorist.erdmaid.integration
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
 import com.intellij.driver.sdk.invokeAction
+import com.intellij.driver.sdk.expireNotifications
+import com.intellij.driver.sdk.getNotifications
 import com.intellij.driver.sdk.arePluginsInitialized
 import com.intellij.driver.sdk.isPluginLoaded
 import com.intellij.driver.sdk.ui.StringSelectionRef
