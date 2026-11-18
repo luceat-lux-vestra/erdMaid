@@ -233,30 +233,30 @@ class LiveIdeSmokeTest {
 
         databaseTree.expandAll(2.minutes)
         waitFor(
-            message = "ORDERS and USERS are visible in the synchronized H2 Database tree",
+            message = "ERDMAID_ORDERS and ERDMAID_USERS are visible in the synchronized H2 Database tree",
             timeout = 2.minutes,
         ) {
             val visible = databaseTree.collectExpandedPaths().map { it.path.last().uppercase() }.toSet()
-            "ORDERS" in visible && "USERS" in visible
+            ORDERS_TABLE in visible && USERS_TABLE in visible
         }
 
         databaseTree.selectRows { visibleRows ->
             visibleRows.filter { row ->
-                row.equals("ORDERS", ignoreCase = true) ||
-                    row.equals("USERS", ignoreCase = true)
+                row.equals(ORDERS_TABLE, ignoreCase = true) ||
+                    row.equals(USERS_TABLE, ignoreCase = true)
             }
         }
         assertEquals(
-            setOf("ORDERS", "USERS"),
+            setOf(ORDERS_TABLE, USERS_TABLE),
             databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
             "real Database tree must own exactly the two intended table selections",
         )
 
         // Use the shipping popup registration, not direct action invocation. Right-clicking one
         // already-selected row must preserve the multi-selection used to build AnActionEvent.
-        databaseTree.rightClickRow { it.equals("ORDERS", ignoreCase = true) }
+        databaseTree.rightClickRow { it.equals(ORDERS_TABLE, ignoreCase = true) }
         assertEquals(
-            setOf("ORDERS", "USERS"),
+            setOf(ORDERS_TABLE, USERS_TABLE),
             databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
             "opening the Database popup must preserve the selected table pair",
         )
@@ -281,18 +281,18 @@ class LiveIdeSmokeTest {
         assertTrue(document.startsWith("erDiagram\n"))
         assertEquals(
             1,
-            Regex("""\["ORDERS"]""").findAll(document).count(),
-            "ORDERS must be rendered exactly once",
+            Regex("""\["ERDMAID_ORDERS"]""").findAll(document).count(),
+            "ERDMAID_ORDERS must be rendered exactly once",
         )
         assertEquals(
             1,
-            Regex("""\["USERS"]""").findAll(document).count(),
-            "USERS must be rendered exactly once",
+            Regex("""\["ERDMAID_USERS"]""").findAll(document).count(),
+            "ERDMAID_USERS must be rendered exactly once",
         )
         assertTrue("USER_ID" in document, "readable FK column name must survive real Database Tools capture")
         assertTrue("NOTE" in document, "unrelated UNIQUE(NOTE) column must remain readable")
         assertTrue(
-            "FK_ORDERS_USERS" in document,
+            "FK_ERDMAID_ORDERS_USERS" in document,
             "physical H2 FK must survive capture and Mermaid serialization",
         )
         assertTrue(
@@ -362,7 +362,7 @@ class LiveIdeSmokeTest {
             keeper.createStatement().use { statement ->
                 statement.execute(
                     """
-                    CREATE TABLE USERS (
+                    CREATE TABLE ERDMAID_USERS (
                       ID BIGINT PRIMARY KEY,
                       EMAIL VARCHAR(255) NOT NULL
                     )
@@ -370,18 +370,18 @@ class LiveIdeSmokeTest {
                 )
                 statement.execute(
                     """
-                    CREATE TABLE ORDERS (
+                    CREATE TABLE ERDMAID_ORDERS (
                       ID BIGINT PRIMARY KEY,
                       USER_ID BIGINT NOT NULL,
                       NOTE VARCHAR(255),
-                      CONSTRAINT FK_ORDERS_USERS
-                        FOREIGN KEY (USER_ID) REFERENCES USERS(ID)
+                      CONSTRAINT FK_ERDMAID_ORDERS_USERS
+                        FOREIGN KEY (USER_ID) REFERENCES ERDMAID_USERS(ID)
                     )
                     """.trimIndent(),
                 )
-                statement.execute("COMMENT ON COLUMN ORDERS.NOTE IS 'human readable'")
+                statement.execute("COMMENT ON COLUMN ERDMAID_ORDERS.NOTE IS 'human readable'")
                 // Regression #238: this is intentionally unrelated to the FK tuple USER_ID.
-                statement.execute("CREATE UNIQUE INDEX UX_ORDERS_NOTE ON ORDERS(NOTE)")
+                statement.execute("CREATE UNIQUE INDEX UX_ERDMAID_ORDERS_NOTE ON ERDMAID_ORDERS(NOTE)")
             }
         }
 
@@ -395,5 +395,7 @@ class LiveIdeSmokeTest {
         const val IDE_RELEASE = "2026.3"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val EXPORT_ACTION_TEXT = "Export as Mermaid ERD (erdMaid)"
+        const val USERS_TABLE = "ERDMAID_USERS"
+        const val ORDERS_TABLE = "ERDMAID_ORDERS"
     }
 }
