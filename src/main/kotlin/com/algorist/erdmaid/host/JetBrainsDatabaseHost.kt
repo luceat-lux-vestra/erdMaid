@@ -71,28 +71,26 @@ internal object DatabaseToolsCompatibility {
     ): Boolean {
         return try {
             val nodes = if (selectedNodesReader == null) {
-            invokeSelectionMethod(SELECTED_NODES_METHOD, dataContext)
-        } else {
-            selectedNodesReader(dataContext)
-        }
-        val nodesIterator = (nodes as? Iterable<*>)?.iterator()
-            ?: return false
-        if (!nodesIterator.hasNext()) return false
+                invokeSelectionMethod(SELECTED_NODES_METHOD, dataContext)
+            } else {
+                selectedNodesReader(dataContext)
+            }
+            val nodesIterator = (nodes as? Iterable<*>)?.iterator() ?: return false
+            if (!nodesIterator.hasNext()) return false
 
-        val direct = if (directElementsReader == null) {
-            invokeSelectionMethod(DIRECT_ELEMENTS_METHOD, dataContext)
-        } else {
-            directElementsReader(dataContext)
-        }
-        val directIterator = (direct as? Iterable<*>)?.iterator()
-            ?: return false
-        !directIterator.hasNext() || directIterator.next() is DbTable
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: ReflectiveOperationException) {
-        false
-    } catch (_: RuntimeException) {
-        false
+            val direct = if (directElementsReader == null) {
+                invokeSelectionMethod(DIRECT_ELEMENTS_METHOD, dataContext)
+            } else {
+                directElementsReader(dataContext)
+            }
+            val directIterator = (direct as? Iterable<*>)?.iterator() ?: return false
+            !directIterator.hasNext() || directIterator.next() is DbTable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: ReflectiveOperationException) {
+            false
+        } catch (_: RuntimeException) {
+            false
         } catch (_: LinkageError) {
             false
         }
