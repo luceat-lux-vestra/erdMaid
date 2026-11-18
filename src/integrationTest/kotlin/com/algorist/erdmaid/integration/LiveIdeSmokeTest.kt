@@ -212,6 +212,7 @@ class LiveIdeSmokeTest {
                     val richH2 = exportRichH2Scenario()
                     assertRichH2Scenario(richH2)
                     assertSelfReferenceH2Scenario()
+                    assertIdentifyingOneToZeroOrOneH2Scenario()
                     assertSelectedSubgraphH2Scenario()
                     assertTablesGroupH2Scenario()
                     assertDuplicateNamesAcrossSchemasH2Scenario()
@@ -485,6 +486,29 @@ class LiveIdeSmokeTest {
         )
     }
 
+    private fun Driver.assertIdentifyingOneToZeroOrOneH2Scenario() {
+        val document = exportSelectedTables(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedTables = setOf(H2_USERS_TABLE, H2_PROFILE_TABLE),
+            rightClickName = H2_PROFILE_TABLE,
+            sentinel = "ERDMAID_E2E_H2_IDENTIFYING_PROFILE",
+        )
+        assertEquals(1, document.lineSequence().count { "[\"$H2_PROFILE_TABLE\"]" in it })
+        val edge = document.lineSequence().single { it.contains("physical:$H2_PROFILE_FK") }
+        assertTrue(
+            " ||--o| " in edge,
+            "PK-as-FK profile relation must remain identifying one-to-zero-or-one",
+        )
+        assertTrue(
+            document.lineSequence().any {
+                it.contains("%% FK: physical") &&
+                    it.contains(".USER_ID ->") &&
+                    it.contains(".ID")
+            },
+            "identifying profile FK mapping must survive real Database Tools capture",
+        )
+    }
+
     private fun Driver.assertSelectedSubgraphH2Scenario() {
         val document = exportSelectedTables(
             dataSourceName = H2_DRIVER_NAME,
@@ -543,6 +567,7 @@ class LiveIdeSmokeTest {
             H2_ACCOUNT_TABLE,
             H2_PURCHASE_ORDER_TABLE,
             H2_EMPLOYEE_TABLE,
+            H2_PROFILE_TABLE,
         )) {
             assertEquals(
                 1,
@@ -1073,6 +1098,16 @@ class LiveIdeSmokeTest {
                     )
                     """.trimIndent(),
                 )
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_PROFILE_TABLE (
+                      USER_ID BIGINT PRIMARY KEY,
+                      BIO VARCHAR(255),
+                      CONSTRAINT $H2_PROFILE_FK
+                        FOREIGN KEY (USER_ID) REFERENCES $H2_USERS_TABLE(ID)
+                    )
+                    """.trimIndent(),
+                )
                 statement.execute("CREATE SCHEMA $H2_SALES_SCHEMA")
                 statement.execute("CREATE SCHEMA $H2_ARCHIVE_SCHEMA")
                 statement.execute(
@@ -1189,6 +1224,8 @@ class LiveIdeSmokeTest {
         const val H2_APPROVER_FK = "FK_ERDMAID_PURCHASE_ORDER_APPROVER"
         const val H2_EMPLOYEE_TABLE = "ERDMAID_EMPLOYEE"
         const val H2_SELF_FK = "FK_ERDMAID_EMPLOYEE_MANAGER"
+        const val H2_PROFILE_TABLE = "ERDMAID_PROFILE"
+        const val H2_PROFILE_FK = "FK_ERDMAID_PROFILE_USER"
         const val H2_VIEW_NAME = "ERDMAID_H2_ORDER_VIEW"
         const val H2_SALES_SCHEMA = "ERDMAID_SALES"
         const val H2_ARCHIVE_SCHEMA = "ERDMAID_ARCHIVE"
