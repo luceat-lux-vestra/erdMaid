@@ -32,6 +32,7 @@ import com.intellij.ide.starter.runner.CurrentTestMethod
 import com.intellij.ide.starter.runner.Starter
 import org.h2.Driver as H2Driver
 import org.h2.tools.Server
+import org.sqlite.JDBC as SQLiteDriver
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -90,7 +91,7 @@ class LiveIdeSmokeTest {
     private val pluginPath = pathOf(System.getProperty("path.to.build.plugin")).toAbsolutePath()
 
     @Test
-    fun `IDEA 2026_3 exports selected H2 tables through the real Database popup`(
+    fun `IDEA 2026_3 exports real H2 and SQLite Database selections through the popup`(
         @TempDir projectDirectory: Path,
     ) {
         Files.writeString(
@@ -102,8 +103,10 @@ class LiveIdeSmokeTest {
             "Starter E2E must install the exact buildPlugin ZIP, got: $pluginPath",
         )
 
-        H2Fixture().use { fixture ->
-            fixture.createSchema()
+        H2Fixture().use { h2 ->
+            h2.createSchema()
+            val sqlite = SQLiteFixture(projectDirectory.resolve("erdmaid-e2e.sqlite"))
+            sqlite.createSchema()
 
             val context = Starter.newContext(
                 CurrentTestMethod.hyphenateWithClass(),
@@ -118,28 +121,68 @@ class LiveIdeSmokeTest {
                 PluginConfigurator(this).installPluginFromPath(pluginPath)
             }
             ensureUltimateActivation(context)
-            writeH2DatabaseToolsDriverFixture(context.paths.configDir, fixture.driverJar)
+            writeDatabaseToolsDriverFixture(
+                configDir = context.paths.configDir,
+                h2SourceJar = h2.driverJar,
+                sqliteSourceJar = sqlite.driverJar,
+            )
 
             val result = context
                 .runIdeWithDriver()
                 .useDriverAndCloseIde {
                     waitForIndicators(5.minutes)
-                    createH2DataSourceThroughDatabaseTools(fixture.jdbcUrl)
 
-                    val firstSentinel = "ERDMAID_E2E_SENTINEL_FIRST"
-                    copyThroughIde(firstSentinel)
-                    invokeExportThroughDatabasePopup()
-                    val first = waitForClipboardDocument(firstSentinel)
-                    assertReadableUnrelatedUniqueExport(first)
-
-                    val secondSentinel = "ERDMAID_E2E_SENTINEL_REPEAT"
-                    copyThroughIde(secondSentinel)
-                    invokeExportThroughDatabasePopup()
-                    val second = waitForClipboardDocument(secondSentinel)
+                    createDataSourceThroughDatabaseTools(
+                        dataSourceType = "H2",
+                        driverName = H2_DRIVER_NAME,
+                        jdbcUrlPrefix = "jdbc:h2:",
+                        jdbcUrl = h2.jdbcUrl,
+                        user = "sa",
+                    )
+                    val h2First = exportUnrelatedUniqueScenario(
+                        dataSourceName = H2_DRIVER_NAME,
+                        ordersTable = H2_ORDERS_TABLE,
+                        usersTable = H2_USERS_TABLE,
+                        expectedFkName = H2_FK_NAME,
+                        sentinel = "ERDMAID_E2E_H2_FIRST",
+                    )
+                    val h2Second = exportUnrelatedUniqueScenario(
+                        dataSourceName = H2_DRIVER_NAME,
+                        ordersTable = H2_ORDERS_TABLE,
+                        usersTable = H2_USERS_TABLE,
+                        expectedFkName = H2_FK_NAME,
+                        sentinel = "ERDMAID_E2E_H2_REPEAT",
+                    )
                     assertEquals(
-                        first,
-                        second,
-                        "unchanged Database Tools selection must export byte-identical Mermaid text",
+                        h2First,
+                        h2Second,
+                        "unchanged H2 Database Tools selection must export byte-identical Mermaid text",
+                    )
+
+                    createDataSourceThroughDatabaseTools(
+                        dataSourceType = "SQLite",
+                        driverName = SQLITE_DRIVER_NAME,
+                        jdbcUrlPrefix = "jdbc:sqlite:",
+                        jdbcUrl = sqlite.jdbcUrl,
+                    )
+                    val sqliteFirst = exportUnrelatedUniqueScenario(
+                        dataSourceName = SQLITE_DRIVER_NAME,
+                        ordersTable = SQLITE_ORDERS_TABLE,
+                        usersTable = SQLITE_USERS_TABLE,
+                        expectedFkName = null,
+                        sentinel = "ERDMAID_E2E_SQLITE_FIRST",
+                    )
+                    val sqliteSecond = exportUnrelatedUniqueScenario(
+                        dataSourceName = SQLITE_DRIVER_NAME,
+                        ordersTable = SQLITE_ORDERS_TABLE,
+                        usersTable = SQLITE_USERS_TABLE,
+                        expectedFkName = null,
+                        sentinel = "ERDMAID_E2E_SQLITE_REPEAT",
+                    )
+                    assertEquals(
+                        sqliteFirst,
+                        sqliteSecond,
+                        "unchanged SQLite Database Tools selection must export byte-identical Mermaid text",
                     )
                 }
 
@@ -201,7 +244,13 @@ class LiveIdeSmokeTest {
         )
     }
 
-    private fun Driver.createH2DataSourceThroughDatabaseTools(jdbcUrl: String) {
+    private fun Driver.createDataSourceThroughDatabaseTools(
+        dataSourceType: String,
+        driverName: String,
+        jdbcUrlPrefix: String,
+        jdbcUrl: String,
+        user: String? = null,
+    ) {
         ideFrame {
             invokeAction("ActivateDatabaseToolWindow", now = false)
             databaseToolWindow {
@@ -222,7 +271,7 @@ class LiveIdeSmokeTest {
             ui.popups().list().last().list().apply {
                 setFocus()
                 keyboard {
-                    typeText("H2")
+                    typeText(dataSourceType)
                     enter()
                 }
             }
@@ -231,21 +280,23 @@ class LiveIdeSmokeTest {
                 button {
                     and(
                         byClass("ComboBoxButton"),
-                        contains(byAccessibleName("H2")),
+                        contains(byAccessibleName(dataSourceType)),
                     )
                 }.click()
-                waitFor("pinned erdMaid H2 driver popup", timeout = 30.seconds) {
-                    ui.popups().list().lastOrNull()?.hasText(H2_DRIVER_NAME) == true
+                waitFor("pinned erdMaid $dataSourceType driver popup", timeout = 30.seconds) {
+                    ui.popups().list().lastOrNull()?.hasText(driverName) == true
                 }
                 ui.popups().list().last().waitOneText(
-                    H2_DRIVER_NAME,
-                    message = "pinned H2 E2E driver must be selectable",
+                    driverName,
+                    message = "pinned $dataSourceType E2E driver must be selectable",
                     timeout = 30.seconds,
                 ).click()
-                textField("//div[contains(@visible_text, 'jdbc:h2:')]").text = jdbcUrl
-                textField(
-                    "//div[@accessiblename='User:' and @class='JBTextField']",
-                ).text = "sa"
+                textField("//div[contains(@visible_text, '$jdbcUrlPrefix')]").text = jdbcUrl
+                if (user != null) {
+                    textField(
+                        "//div[@accessiblename='User:' and @class='JBTextField']",
+                    ).text = user
+                }
                 okButton.click()
             }
         }
@@ -272,7 +323,31 @@ class LiveIdeSmokeTest {
         waitForIndicators(5.minutes)
     }
 
-    private fun Driver.invokeExportThroughDatabasePopup() {
+    private fun Driver.exportUnrelatedUniqueScenario(
+        dataSourceName: String,
+        ordersTable: String,
+        usersTable: String,
+        expectedFkName: String?,
+        sentinel: String,
+    ): String {
+        copyThroughIde(sentinel)
+        invokeExportThroughDatabasePopup(dataSourceName, ordersTable, usersTable)
+        return waitForClipboardDocument(sentinel).also { document ->
+            assertReadableUnrelatedUniqueExport(
+                document = document,
+                ordersTable = ordersTable,
+                usersTable = usersTable,
+                expectedFkName = expectedFkName,
+                dataSourceName = dataSourceName,
+            )
+        }
+    }
+
+    private fun Driver.invokeExportThroughDatabasePopup(
+        dataSourceName: String,
+        ordersTable: String,
+        usersTable: String,
+    ) {
         lateinit var databaseTree: JTreeUiComponent
         ideFrame {
             invokeAction("ActivateDatabaseToolWindow", now = false)
@@ -281,39 +356,39 @@ class LiveIdeSmokeTest {
             }
         }
 
-        waitFor("H2 datasource appears in Database tree", timeout = 2.minutes) {
+        waitFor("$dataSourceName datasource appears in Database tree", timeout = 2.minutes) {
             databaseTree.collectExpandedPaths()
-                .any { path -> path.path.last().contains(H2_DRIVER_NAME, ignoreCase = true) }
+                .any { path -> path.path.last().contains(dataSourceName, ignoreCase = true) }
         }
 
         databaseTree.expandAll(2.minutes)
         waitFor(
-            message = "ERDMAID_ORDERS and ERDMAID_USERS are visible in the synchronized H2 Database tree",
+            message = "$ordersTable and $usersTable are visible in the synchronized Database tree",
             timeout = 2.minutes,
         ) {
             val visible = databaseTree.collectExpandedPaths().map { it.path.last().uppercase() }.toSet()
-            ORDERS_TABLE in visible && USERS_TABLE in visible
+            ordersTable in visible && usersTable in visible
         }
 
         databaseTree.selectRows { visibleRows ->
             visibleRows.filter { row ->
-                row.equals(ORDERS_TABLE, ignoreCase = true) ||
-                    row.equals(USERS_TABLE, ignoreCase = true)
+                row.equals(ordersTable, ignoreCase = true) ||
+                    row.equals(usersTable, ignoreCase = true)
             }
         }
         val selected = databaseTree.collectSelectedPaths()
         assertEquals(2, selected.size, "real Database tree must select exactly two table nodes")
         assertEquals(
-            setOf(ORDERS_TABLE, USERS_TABLE),
+            setOf(ordersTable, usersTable),
             selected.map { it.path.last().uppercase() }.toSet(),
-            "real Database tree must own exactly the two intended table selections",
+            "real Database tree must own exactly the intended table pair",
         )
 
         // Use the shipping popup registration, not direct action invocation. Right-clicking one
         // already-selected row must preserve the multi-selection used to build AnActionEvent.
-        databaseTree.rightClickRow { it.equals(ORDERS_TABLE, ignoreCase = true) }
+        databaseTree.rightClickRow { it.equals(ordersTable, ignoreCase = true) }
         assertEquals(
-            setOf(ORDERS_TABLE, USERS_TABLE),
+            setOf(ordersTable, usersTable),
             databaseTree.collectSelectedPaths().map { it.path.last().uppercase() }.toSet(),
             "opening the Database popup must preserve the selected table pair",
         )
@@ -334,31 +409,39 @@ class LiveIdeSmokeTest {
         return checkNotNull(clipboardText())
     }
 
-    private fun assertReadableUnrelatedUniqueExport(document: String) {
+    private fun assertReadableUnrelatedUniqueExport(
+        document: String,
+        ordersTable: String,
+        usersTable: String,
+        expectedFkName: String?,
+        dataSourceName: String,
+    ) {
         assertTrue(document.startsWith("erDiagram\n"))
         assertEquals(
             1,
-            Regex("""\["ERDMAID_ORDERS"]""").findAll(document).count(),
-            "ERDMAID_ORDERS must be rendered exactly once",
+            document.lineSequence().count { "[\"$ordersTable\"]" in it },
+            "$ordersTable must be rendered exactly once",
         )
         assertEquals(
             1,
-            Regex("""\["ERDMAID_USERS"]""").findAll(document).count(),
-            "ERDMAID_USERS must be rendered exactly once",
+            document.lineSequence().count { "[\"$usersTable\"]" in it },
+            "$usersTable must be rendered exactly once",
         )
-        assertTrue("USER_ID" in document, "readable FK column name must survive real Database Tools capture")
+        assertTrue("USER_ID" in document, "readable FK column name must survive $dataSourceName capture")
         assertTrue("NOTE" in document, "unrelated UNIQUE(NOTE) column must remain readable")
-        assertTrue(
-            "FK_ERDMAID_ORDERS_USERS" in document,
-            "physical H2 FK must survive capture and Mermaid serialization",
-        )
+        if (expectedFkName != null) {
+            assertTrue(
+                expectedFkName in document,
+                "named physical FK must survive $dataSourceName capture and Mermaid serialization",
+            )
+        }
         assertTrue(
             "%% FK: physical" in document,
-            "real physical relation annotation must be present",
+            "real physical relation annotation must be present for $dataSourceName",
         )
         assertTrue(
             " ||..o{ " in document,
-            "unrelated UNIQUE(NOTE) must not collapse the USER_ID FK to one-to-one",
+            "unrelated UNIQUE(NOTE) must not collapse the USER_ID FK to one-to-one for $dataSourceName",
         )
         assertFalse(
             Regex("""\bc_[A-Za-z0-9_]""").containsMatchIn(document),
@@ -370,10 +453,16 @@ class LiveIdeSmokeTest {
         )
     }
 
-    private fun writeH2DatabaseToolsDriverFixture(configDir: Path, sourceJar: Path) {
+    private fun writeDatabaseToolsDriverFixture(
+        configDir: Path,
+        h2SourceJar: Path,
+        sqliteSourceJar: Path,
+    ) {
         val driverDir = Files.createDirectories(configDir.resolve("jdbc-drivers"))
-        val driverJar = driverDir.resolve(sourceJar.fileName)
-        Files.copy(sourceJar, driverJar, StandardCopyOption.REPLACE_EXISTING)
+        val h2DriverJar = driverDir.resolve(h2SourceJar.fileName)
+        val sqliteDriverJar = driverDir.resolve(sqliteSourceJar.fileName)
+        Files.copy(h2SourceJar, h2DriverJar, StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(sqliteSourceJar, sqliteDriverJar, StandardCopyOption.REPLACE_EXISTING)
 
         val optionsDir = Files.createDirectories(configDir.resolve("options"))
         Files.writeString(
@@ -390,7 +479,18 @@ class LiveIdeSmokeTest {
                   <option name="auto-sync" value="true" />
                   <option name="schema-control" value="AUTOMATIC" />
                   <library>
-                    <url>${driverJar.toUri().toASCIIString()}</url>
+                    <url>${h2DriverJar.toUri().toASCIIString()}</url>
+                  </library>
+                </driver>
+                <driver
+                    id="erdmaid-sqlite-3.54.1.0"
+                    name="$SQLITE_DRIVER_NAME"
+                    dialect="SQLite"
+                    driver-class="org.sqlite.JDBC">
+                  <artifact use="false" />
+                  <option name="auto-sync" value="true" />
+                  <library>
+                    <url>${sqliteDriverJar.toUri().toASCIIString()}</url>
                   </library>
                 </driver>
               </component>
@@ -423,7 +523,7 @@ class LiveIdeSmokeTest {
             keeper.createStatement().use { statement ->
                 statement.execute(
                     """
-                    CREATE TABLE ERDMAID_USERS (
+                    CREATE TABLE $H2_USERS_TABLE (
                       ID BIGINT PRIMARY KEY,
                       EMAIL VARCHAR(255) NOT NULL
                     )
@@ -431,18 +531,19 @@ class LiveIdeSmokeTest {
                 )
                 statement.execute(
                     """
-                    CREATE TABLE ERDMAID_ORDERS (
+                    CREATE TABLE $H2_ORDERS_TABLE (
                       ID BIGINT PRIMARY KEY,
                       USER_ID BIGINT NOT NULL,
                       NOTE VARCHAR(255),
-                      CONSTRAINT FK_ERDMAID_ORDERS_USERS
-                        FOREIGN KEY (USER_ID) REFERENCES ERDMAID_USERS(ID)
+                      CONSTRAINT $H2_FK_NAME
+                        FOREIGN KEY (USER_ID) REFERENCES $H2_USERS_TABLE(ID)
                     )
                     """.trimIndent(),
                 )
-                statement.execute("COMMENT ON COLUMN ERDMAID_ORDERS.NOTE IS 'human readable'")
-                // Regression #238: this is intentionally unrelated to the FK tuple USER_ID.
-                statement.execute("CREATE UNIQUE INDEX UX_ERDMAID_ORDERS_NOTE ON ERDMAID_ORDERS(NOTE)")
+                statement.execute("COMMENT ON COLUMN $H2_ORDERS_TABLE.NOTE IS 'human readable'")
+                statement.execute(
+                    "CREATE UNIQUE INDEX UX_ERDMAID_H2_ORDERS_NOTE ON $H2_ORDERS_TABLE(NOTE)"
+                )
             }
         }
 
@@ -452,11 +553,55 @@ class LiveIdeSmokeTest {
         }
     }
 
+    private class SQLiteFixture(private val databasePath: Path) {
+        val jdbcUrl: String = "jdbc:sqlite:${databasePath.toAbsolutePath()}"
+        val driverJar: Path =
+            Path.of(SQLiteDriver::class.java.protectionDomain.codeSource.location.toURI())
+
+        fun createSchema() {
+            Class.forName("org.sqlite.JDBC")
+            DriverManager.getConnection(jdbcUrl).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA foreign_keys = ON")
+                    statement.execute(
+                        """
+                        CREATE TABLE $SQLITE_USERS_TABLE (
+                          ID INTEGER PRIMARY KEY,
+                          EMAIL TEXT NOT NULL
+                        )
+                        """.trimIndent(),
+                    )
+                    statement.execute(
+                        """
+                        CREATE TABLE $SQLITE_ORDERS_TABLE (
+                          ID INTEGER PRIMARY KEY,
+                          USER_ID INTEGER NOT NULL,
+                          NOTE TEXT,
+                          CONSTRAINT FK_ERDMAID_SQLITE_ORDERS_USERS
+                            FOREIGN KEY (USER_ID) REFERENCES $SQLITE_USERS_TABLE(ID)
+                        )
+                        """.trimIndent(),
+                    )
+                    // Exact #238 reproduction shape: unrelated unique index on NOTE.
+                    statement.execute(
+                        "CREATE UNIQUE INDEX UX_ERDMAID_SQLITE_ORDERS_NOTE ON $SQLITE_ORDERS_TABLE(NOTE)"
+                    )
+                }
+            }
+        }
+    }
+
     private companion object {
         const val IDE_RELEASE = "2026.3"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
+        const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
         const val EXPORT_ACTION_TEXT = "Export as Mermaid ERD (erdMaid)"
-        const val USERS_TABLE = "ERDMAID_USERS"
-        const val ORDERS_TABLE = "ERDMAID_ORDERS"
+
+        const val H2_USERS_TABLE = "ERDMAID_H2_USERS"
+        const val H2_ORDERS_TABLE = "ERDMAID_H2_ORDERS"
+        const val H2_FK_NAME = "FK_ERDMAID_H2_ORDERS_USERS"
+
+        const val SQLITE_USERS_TABLE = "ERDMAID_SQLITE_USERS"
+        const val SQLITE_ORDERS_TABLE = "ERDMAID_SQLITE_ORDERS"
     }
 }
