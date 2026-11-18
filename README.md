@@ -12,6 +12,7 @@ erdMaid exports database-table metadata from the IntelliJ Database tool window a
 - Exports the schema-level `Tables` node or individual physical tables selected beneath it.
 - Supports tables across schemas/catalogs when they belong to one datasource/origin.
 - Preserves authoritative column order, canonical table/column identity, PK/FK mappings, relation provenance, available type details, and comments.
+- Renders readable original SQL column/type names (for example `BIGINT customer_id`, `VARCHAR(255) name`) rather than opaque attribute tokens, using Mermaid-safe quoting when needed.
 - Derives relationship multiplicity only from explicit uniqueness/nullability/referential-integrity evidence.
 - Fails closed when required identity, relation, cardinality, selection, or metadata evidence is unavailable instead of fabricating a plausible diagram.
 - Serializes deterministic Mermaid text with context-specific encoding and copies it to the clipboard only after a complete successful export.

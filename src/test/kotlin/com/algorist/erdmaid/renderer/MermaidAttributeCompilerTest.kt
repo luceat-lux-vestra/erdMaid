@@ -41,7 +41,7 @@ class MermaidAttributeCompilerTest {
         val tokens = completeAttributes(graph(table)).entities.single().columns
 
         assertEquals(listOf("z_col", "a_col", "middle"), tokens.map { it.columnId.name })
-        assertEquals(listOf("c_z_u005F_col", "c_a_u005F_col", "c_middle"), tokens.map { it.name })
+        assertEquals(listOf("z_col", "a_col", "middle"), tokens.map { it.name })
     }
 
     @Test
@@ -74,11 +74,11 @@ class MermaidAttributeCompilerTest {
         val onlyPrecision = rawType(name = "varchar", precision = OptionalValue.Present(7))
 
         assertEquals(
-            ExportOutcome.Complete("t_number_u005F_raw__L12__P10__S-2"),
+            ExportOutcome.Complete("number_raw(L12,P10,S-2)"),
             MermaidAttributeCompiler.encodeType(all),
         )
         assertEquals(
-            ExportOutcome.Complete("t_varchar__P7"),
+            ExportOutcome.Complete("varchar(7)"),
             MermaidAttributeCompiler.encodeType(onlyPrecision),
         )
     }
@@ -105,7 +105,7 @@ class MermaidAttributeCompilerTest {
         val token = (outcome as ExportOutcome.Complete).value
 
         assertEquals(
-            "t_n_u0020_um_u005F__u0025__u007B__u007D__u0022__u005C__u000D__u000A_",
+            "ERDMAID_T_6E20756D5F257B7D225C0D0A",
             token,
         )
         assertTrue(token.first().isLetter())
@@ -215,8 +215,7 @@ class MermaidAttributeCompilerTest {
         val token = completeAttributes(graph(table)).entities.single().columns.single()
 
         assertEquals(
-            "c_사용자_u0020_id_u000D__u000A__u0025__u0025__u007B__u007D_[]" +
-                "_u007C__u003A__u003C__u003E__u005F_",
+            "ERDMAID_C_EC82ACEC9AA9EC9E902069640D0A25257B7D5B5D7C3A3C3E5F",
             token.name,
         )
         assertEquals(
@@ -232,7 +231,7 @@ class MermaidAttributeCompilerTest {
 
     @Test
     fun `safe Unicode and exact case stay distinct and escape form is injective`() {
-        assertEquals("c_사용자", MermaidAttributeCompiler.encodeAttributeIdentifier('c', "사용자"))
+        assertEquals("사용자", MermaidAttributeCompiler.encodeAttributeIdentifier('c', "사용자"))
         assertNotEquals(
             MermaidAttributeCompiler.encodeAttributeIdentifier('c', "Users"),
             MermaidAttributeCompiler.encodeAttributeIdentifier('c', "users"),
@@ -241,6 +240,56 @@ class MermaidAttributeCompilerTest {
             MermaidAttributeCompiler.encodeAttributeIdentifier('c', "_u0041_"),
             MermaidAttributeCompiler.encodeAttributeIdentifier('c', "A"),
         )
+    }
+
+    @Test
+    fun `normal SQL column names and types remain readable`() {
+        val tableId = tableId("Invoice")
+        val snapshot = table(
+            tableId,
+            listOf(
+                column(tableId, "customer_id", 0, type = rawType("BIGINT")),
+                column(tableId, "created_at", 1, type = rawType("TIMESTAMP")),
+                column(
+                    tableId,
+                    "금액",
+                    2,
+                    type = rawType(
+                        "NUMERIC",
+                        precision = OptionalValue.Present(18),
+                        scale = OptionalValue.Present(2),
+                    ),
+                ),
+                column(
+                    tableId,
+                    "memo",
+                    3,
+                    type = rawType("VARCHAR", length = OptionalValue.Present(255)),
+                ),
+            ),
+        )
+        val attributes = completeAttributes(graph(snapshot)).entities.single().columns
+
+        assertEquals(listOf("customer_id", "created_at", "금액", "memo"), attributes.map { it.name })
+        assertEquals(listOf("BIGINT", "TIMESTAMP", "NUMERIC(18,2)", "VARCHAR(255)"), attributes.map { it.type })
+    }
+
+    @Test
+    fun `quoted names preserve source spelling and opaque fallback reserves collision namespace`() {
+        assertEquals("`full name`", MermaidAttributeCompiler.encodeAttributeIdentifier('c', "full name"))
+        assertEquals("`PK`", MermaidAttributeCompiler.encodeAttributeIdentifier('c', "PK"))
+        assertEquals("order_item", MermaidAttributeCompiler.encodeAttributeIdentifier('c', "order_item"))
+
+        val reserved = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "ERDMAID_C_61")
+        val unsafe = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "a\n")
+        val markup = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "<svg onload=alert(1)>")
+        val injected = MermaidAttributeCompiler.encodeAttributeIdentifier('c', "name } %% injected")
+        assertTrue(reserved.startsWith("ERDMAID_C_"))
+        assertTrue(unsafe.startsWith("ERDMAID_C_"))
+        assertTrue(markup.startsWith("ERDMAID_C_"))
+        assertTrue(injected.startsWith("ERDMAID_C_"))
+        assertNotEquals("ERDMAID_C_61", reserved)
+        assertNotEquals(reserved, unsafe)
     }
 
     @Test

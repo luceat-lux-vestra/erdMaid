@@ -36,6 +36,7 @@ No Node, npm, Mermaid, browser, or Mermaid CLI dependency is added to the plugin
 - generated entity identifiers plus quoted aliases;
 - identifying (`--`) and non-identifying (`..`) relationships;
 - all four multiplicities on both relationship sides: exactly one, zero-or-one, one-or-more, and zero-or-more;
+- source-readable attribute type/name spelling, including underscores, Unicode, `VARCHAR(255)`, `NUMERIC(18,2)`, and a backtick-quoted space-containing name;
 - attribute `PK` syntax;
 - an authoritative present-empty quoted attribute comment;
 - a present-empty relation name as it is actually emitted today (`"physical:"`).

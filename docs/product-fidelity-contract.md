@@ -106,6 +106,7 @@ For the same authoritative snapshot plus the same options, output must be byte-i
 Mermaid syntax is presentation, not database truth.
 
 - Canonical metadata is never rewritten to create a database fact.
+- Human readability is a product requirement: render the original column/type name in Mermaid attributes wherever the pinned grammar can express it. A safe one-line value requiring delimiters uses backtick quoting; only grammar-unsafe values require injective reserved-namespace encoding. Canonical database identity remains untouched.
 - Context-specific escaping/encoding is deterministic and injective for the maintained contexts.
 - Hostile database-controlled text must not create extra Mermaid statements, comments, entities, attributes, or relations.
 - Type-display normalization and FK-reference comments are presentation choices.

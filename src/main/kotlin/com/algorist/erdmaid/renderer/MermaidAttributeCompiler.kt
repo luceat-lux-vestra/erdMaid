@@ -155,33 +155,54 @@ object MermaidAttributeCompiler {
         val scale = optionalInt(rawType.scale, "scale")
         if (scale is OptionalIntResult.Unavailable) return scale.outcome
 
-        val token = buildString {
-            append(encodeAttributeIdentifier(prefix = 't', value = rawType.name))
-            appendOptionalTypeDetail("L", length)
-            appendOptionalTypeDetail("P", precision)
-            appendOptionalTypeDetail("S", scale)
+        val l = (length as? OptionalIntResult.Present)?.value
+        val p = (precision as? OptionalIntResult.Present)?.value
+        val s = (scale as? OptionalIntResult.Present)?.value
+        val dimensions = when {
+            l == null && p == null && s == null -> ""
+            l != null && p == null && s == null -> "($l)"
+            l == null && p != null && s == null -> "($p)"
+            l == null && p != null && s != null -> "($p,$s)"
+            else -> "(" + listOfNotNull(
+                l?.let { "L$it" },
+                p?.let { "P$it" },
+                s?.let { "S$it" },
+            ).joinToString(",") + ")"
         }
-        return ExportOutcome.Complete(token)
+
+        // The authoritative type name may already include the same dimensions.
+        // Avoid repeating an identical suffix while preserving conflicting metadata visibly.
+        val display = if (dimensions.isNotEmpty() && rawType.name.endsWith(dimensions)) {
+            rawType.name
+        } else {
+            rawType.name + dimensions
+        }
+        return ExportOutcome.Complete(encodeAttributeIdentifier(prefix = 't', value = display))
     }
 
+    /**
+     * Prefer the source name itself. Mermaid 11.17.2 accepts ordinary identifier words
+     * (including underscores and Unicode) and backtick-delimited attribute words.
+     * Reserve one namespace for the rare unsafe fallback so mapping stays injective:
+     * an actual identifier beginning with that namespace is also hex-encoded.
+     * The prefix parameter only distinguishes type versus column fallback tokens.
+     */
     internal fun encodeAttributeIdentifier(prefix: Char, value: String): String {
         require(prefix in 'A'..'Z' || prefix in 'a'..'z') {
             "Mermaid attribute token prefix must be alphabetic"
         }
+        if (!value.startsWith(OPAQUE_ATTRIBUTE_PREFIX)) {
+            if (isReadableAttributeWord(value)) return value
+            if (isSafeBacktickAttributeWord(value)) return "`$value`"
+        }
         return buildString {
-            append(prefix)
+            append(OPAQUE_ATTRIBUTE_PREFIX)
+            append(prefix.uppercaseChar())
             append('_')
-            var index = 0
-            while (index < value.length) {
-                val codePoint = value.codePointAt(index)
-                if (isDirectAttributeCodePoint(codePoint)) {
-                    appendCodePointValue(codePoint)
-                } else {
-                    append("_u")
-                    appendCodePointHex(codePoint)
-                    append('_')
-                }
-                index += Character.charCount(codePoint)
+            for (byte in value.toByteArray(Charsets.UTF_8)) {
+                val unsigned = byte.toInt() and 0xff
+                append(HEX[unsigned ushr 4])
+                append(HEX[unsigned and 0x0f])
             }
         }
     }
@@ -222,31 +243,33 @@ object MermaidAttributeCompiler {
         )
     }
 
-    private fun StringBuilder.appendOptionalTypeDetail(
-        label: String,
-        result: OptionalIntResult,
-    ) {
-        if (result is OptionalIntResult.Present) {
-            append("__")
-            append(label)
-            append(result.value)
+    /** Conservative subset of the pinned Mermaid 11.17.2 ATTRIBUTE_WORD lexer. */
+    private fun isReadableAttributeWord(value: String): Boolean {
+        if (value.isEmpty() || listOf("PK", "FK", "UK").any { value.equals(it, ignoreCase = true) }) return false
+        var offset = 0
+        while (offset < value.length) {
+            val cp = value.codePointAt(offset)
+            val letter = cp <= 0xffff && Character.isLetter(cp)
+            val valid = if (offset == 0) {
+                letter || cp == '_'.code
+            } else {
+                letter || (Character.isDigit(cp) && cp <= 0xffff) ||
+                    cp in ATTRIBUTE_WORD_PUNCTUATION
+            }
+            if (!valid) return false
+            offset += Character.charCount(cp)
         }
+        return true
     }
 
-    /**
-     * Mermaid ER attribute type/name grammar allows digits, hyphens, underscores, parentheses and
-     * square brackets after an alphabetic start. The generated prefix supplies that start.
-     * Underscore is intentionally encoded rather than passed through so `_uXXXX_` remains an
-     * injective escape form instead of colliding with literal source text.
-     */
-    private fun isDirectAttributeCodePoint(codePoint: Int): Boolean =
-        Character.isLetter(codePoint) ||
-            Character.isDigit(codePoint) ||
-            codePoint == '-'.code ||
-            codePoint == '('.code ||
-            codePoint == ')'.code ||
-            codePoint == '['.code ||
-            codePoint == ']'.code
+    private fun isSafeBacktickAttributeWord(value: String): Boolean =
+        value.isNotBlank() && value.codePoints().allMatch { cp ->
+            // Quoting is for readable one-line SQL names, not a way to admit hostile
+            // punctuation or markup into Mermaid's attribute/rendering context.
+            Character.isLetterOrDigit(cp) ||
+                cp in ATTRIBUTE_WORD_PUNCTUATION ||
+                cp == ' '.code
+        }
 
     private fun isUnsafeCommentCodePoint(codePoint: Int): Boolean =
         codePoint < 0x20 ||
@@ -275,6 +298,11 @@ object MermaidAttributeCompiler {
         data class Unavailable(val outcome: ExportOutcome.Degraded) : OptionalIntResult
     }
 
+    private const val OPAQUE_ATTRIBUTE_PREFIX = "ERDMAID_"
+    private val ATTRIBUTE_WORD_PUNCTUATION = setOf(
+        '_'.code, '-'.code, '['.code, ']'.code,
+        '('.code, ')'.code, '.'.code, ','.code,
+    )
     private val HEX = "0123456789ABCDEF".toCharArray()
     private val UNSAFE_COMMENT_ASCII = setOf(
         '_'.code,

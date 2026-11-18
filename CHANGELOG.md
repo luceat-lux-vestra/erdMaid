@@ -3,6 +3,9 @@
 # erdMaid Changelog
 
 ## [Unreleased]
+### Fixed
+- Restore readable SQL column and type names in exported Mermaid attributes (for example `INT user_id`, `VARCHAR(255) customer_name`, `NUMERIC(18,2) unit_price`) instead of opaque `c_...` / `t_...` tokens. Preserve grammar-safe quoting and an injective fallback for unrepresentable source text.
+
 ### Added
 - Mermaid `erDiagram` export for physical database-table selections from the IntelliJ Database tool window.
 - Immutable canonical schema snapshots with datasource/origin-aware table and column identity, ordered PK/FK mappings, relation provenance, explicit unavailable/unknown states, and deterministic ordering.
