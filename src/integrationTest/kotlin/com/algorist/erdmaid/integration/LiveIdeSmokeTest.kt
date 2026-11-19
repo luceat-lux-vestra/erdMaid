@@ -217,6 +217,11 @@ class LiveIdeSmokeTest {
                     assertRichH2Scenario(richH2)
                     assertOptionalSingleColumnH2Scenario()
                     assertCompositeNullableH2FailsClosed()
+                    // The fail-closed composite-nullable fixture shares PUBLIC with the positive
+                    // Tables-group scenario. Remove it after the negative proof and synchronize
+                    // the actual Database Tools tree before exporting the whole group.
+                    h2.dropCompositeNullableTable()
+                    refreshH2DataSourceAfterFixtureChange()
                     assertSelfReferenceH2Scenario()
                     assertIdentifyingOneToZeroOrOneH2Scenario()
                     assertSelectedSubgraphH2Scenario()
@@ -552,6 +557,33 @@ class LiveIdeSmokeTest {
             sentinel = "ERDMAID_E2E_H2_COMPOSITE_NULLABLE",
             expectedDiagnostic = "mermaid-cardinality-unavailable",
         )
+    }
+
+    private fun Driver.refreshH2DataSourceAfterFixtureChange() {
+        val databaseTree = currentDatabaseTree()
+        val sources = databaseTree.collectExpandedPaths().filter { path ->
+            path.path.last().matchesDatabaseTreeLabel(H2_DRIVER_NAME)
+        }
+        assertEquals(1, sources.size, "the live H2 datasource must be unambiguous")
+        databaseTree.clickRow(sources.single().row)
+        ideFrame {
+            databaseToolWindow {
+                driver.invokeAction(
+                    "DatabaseView.Refresh",
+                    now = false,
+                    component = component,
+                )
+            }
+        }
+        expandDatabaseTreeContainers(databaseTree, H2_DRIVER_NAME, setOf(H2_ACCOUNT_TABLE))
+        waitFor(
+            message = "removed negative fixture is absent from synchronized PUBLIC tables",
+            timeout = 2.minutes,
+        ) {
+            val visible = databaseTree.collectExpandedPaths()
+            visible.any { it.path.last().matchesDatabaseTreeLabel(H2_ACCOUNT_TABLE) } &&
+                visible.none { it.path.last().matchesDatabaseTreeLabel(H2_COMPOSITE_OPTIONAL_TABLE) }
+        }
     }
 
     private fun Driver.assertSelfReferenceH2Scenario() {
@@ -1487,6 +1519,12 @@ class LiveIdeSmokeTest {
             }
         }
 
+        fun dropCompositeNullableTable() {
+            keeper.createStatement().use { statement ->
+                statement.execute("DROP TABLE $H2_COMPOSITE_OPTIONAL_TABLE")
+            }
+        }
+
         override fun close() {
             runCatching { keeper.close() }
             runCatching { server.stop() }
@@ -1556,7 +1594,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
-        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v5"
+        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v6"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val H2_PASSWORD = "erdmaid-e2e"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
