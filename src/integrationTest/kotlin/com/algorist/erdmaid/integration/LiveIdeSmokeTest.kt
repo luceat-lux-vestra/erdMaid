@@ -394,9 +394,17 @@ class LiveIdeSmokeTest {
                         message = "H2 datasource configuration must expose the Schemas tab",
                         timeout = 30.seconds,
                     ).click()
-                    textField(
-                        "//div[@accessiblename='Schema pattern:' and @class='JBTextField']",
-                    ).text = "*:PUBLIC,ERDMAID_SALES,ERDMAID_ARCHIVE"
+                    // IDEA 2026.3 renders Schema pattern with an EditorTextField-
+                    // backed TextFieldWithAutoCompletion, not a Swing JBTextField.
+                    // The screenshot and exported Remote Driver UI hierarchy from
+                    // the c52675a Starter failure show this exact label/sibling pair.
+                    x(
+                        "//div[@accessiblename='Schema pattern:']" +
+                            "/following-sibling::div[@class='TextFieldWithAutoCompletion']",
+                    ).click()
+                    ui.keyboard {
+                        typeText("*:PUBLIC,ERDMAID_SALES,ERDMAID_ARCHIVE")
+                    }
                 }
                 okButton.click()
             }
