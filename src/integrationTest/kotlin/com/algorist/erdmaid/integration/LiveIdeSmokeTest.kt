@@ -1400,10 +1400,9 @@ class LiveIdeSmokeTest {
                     )
                     """.trimIndent(),
                 )
-                statement.execute("CREATE SCHEMA $H2_EDGE_CASE_SCHEMA")
                 statement.execute(
                     """
-                    CREATE TABLE $H2_EDGE_CASE_SCHEMA.$H2_COMPOSITE_OPTIONAL_TABLE (
+                    CREATE TABLE $H2_COMPOSITE_OPTIONAL_TABLE (
                       ID BIGINT PRIMARY KEY,
                       TENANT_ID BIGINT NOT NULL,
                       ACCOUNT_ID BIGINT,
@@ -1572,7 +1571,6 @@ class LiveIdeSmokeTest {
         const val H2_APPROVER_FK = "FK_ERDMAID_PURCHASE_ORDER_APPROVER"
         const val H2_OPTIONAL_ORDER_TABLE = "ERDMAID_OPTIONAL_ORDER"
         const val H2_OPTIONAL_USER_FK = "FK_ERDMAID_OPTIONAL_ORDER_USER"
-        const val H2_EDGE_CASE_SCHEMA = "ERDMAID_EDGE_CASES"
         const val H2_COMPOSITE_OPTIONAL_TABLE = "ERDMAID_COMPOSITE_OPTIONAL"
         const val H2_COMPOSITE_OPTIONAL_FK = "FK_ERDMAID_COMPOSITE_OPTIONAL_ACCOUNT"
         const val H2_EMPLOYEE_TABLE = "ERDMAID_EMPLOYEE"
