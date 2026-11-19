@@ -75,6 +75,15 @@ class ErdMaidExportActionTest {
         assertTrue(source.contains("withBackgroundProgress"))
         assertTrue(source.contains("cancellable = true"))
         assertTrue(source.contains("Dispatchers.EDT"))
+        assertTrue(
+            Regex(
+                """withContext\(Dispatchers\.EDT\)\s*\{\s*JetBrainsDatabaseHost\.captureSelectionForInvocation\(context\)\s*}"""
+            ).containsMatchIn(source),
+        )
+        assertTrue(
+            source.indexOf("captureSelectionForInvocation(context)") <
+                source.indexOf("JetBrainsDatabaseHost.capture(project, selection)")
+        )
         assertFalse(source.contains("Class.forName"))
         assertFalse(source.contains("getSelectedDbElementsExpandingGroups"))
         assertTrue(source.contains("hasPotentialExportSelection"))

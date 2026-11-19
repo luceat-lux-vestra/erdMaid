@@ -27,6 +27,7 @@ import com.intellij.database.model.DasTable
 import com.intellij.database.model.DasTableKey
 import com.intellij.database.model.DataType
 import com.intellij.database.model.ModelRelationManager
+import com.intellij.database.model.ObjectKind
 import com.intellij.database.psi.DbDataSource
 import com.intellij.database.psi.DbElement
 import com.intellij.database.psi.DbPsiFacade
@@ -177,13 +178,24 @@ internal object DatabaseToolsCompatibility {
 @Suppress("UnstableApiUsage", "DEPRECATION")
 internal object JetBrainsDatabaseHost {
 
+    /**
+     * Captures the live Database-tree selection at invocation time.
+     *
+     * Group expansion depends on the action DataContext and must be called from the EDT by the
+     * action boundary. The returned DbTable identities are then consumed by cancellable background
+     * read actions without retaining the ephemeral DataContext.
+     */
+    internal fun captureSelectionForInvocation(
+        dataContext: DataContext,
+    ): ExportOutcome<LiveSelection> = captureSelection(dataContext)
+
     suspend fun capture(
         project: Project,
-        dataContext: DataContext,
+        selectionOutcome: ExportOutcome<LiveSelection>,
     ): ExportOutcome<CapturedHostExport> {
         if (project.isDisposed) return ExportOutcome.Cancelled
 
-        val selection = when (val outcome = readAction { captureSelection(dataContext) }) {
+        val selection = when (val outcome = selectionOutcome) {
             is ExportOutcome.Complete -> outcome.value
             ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)
@@ -301,6 +313,19 @@ internal object JetBrainsDatabaseHost {
         for (element in elements) {
             val table = element as DbTable
             if (!table.isValid) return unsupported("selection-object-invalid")
+            val kind = try {
+                table.dasObject.kind
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: RuntimeException) {
+                return failure("selection-kind-read-failed", failure.javaClass.name)
+            } catch (failure: LinkageError) {
+                return failure("selection-kind-read-failed", failure.javaClass.name)
+            }
+            // Database Tools represents views through the DbTable PSI surface as well.
+            // Only physical TABLE objects are exportable; VIEW/MAT_VIEW/etc. must remain
+            // an invocation-time fail-closed selection instead of being serialized as tables.
+            if (kind != ObjectKind.TABLE) return unsupported("selection-mixed-or-unsupported")
             if (unique.add(table)) tables += table
         }
         if (tables.isEmpty()) return ExportOutcome.NoExport

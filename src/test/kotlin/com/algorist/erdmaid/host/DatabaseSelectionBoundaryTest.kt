@@ -1,6 +1,8 @@
 package com.algorist.erdmaid.host
 
 import com.algorist.erdmaid.core.ExportOutcome
+import com.intellij.database.model.DasTable
+import com.intellij.database.model.ObjectKind
 import com.intellij.database.psi.DbDataSource
 import com.intellij.database.psi.DbElement
 import com.intellij.database.psi.DbTable
@@ -125,6 +127,20 @@ class DatabaseSelectionBoundaryTest {
     }
 
     @Test
+    fun `DbTable-typed view in mixed selection fails closed`() {
+        val source = source("one", 1L)
+        val result = JetBrainsDatabaseHost.classifyExpandedSelection(
+            listOf(table(source), table(source, ObjectKind.VIEW)),
+        )
+
+        assertTrue(result is ExportOutcome.Unsupported)
+        assertEquals(
+            "selection-mixed-or-unsupported",
+            (result as ExportOutcome.Unsupported).diagnostics.values.single().code,
+        )
+    }
+
+    @Test
     fun `cross-origin selection is rejected`() {
         val result = JetBrainsDatabaseHost.classifyExpandedSelection(
             listOf(table(source("one", 1L)), table(source("two", 1L))),
@@ -189,16 +205,29 @@ class DatabaseSelectionBoundaryTest {
             }
         }
 
-    private fun table(source: DbDataSource): DbTable =
-        proxy(DbTable::class.java) { method, _ ->
+    private fun table(
+        source: DbDataSource,
+        kind: ObjectKind = ObjectKind.TABLE,
+    ): DbTable {
+        val dasTable = proxy(DasTable::class.java) { method, _ ->
             when (method.name) {
-                "isValid" -> true
-                "getDataSource" -> source
+                "getKind" -> kind
                 "getName" -> "orders"
-                "toString" -> "DbTable(orders)"
+                "toString" -> "DasTable(orders, $kind)"
                 else -> defaultValue(method.returnType)
             }
         }
+        return proxy(DbTable::class.java) { method, _ ->
+            when (method.name) {
+                "isValid" -> true
+                "getDataSource" -> source
+                "getDasObject" -> dasTable
+                "getName" -> "orders"
+                "toString" -> "DbTable(orders, $kind)"
+                else -> defaultValue(method.returnType)
+            }
+        }
+    }
 
     private fun element(): DbElement =
         proxy(DbElement::class.java) { method, _ ->
