@@ -386,8 +386,8 @@ class LiveIdeSmokeTest {
             !ui.isDialogOpened("//div[@title='Data Sources and Drivers']")
         }
 
+        ensureDatabaseToolWindowVisible()
         ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
             databaseToolWindow {
                 waitFor("DatabaseView.Refresh is accepted", timeout = 30.seconds) {
                     runCatching {
@@ -408,14 +408,12 @@ class LiveIdeSmokeTest {
     }
 
     private fun Driver.assertSelectionOrderInvariantH2Scenario() {
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
-        databaseTree.expandAll(2.minutes)
+        val databaseTree = currentDatabaseTree()
+        expandDatabaseTreeContainers(
+            databaseTree = databaseTree,
+            dataSourceName = H2_DRIVER_NAME,
+            selectedObjects = setOf(H2_ORDERS_TABLE, H2_USERS_TABLE),
+        )
         val expanded = databaseTree.collectExpandedPaths()
         val orders = expanded.single { path ->
             path.path.last().matchesDatabaseTreeLabel(H2_ORDERS_TABLE) &&
@@ -597,13 +595,7 @@ class LiveIdeSmokeTest {
         val sentinel = "ERDMAID_E2E_H2_TABLES_GROUP"
         copyThroughIde(sentinel)
 
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
+        val databaseTree = currentDatabaseTree()
         databaseTree.expandAll(2.minutes)
 
         val groupCandidates = databaseTree.collectExpandedPaths().filter { path ->
@@ -654,13 +646,7 @@ class LiveIdeSmokeTest {
         val sentinel = "ERDMAID_E2E_H2_DUPLICATE_SCHEMA"
         copyThroughIde(sentinel)
 
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
+        val databaseTree = currentDatabaseTree()
         databaseTree.expandAll(2.minutes)
         val expanded = databaseTree.collectExpandedPaths()
         fun exactRow(schema: String, table: String) =
@@ -725,13 +711,7 @@ class LiveIdeSmokeTest {
         val sentinel = "ERDMAID_E2E_H2_QUOTED_CASE"
         copyThroughIde(sentinel)
 
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
+        val databaseTree = currentDatabaseTree()
         databaseTree.expandAll(2.minutes)
         val expanded = databaseTree.collectExpandedPaths()
         val upper = expanded.single { path ->
@@ -773,13 +753,7 @@ class LiveIdeSmokeTest {
     private fun Driver.assertViewOnlyActionSuppressed() {
         val sentinel = "ERDMAID_E2E_VIEW_ONLY"
         copyThroughIde(sentinel)
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
+        val databaseTree = currentDatabaseTree()
         databaseTree.expandAll(2.minutes)
         val view = databaseTree.collectExpandedPaths().single { path ->
             path.path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME) &&
@@ -1015,13 +989,7 @@ class LiveIdeSmokeTest {
         rightClickName: String,
         allowSuppressedAction: Boolean = false,
     ): Boolean {
-        lateinit var databaseTree: JTreeUiComponent
-        ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
-            databaseToolWindow {
-                databaseTree = tree()
-            }
-        }
+        val databaseTree = currentDatabaseTree()
 
         waitFor("$dataSourceName datasource appears in Database tree", timeout = 2.minutes) {
             databaseTree.collectExpandedPaths()
@@ -1114,6 +1082,31 @@ class LiveIdeSmokeTest {
             timeout = 30.seconds,
         ).click()
         return true
+    }
+
+    private fun Driver.ensureDatabaseToolWindowVisible() {
+        ideFrame {
+            val toolWindow = databaseToolWindow()
+            if (toolWindow.present()) {
+                return@ideFrame
+            }
+
+            invokeAction("ActivateDatabaseToolWindow", now = false)
+            waitFor("Database Tool Window becomes visible", timeout = 30.seconds) {
+                toolWindow.present()
+            }
+        }
+    }
+
+    private fun Driver.currentDatabaseTree(): JTreeUiComponent {
+        ensureDatabaseToolWindowVisible()
+        lateinit var databaseTree: JTreeUiComponent
+        ideFrame {
+            databaseToolWindow {
+                databaseTree = tree()
+            }
+        }
+        return databaseTree
     }
 
     private fun Driver.expandDatabaseTreeContainers(
