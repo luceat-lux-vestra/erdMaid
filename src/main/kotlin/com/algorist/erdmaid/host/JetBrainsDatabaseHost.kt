@@ -177,13 +177,24 @@ internal object DatabaseToolsCompatibility {
 @Suppress("UnstableApiUsage", "DEPRECATION")
 internal object JetBrainsDatabaseHost {
 
+    /**
+     * Captures the live Database-tree selection at invocation time.
+     *
+     * Group expansion depends on the action DataContext and must be called from the EDT by the
+     * action boundary. The returned DbTable identities are then consumed by cancellable background
+     * read actions without retaining the ephemeral DataContext.
+     */
+    internal fun captureSelectionForInvocation(
+        dataContext: DataContext,
+    ): ExportOutcome<LiveSelection> = captureSelection(dataContext)
+
     suspend fun capture(
         project: Project,
-        dataContext: DataContext,
+        selectionOutcome: ExportOutcome<LiveSelection>,
     ): ExportOutcome<CapturedHostExport> {
         if (project.isDisposed) return ExportOutcome.Cancelled
 
-        val selection = when (val outcome = readAction { captureSelection(dataContext) }) {
+        val selection = when (val outcome = selectionOutcome) {
             is ExportOutcome.Complete -> outcome.value
             ExportOutcome.NoExport -> return ExportOutcome.NoExport
             is ExportOutcome.Degraded -> return ExportOutcome.Degraded(outcome.diagnostics)

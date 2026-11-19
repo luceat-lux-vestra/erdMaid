@@ -50,14 +50,21 @@ open class ErdMaidExportAction : DumbAwareAction() {
         scope.launch {
             val outcome = try {
                 withBackgroundProgress(project, "Exporting Mermaid ERD", cancellable = true) {
-                    val captured: ExportOutcome<CapturedHostExport> = try {
+                    val selection = try {
                         val context = invocationContext
                             ?: return@withBackgroundProgress ExportOutcome.Cancelled
-                        JetBrainsDatabaseHost.capture(project, context)
+                        // DatabaseContextFun group expansion is a live Database-tree operation.
+                        // Capture that ephemeral selection on EDT while the action DataContext is valid;
+                        // metadata extraction remains cancellable background readAction work below.
+                        withContext(Dispatchers.EDT) {
+                            JetBrainsDatabaseHost.captureSelectionForInvocation(context)
+                        }
                     } finally {
-                        // Do not retain the action DataContext while pure semantic/render work runs.
+                        // Do not retain the action DataContext after the live selection boundary.
                         invocationContext = null
                     }
+                    val captured: ExportOutcome<CapturedHostExport> =
+                        JetBrainsDatabaseHost.capture(project, selection)
 
                     HostExportPipeline.execute(
                         capturedOutcome = captured,
