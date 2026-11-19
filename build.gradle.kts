@@ -219,6 +219,14 @@ intellijPlatform {
                 )
             }
         }
+
+        // The compile/test SDK is 2026.3, but the declared load baseline remains
+        // 2026.2 because retained verifier evidence proves compatibility on 262.
+        // IJPGP otherwise derives since/until from the selected 263 SDK.
+        ideaVersion {
+            sinceBuild = "262"
+            untilBuild = provider { null }
+        }
     }
 
     // IJPGP-owned verifier targets are declared explicitly and independently.
