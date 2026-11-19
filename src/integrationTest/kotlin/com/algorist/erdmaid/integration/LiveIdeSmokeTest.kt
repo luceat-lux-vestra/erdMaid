@@ -874,12 +874,25 @@ class LiveIdeSmokeTest {
         }
         databaseTree.clickRow(view.row)
         databaseTree.rightClickRow(view.row)
-        val popup = ui.popup()
+        val selected = databaseTree.collectSelectedPaths()
+        assertEquals(1, selected.size, "the view-only popup gesture must keep exactly one selected object")
+        assertTrue(
+            selected.single().path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME),
+            "the view-only popup gesture must keep the real H2 view selected",
+        )
+        // A view-only right-click can legitimately produce no context menu in
+        // IDEA 2026.3. ui.popup() waits for a HeavyWeightWindow and times out
+        // when no menu appears, despite the export action being absent.
+        // Inspect the observable set of open menus; both an absent menu and
+        // a menu without the export action prove it is not offered.
+        val visibleMenus = ui.popups().list()
         assertFalse(
-            popup.hasText(EXPORT_ACTION_TEXT),
+            visibleMenus.any { it.hasText(EXPORT_ACTION_TEXT) },
             "view-only selection must not expose an enabled erdMaid export action",
         )
-        popup.keyboard { escape() }
+        if (visibleMenus.isNotEmpty()) {
+            ui.keyboard { escape() }
+        }
         assertEquals(sentinel, clipboardText(), "view-only menu inspection must not mutate clipboard")
     }
 
