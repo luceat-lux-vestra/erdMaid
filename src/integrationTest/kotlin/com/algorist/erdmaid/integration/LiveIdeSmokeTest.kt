@@ -957,7 +957,17 @@ class LiveIdeSmokeTest {
             "view-only selection must not expose an enabled erdMaid export action",
         )
         if (visibleMenus.isNotEmpty()) {
-            ui.keyboard { escape() }
+            // DataGrip can keep the Database Explorer context menu alive after one Escape,
+            // which makes the subsequent toolbar New menu coexist with a stale
+            // HeavyWeightWindow. Drain visible popup menus before continuing so later
+            // steps never depend on an exact-one global popup assumption.
+            repeat(3) {
+                if (ui.popups().list().isEmpty()) return@repeat
+                ui.keyboard { escape() }
+            }
+            waitFor("view-only context menus are dismissed", timeout = 30.seconds) {
+                ui.popups().list().isEmpty()
+            }
         }
         assertEquals(sentinel, clipboardText(), "view-only menu inspection must not mutate clipboard")
     }
