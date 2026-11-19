@@ -385,6 +385,19 @@ class LiveIdeSmokeTest {
                         "//div[@accessiblename='Password:' and @class='JBPasswordField']",
                     ).text = password
                 }
+                if (dataSourceType == "H2") {
+                    // A newly created H2 datasource introspects PUBLIC by default. Our
+                    // duplicate-name proof requires the other two real fixture schemas
+                    // in the same datasource, not synthetic DbTable stand-ins.
+                    waitOneText(
+                        "Schemas",
+                        message = "H2 datasource configuration must expose the Schemas tab",
+                        timeout = 30.seconds,
+                    ).click()
+                    textField(
+                        "//div[@accessiblename='Schema pattern:' and @class='JBTextField']",
+                    ).text = "*:PUBLIC,ERDMAID_SALES,ERDMAID_ARCHIVE"
+                }
                 okButton.click()
             }
         }
@@ -717,6 +730,29 @@ class LiveIdeSmokeTest {
 
         val databaseTree = currentDatabaseTree()
         databaseTree.expandAll(2.minutes)
+        val requiredRows = listOf(
+            H2_SALES_SCHEMA to "ORDERS",
+            H2_ARCHIVE_SCHEMA to "ORDERS",
+            H2_SALES_SCHEMA to "USERS",
+        )
+        waitFor(
+            message = "all requested H2 fixture schemas have been introspected in the real Database tree",
+            timeout = 2.minutes,
+            getter = { databaseTree.collectExpandedPaths().map { it.path } },
+            checker = { visiblePaths ->
+                requiredRows.all { (schema, table) ->
+                    visiblePaths.count { path ->
+                        path.last().matchesDatabaseTreeLabel(table) &&
+                            path.any { it.matchesDatabaseTreeLabel(schema) } &&
+                            path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
+                    } == 1
+                }
+            },
+            errorMessage = { visiblePaths ->
+                "Missing H2 multi-schema rows: $requiredRows\\nActual paths:\\n" +
+                    visiblePaths.orEmpty().joinToString("\\n") { it.joinToString(" | ") }
+            },
+        )
         val expanded = databaseTree.collectExpandedPaths()
         fun exactRow(schema: String, table: String) =
             expanded.single { path ->
@@ -1612,7 +1648,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
-        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v6"
+        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v7"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val H2_PASSWORD = "erdmaid-e2e"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
