@@ -872,10 +872,27 @@ class LiveIdeSmokeTest {
             path.path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) }
         }
-        databaseTree.clickRow(view.row)
+        // A normal click does not reliably clear the previous multi-row selection
+        // after the earlier subgraph scenarios in IDEA 2026.3. Set the exact tree
+        // selection before invoking the native context-menu gesture.
+        withContext(OnDispatcher.EDT) {
+            cast(databaseTree.component, DatabaseTreeSelectionRef::class)
+                .setSelectionRows(intArrayOf(view.row))
+        }
+        val beforePopup = databaseTree.collectSelectedPaths()
+        assertEquals(1, beforePopup.size, "view-only context menu must start with exactly one row")
+        assertTrue(
+            beforePopup.single().path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME),
+            "view-only context menu must start with the actual H2 view selected",
+        )
         databaseTree.rightClickRow(view.row)
         val selected = databaseTree.collectSelectedPaths()
-        assertEquals(1, selected.size, "the view-only popup gesture must keep exactly one selected object")
+        assertEquals(
+            1,
+            selected.size,
+            "the view-only popup gesture must keep exactly one selected object: " +
+                selected.joinToString { it.path.joinToString(" | ") },
+        )
         assertTrue(
             selected.single().path.last().matchesDatabaseTreeLabel(H2_VIEW_NAME),
             "the view-only popup gesture must keep the real H2 view selected",
