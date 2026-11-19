@@ -265,10 +265,46 @@ def main():
         "merge gate missing component",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
+            "    needs: [ scope, build, test, inspect, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]\n",
             "    needs: [ scope, build, test, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]\n",
-            "    needs: [ scope, build, test, verify, staticAnalysis, dependencyReview, hostApiEvidence ]\n",
         ),
         "expected needs",
+    )
+    expect_failure(
+        "inspect job missing pinned Qodana action",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2\n",
+            "        run: echo qodana-removed\n",
+        ),
+        "Inspect code contract missing",
+    )
+    expect_failure(
+        "inspect job missing SARIF verifier",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "          python3 .github/scripts/check-qodana-sarif.py \\\n",
+            "          python3 -c 'print(\"verifier removed\")' \\\n",
+        ),
+        "Inspect code contract missing",
+    )
+    expect_failure(
+        "merge gate missing inspect result env",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "          INSPECT_RESULT: ${{ needs.inspect.result }}\n",
+            "",
+        ),
+        "must expose Inspect code result",
+    )
+    expect_failure(
+        "merge gate missing inspect aggregation",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            '            "Inspect code=$INSPECT_RESULT" \\\n',
+            "",
+        ),
+        "must aggregate Inspect code result",
     )
     expect_failure(
         "merge gate missing dependency-submission result env",
