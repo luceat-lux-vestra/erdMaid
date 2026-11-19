@@ -215,6 +215,8 @@ class LiveIdeSmokeTest {
 
                     val richH2 = exportRichH2Scenario()
                     assertRichH2Scenario(richH2)
+                    assertOptionalSingleColumnH2Scenario()
+                    assertCompositeNullableH2FailsClosed()
                     assertSelfReferenceH2Scenario()
                     assertIdentifyingOneToZeroOrOneH2Scenario()
                     assertSelectedSubgraphH2Scenario()
@@ -517,14 +519,38 @@ class LiveIdeSmokeTest {
         assertEquals(1, document.lineSequence().count { it.contains("physical:$H2_APPROVER_FK") })
 
         val requiredEdge = document.lineSequence().single { it.contains("physical:$H2_ACCOUNT_FK") }
-        val nullableEdge = document.lineSequence().single { it.contains("physical:$H2_APPROVER_FK") }
+        val approverEdge = document.lineSequence().single { it.contains("physical:$H2_APPROVER_FK") }
         assertTrue(
             " ||..o{ " in requiredEdge,
-            "non-null composite FK must require exactly one parent and allow many children",
+            "non-null composite account FK must require exactly one parent and allow many children",
         )
         assertTrue(
-            " o|..o{ " in nullableEdge,
-            "nullable composite FK must allow zero-or-one parent without inventing uniqueness",
+            " ||..o{ " in approverEdge,
+            "non-null composite approver FK must remain independently provable as one-to-many",
+        )
+    }
+
+    private fun Driver.assertOptionalSingleColumnH2Scenario() {
+        val document = exportSelectedTables(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedTables = setOf(H2_USERS_TABLE, H2_OPTIONAL_ORDER_TABLE),
+            rightClickName = H2_OPTIONAL_ORDER_TABLE,
+            sentinel = "ERDMAID_E2E_H2_OPTIONAL_SINGLE",
+        )
+        val edge = document.lineSequence().single { it.contains("physical:$H2_OPTIONAL_USER_FK") }
+        assertTrue(
+            " o|..o{ " in edge,
+            "single-column nullable physical FK must prove zero-or-one parent and many children",
+        )
+    }
+
+    private fun Driver.assertCompositeNullableH2FailsClosed() {
+        assertFailClosedSelection(
+            dataSourceName = H2_DRIVER_NAME,
+            selectedObjects = setOf(H2_ACCOUNT_TABLE, H2_COMPOSITE_OPTIONAL_TABLE),
+            rightClickName = H2_COMPOSITE_OPTIONAL_TABLE,
+            sentinel = "ERDMAID_E2E_H2_COMPOSITE_NULLABLE",
+            expectedDiagnostic = "mermaid-cardinality-unavailable",
         )
     }
 
@@ -624,6 +650,7 @@ class LiveIdeSmokeTest {
             H2_ORDERS_TABLE,
             H2_ACCOUNT_TABLE,
             H2_PURCHASE_ORDER_TABLE,
+            H2_OPTIONAL_ORDER_TABLE,
             H2_EMPLOYEE_TABLE,
             H2_PROFILE_TABLE,
             H2_QUOTED_UPPER_TABLE,
@@ -1348,7 +1375,7 @@ class LiveIdeSmokeTest {
                       TENANT_ID BIGINT NOT NULL,
                       ORDER_ID BIGINT NOT NULL,
                       ACCOUNT_ID BIGINT NOT NULL,
-                      APPROVER_ACCOUNT_ID BIGINT,
+                      APPROVER_ACCOUNT_ID BIGINT NOT NULL,
                       AMOUNT DECIMAL(18, 2) NOT NULL,
                       MEMO VARCHAR(255),
                       CREATED_AT TIMESTAMP NOT NULL,
@@ -1363,6 +1390,29 @@ class LiveIdeSmokeTest {
                     """.trimIndent(),
                 )
                 statement.execute("COMMENT ON TABLE $H2_PURCHASE_ORDER_TABLE IS 'Purchase order fixture'")
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_OPTIONAL_ORDER_TABLE (
+                      ID BIGINT PRIMARY KEY,
+                      BACKUP_USER_ID BIGINT,
+                      CONSTRAINT $H2_OPTIONAL_USER_FK
+                        FOREIGN KEY (BACKUP_USER_ID) REFERENCES $H2_USERS_TABLE(ID)
+                    )
+                    """.trimIndent(),
+                )
+                statement.execute("CREATE SCHEMA $H2_EDGE_CASE_SCHEMA")
+                statement.execute(
+                    """
+                    CREATE TABLE $H2_EDGE_CASE_SCHEMA.$H2_COMPOSITE_OPTIONAL_TABLE (
+                      ID BIGINT PRIMARY KEY,
+                      TENANT_ID BIGINT NOT NULL,
+                      ACCOUNT_ID BIGINT,
+                      CONSTRAINT $H2_COMPOSITE_OPTIONAL_FK
+                        FOREIGN KEY (TENANT_ID, ACCOUNT_ID)
+                        REFERENCES PUBLIC.$H2_ACCOUNT_TABLE(TENANT_ID, ACCOUNT_ID)
+                    )
+                    """.trimIndent(),
+                )
                 statement.execute(
                     "COMMENT ON COLUMN $H2_PURCHASE_ORDER_TABLE.AMOUNT IS 'Order amount'"
                 )
@@ -1507,7 +1557,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
-        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v4"
+        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v5"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val H2_PASSWORD = "erdmaid-e2e"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
@@ -1520,6 +1570,11 @@ class LiveIdeSmokeTest {
         const val H2_PURCHASE_ORDER_TABLE = "ERDMAID_PURCHASE_ORDER"
         const val H2_ACCOUNT_FK = "FK_ERDMAID_PURCHASE_ORDER_ACCOUNT"
         const val H2_APPROVER_FK = "FK_ERDMAID_PURCHASE_ORDER_APPROVER"
+        const val H2_OPTIONAL_ORDER_TABLE = "ERDMAID_OPTIONAL_ORDER"
+        const val H2_OPTIONAL_USER_FK = "FK_ERDMAID_OPTIONAL_ORDER_USER"
+        const val H2_EDGE_CASE_SCHEMA = "ERDMAID_EDGE_CASES"
+        const val H2_COMPOSITE_OPTIONAL_TABLE = "ERDMAID_COMPOSITE_OPTIONAL"
+        const val H2_COMPOSITE_OPTIONAL_FK = "FK_ERDMAID_COMPOSITE_OPTIONAL_ACCOUNT"
         const val H2_EMPLOYEE_TABLE = "ERDMAID_EMPLOYEE"
         const val H2_SELF_FK = "FK_ERDMAID_EMPLOYEE_MANAGER"
         const val H2_PROFILE_TABLE = "ERDMAID_PROFILE"
