@@ -72,6 +72,7 @@ private interface TrialAvailabilityRemote {
 
 @Remote("javax.swing.JTree")
 private interface DatabaseTreeSelectionRef {
+    fun expandRow(row: Int)
     fun setSelectionRows(rows: IntArray)
 }
 
@@ -1027,7 +1028,11 @@ class LiveIdeSmokeTest {
                 .any { path -> path.path.last().contains(dataSourceName, ignoreCase = true) }
         }
 
-        databaseTree.expandAll(2.minutes)
+        expandDatabaseTreeContainers(
+            databaseTree = databaseTree,
+            dataSourceName = dataSourceName,
+            selectedObjects = selectedObjects,
+        )
         waitFor(
             message = "$selectedObjects are visible in the synchronized Database tree",
             timeout = 2.minutes,
@@ -1109,6 +1114,56 @@ class LiveIdeSmokeTest {
             timeout = 30.seconds,
         ).click()
         return true
+    }
+
+    private fun Driver.expandDatabaseTreeContainers(
+        databaseTree: JTreeUiComponent,
+        dataSourceName: String,
+        selectedObjects: Set<String>,
+    ) {
+        val tree = cast(databaseTree.component, DatabaseTreeSelectionRef::class)
+
+        // Database Tools can expose datasource -> database/schema -> object group lazily.
+        // Expand one shallow level at a time and stop as soon as the requested database
+        // objects become visible. Do not use expandAll(): expanding table children
+        // (columns/keys/indexes) produces thousands of rows and makes popup selection
+        // depend on viewport/rendering details rather than the database-object boundary.
+        for (depth in 1..6) {
+            databaseTree.waitForNodesLoaded(30.seconds)
+            val visible = databaseTree.collectExpandedPaths()
+
+            if (selectedObjects.all { expected ->
+                    visible.count { path ->
+                        path.path.last().matchesDatabaseTreeLabel(expected)
+                    } == 1
+                }
+            ) {
+                return
+            }
+
+            val rowsToExpand = visible
+                .filter { path ->
+                    path.path.any { label ->
+                        label.contains(dataSourceName, ignoreCase = true)
+                    }
+                }
+                .filter { path -> path.path.size == depth }
+                .filterNot { path ->
+                    selectedObjects.any { expected ->
+                        path.path.last().matchesDatabaseTreeLabel(expected)
+                    }
+                }
+                .map { it.row }
+                .distinct()
+
+            if (rowsToExpand.isEmpty()) {
+                continue
+            }
+
+            withContext(OnDispatcher.EDT) {
+                rowsToExpand.forEach(tree::expandRow)
+            }
+        }
     }
 
     private fun Driver.waitForClipboardDocument(sentinel: String): String {
