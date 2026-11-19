@@ -566,12 +566,22 @@ class LiveIdeSmokeTest {
         }
         assertEquals(1, sources.size, "the live H2 datasource must be unambiguous")
         databaseTree.clickRow(sources.single().row)
+        val selection = databaseTree.collectSelectedPaths()
+        assertEquals(1, selection.size, "refresh must target exactly the H2 datasource")
+        assertTrue(
+            selection.single().path.last().matchesDatabaseTreeLabel(H2_DRIVER_NAME),
+            "the actual Database tree selection must be the H2 datasource",
+        )
+        // The Refresh action consumes selection from the tree's DataContext. Passing
+        // the tool-window container can complete the action without re-introspecting
+        // the selected datasource; the previous exact-head database log contained no
+        // new introspection statements after the container-scoped invocation.
         ideFrame {
             databaseToolWindow {
                 driver.invokeAction(
                     "DatabaseView.Refresh",
                     now = false,
-                    component = component,
+                    component = databaseTree.component,
                 )
             }
         }
@@ -1522,6 +1532,14 @@ class LiveIdeSmokeTest {
         fun dropCompositeNullableTable() {
             keeper.createStatement().use { statement ->
                 statement.execute("DROP TABLE $H2_COMPOSITE_OPTIONAL_TABLE")
+                statement.executeQuery(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES " +
+                        "WHERE TABLE_SCHEMA = 'PUBLIC' AND TABLE_NAME = '$H2_COMPOSITE_OPTIONAL_TABLE'"
+                ).use { rows ->
+                    check(rows.next() && rows.getInt(1) == 0) {
+                        "the H2 keeper must prove the negative fixture table was actually dropped"
+                    }
+                }
             }
         }
 
