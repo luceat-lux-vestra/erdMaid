@@ -1,0 +1,17 @@
+# Qodana configuration for erdMaid's Kotlin/JVM static-analysis authority.
+# Baseline adoption: no product-source exemptions are allowed here.
+# R2A #123 / erdMaid #243.
+version: "1.0"
+linter: jetbrains/qodana-jvm-community:2026.2
+projectJDK: "25"
+profile:
+  name: qodana.recommended
+failureConditions:
+  severityThresholds:
+    high: 0
+
+# Qodana's own workspace is generated analysis output, not repository source.
+exclude:
+  - name: All
+    paths:
+      - .qodana

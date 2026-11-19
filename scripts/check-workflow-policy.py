@@ -77,7 +77,7 @@ def check_entries(root, entries, classification):
                 raise ValueError("Merge Gate must declare an inline needs list")
             observed_needs = {item.strip() for item in needs.group(1).split(",") if item.strip()}
             expected_needs = {
-                "scope", "build", "test", "verify", "staticAnalysis",
+                "scope", "build", "test", "inspect", "verify", "staticAnalysis",
                 "dependencySubmissionValidation", "dependencyReview",
                 "hostApiEvidence", "starterE2E",
             }
@@ -85,10 +85,37 @@ def check_entries(root, entries, classification):
                 raise ValueError(
                     f"Merge Gate expected needs={sorted(expected_needs)!r}, got {sorted(observed_needs)!r}"
                 )
+            if "INSPECT_RESULT: ${{ needs.inspect.result }}" not in job:
+                raise ValueError("Merge Gate must expose Inspect code result")
+            if '"Inspect code=$INSPECT_RESULT"' not in job:
+                raise ValueError("Merge Gate must aggregate Inspect code result")
             if "DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}" not in job:
                 raise ValueError("Merge Gate must expose dependencySubmissionValidation result")
             if '"Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT"' not in job:
                 raise ValueError("Merge Gate must aggregate dependencySubmissionValidation result")
+            inspect = jobs.get("inspect")
+            if inspect is None:
+                raise ValueError("Merge Gate requires missing Inspect code job")
+            inspect_name = re.search(r"^    name:\s*(.+?)\s*$", inspect, re.MULTILINE)
+            if not inspect_name or inspect_name.group(1).strip("\"'") != "Inspect code":
+                raise ValueError("inspect job must publish exact 'Inspect code' name")
+            if re.search(r"^    continue-on-error:", inspect, re.MULTILINE):
+                raise ValueError("Inspect code cannot be greened by job policy")
+            inspect_needs = re.search(r"^    needs:\s*\[([^]]+)\]\s*$", inspect, re.MULTILINE)
+            if inspect_needs is None or {
+                item.strip() for item in inspect_needs.group(1).split(",") if item.strip()
+            } != {"scope"}:
+                raise ValueError("Inspect code must depend only on trusted Validation scope")
+            required_inspect_tokens = (
+                "JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f",
+                "jetbrains/qodana-jvm-community:2026.2",
+                ".github/scripts/check-qodana-sarif.py",
+                "needs.scope.outputs.docs_only == 'true'",
+                "needs.scope.outputs.docs_only != 'true'",
+            )
+            for token in required_inspect_tokens:
+                if token not in inspect:
+                    raise ValueError(f"Inspect code contract missing {token!r}")
         elif job_if_value is not None:
             raise ValueError(f"{entry['context']!r} can be skipped by job policy")
 

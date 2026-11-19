@@ -424,6 +424,68 @@ jobs:
           path: build/reports/tests
           if-no-files-found: warn
 
+  # Kotlin/JVM static-analysis authority. Qodana is independent from Plugin
+  # Verifier: it inspects source for code-quality/correctness findings rather
+  # than proving IntelliJ binary/API compatibility. Baseline adoption deliberately
+  # scopes only the repository's existing documentation-only fast path.
+  inspect:
+    name: Inspect code
+    needs: [ scope ]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Documentation-only fast path
+        if: ${{ needs.scope.outputs.docs_only == 'true' }}
+        run: echo "Documentation-only change; Qodana source inspection is not applicable."
+
+      - name: Fetch Sources
+        if: ${{ needs.scope.outputs.docs_only != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        if: ${{ needs.scope.outputs.docs_only != 'true' }}
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: 25
+
+      - name: Qodana - Code Inspection
+        if: ${{ needs.scope.outputs.docs_only != 'true' }}
+        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2
+        with:
+          args: --project-dir . --repository-root . --image jetbrains/qodana-jvm-community:2026.2 --clear-cache
+          use-caches: false
+          upload-result: true
+          artifact-name: qodana-report
+          use-annotations: false
+          post-pr-comment: false
+
+      - name: Enforce Qodana SARIF
+        if: ${{ needs.scope.outputs.docs_only != 'true' && always() }}
+        env:
+          QODANA_RESULTS_DIR: ${{ runner.temp }}/qodana/results
+          QODANA_VERDICT_FILE: ${{ runner.temp }}/qodana-verdict.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check-qodana-sarif.py \
+            --sarif-file "$QODANA_RESULTS_DIR/qodana.sarif.json" \
+            --verdict-file "$QODANA_VERDICT_FILE"
+
+      - name: Retain verified Qodana SARIF
+        if: ${{ needs.scope.outputs.docs_only != 'true' && always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qodana-${{ github.event.pull_request.head.sha }}-sarif
+          path: ${{ runner.temp }}/qodana/results/qodana.sarif.json
+          if-no-files-found: error
+          retention-days: 30
+
+
   # Authoritative plugin structure + IntelliJ Plugin Verifier gate.
   #
   # Historical evidence: the Verifier downloaded full IDE distributions plus
@@ -633,6 +695,9 @@ jobs:
 
       - name: Check workflow policy fixtures
         run: python3 scripts/test-workflow-policy.py
+
+      - name: Check Qodana SARIF fail-closed fixtures
+        run: python3 .github/scripts/check-qodana-sarif.py --self-test
 
       - name: Check dependency submission policy
         run: python3 scripts/test-dependency-submission.py
@@ -914,7 +979,7 @@ jobs:
 
   mergeGate:
     name: Merge Gate
-    needs: [ scope, build, test, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]
+    needs: [ scope, build, test, inspect, verify, staticAnalysis, dependencySubmissionValidation, dependencyReview, hostApiEvidence, starterE2E ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -924,6 +989,7 @@ jobs:
           SCOPE_RESULT: ${{ needs.scope.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          INSPECT_RESULT: ${{ needs.inspect.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           WORKFLOW_STATIC_ANALYSIS_RESULT: ${{ needs.staticAnalysis.result }}
           DEPENDENCY_SUBMISSION_VALIDATION_RESULT: ${{ needs.dependencySubmissionValidation.result }}
@@ -941,6 +1007,7 @@ jobs:
             "Validation scope=$SCOPE_RESULT" \
             "Build=$BUILD_RESULT" \
             "Test=$TEST_RESULT" \
+            "Inspect code=$INSPECT_RESULT" \
             "Verify plugin=$VERIFY_RESULT" \
             "Workflow Static Analysis=$WORKFLOW_STATIC_ANALYSIS_RESULT" \
             "Dependency submission PR validation=$DEPENDENCY_SUBMISSION_VALIDATION_RESULT" \

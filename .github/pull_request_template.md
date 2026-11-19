@@ -31,7 +31,7 @@ Refs #
 
 ## Exact-HEAD merge gate
 
-- [ ] Required `Merge Gate` is green for the current PR HEAD/base pair, with Build / Test / Verify plugin / Workflow Static Analysis / Dependency Review component evidence successful
+- [ ] Required `Merge Gate` is green for the current PR HEAD/base pair, with Build / Test / Inspect code / Verify plugin / Workflow Static Analysis / Dependency Review component evidence successful
 - [ ] Independent manual diff review is complete on the exact final PR HEAD SHA
 - [ ] Any HEAD movement invalidates previous review/evidence
 - [ ] Merge-time PR HEAD and fresh `main` are re-read before squash merge
