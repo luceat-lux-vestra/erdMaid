@@ -1266,8 +1266,13 @@ class LiveIdeSmokeTest {
                 continue
             }
 
+            // Expanding an earlier row inserts children below it and invalidates the
+            // cached row indices of later siblings. The IDEA 2026.3 multi-schema
+            // evidence showed ARCHIVE/SALES expanded but PUBLIC left collapsed.
+            // Expand bottom-up so inserting descendants cannot shift any of the
+            // remaining row indices captured from this tree snapshot.
             withContext(OnDispatcher.EDT) {
-                rowsToExpand.forEach(tree::expandRow)
+                rowsToExpand.sortedDescending().forEach(tree::expandRow)
             }
         }
     }
