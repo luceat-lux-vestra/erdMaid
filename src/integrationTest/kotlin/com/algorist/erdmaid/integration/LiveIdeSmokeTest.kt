@@ -539,7 +539,7 @@ class LiveIdeSmokeTest {
         )
         val edge = document.lineSequence().single { it.contains("physical:$H2_OPTIONAL_USER_FK") }
         assertTrue(
-            " o|..o{ " in edge,
+            " |o..o{ " in edge,
             "single-column nullable physical FK must prove zero-or-one parent and many children",
         )
     }
@@ -571,7 +571,7 @@ class LiveIdeSmokeTest {
         )
         val edge = document.lineSequence().single { it.contains("physical:$H2_SELF_FK") }
         assertTrue(
-            " o|..o{ " in edge,
+            " |o..o{ " in edge,
             "nullable self-FK must preserve optional parent multiplicity",
         )
     }
@@ -877,7 +877,7 @@ class LiveIdeSmokeTest {
             "proven relevant UNIQUE must cap children at one",
         )
         assertFalse(
-            document.contains(" ||..o{ ") || document.contains(" o|..o{ "),
+            document.contains(" ||..o{ ") || document.contains(" |o..o{ "),
             "relevant UNIQUE must never be generalized to a MANY child multiplicity",
         )
     }
