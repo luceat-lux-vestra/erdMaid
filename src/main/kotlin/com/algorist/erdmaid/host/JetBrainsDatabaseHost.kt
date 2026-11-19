@@ -27,6 +27,7 @@ import com.intellij.database.model.DasTable
 import com.intellij.database.model.DasTableKey
 import com.intellij.database.model.DataType
 import com.intellij.database.model.ModelRelationManager
+import com.intellij.database.model.ObjectKind
 import com.intellij.database.psi.DbDataSource
 import com.intellij.database.psi.DbElement
 import com.intellij.database.psi.DbPsiFacade
@@ -312,6 +313,19 @@ internal object JetBrainsDatabaseHost {
         for (element in elements) {
             val table = element as DbTable
             if (!table.isValid) return unsupported("selection-object-invalid")
+            val kind = try {
+                table.dasObject.kind
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: RuntimeException) {
+                return failure("selection-kind-read-failed", failure.javaClass.name)
+            } catch (failure: LinkageError) {
+                return failure("selection-kind-read-failed", failure.javaClass.name)
+            }
+            // Database Tools represents views through the DbTable PSI surface as well.
+            // Only physical TABLE objects are exportable; VIEW/MAT_VIEW/etc. must remain
+            // an invocation-time fail-closed selection instead of being serialized as tables.
+            if (kind != ObjectKind.TABLE) return unsupported("selection-mixed-or-unsupported")
             if (unique.add(table)) tables += table
         }
         if (tables.isEmpty()) return ExportOutcome.NoExport
