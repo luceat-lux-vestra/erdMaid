@@ -29,8 +29,17 @@ support is being proposed. Maintained binary/inventory evidence targets include:
 3. IntelliJ IDEA Ultimate 2026.2.2 / `IU-262.10315.125` (backward binary evidence only);
 4. DataGrip 2026.2.5 / `DB-262.10315.132` (backward binary/inventory evidence only).
 
-No listed host acquires a live GUI PASS from verifier, inventory or Starter results.
+No listed host acquires a manual live GUI PASS from verifier, inventory or Starter results.
 Passing one host/version must not be generalized to another.
+
+### Current automated real-process evidence
+
+The repository does have exact-artifact automated real-process evidence for both maintained 2026.3 hosts:
+
+- IDEA Ultimate 2026.3 / `IU-263.7307.200`: #239 exercised the packaged plugin through JetBrains Starter + Driver against real disposable H2 and SQLite datasources and the visible Database action/clipboard path.
+- DataGrip 2026.3 / `DB-263.7307.216`: #241 exercised the same packaged-plugin H2/SQLite flow through the DataGrip Database Explorer path.
+
+Those runs are valid automated shipping-boundary regression evidence and are recorded in the product-fidelity contract. They do not, by themselves, satisfy this document's separate manual acceptance protocol.
 
 ## Fixture
 
