@@ -22,7 +22,7 @@ import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.components.elements.tree
 import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
 import com.intellij.driver.sdk.ui.components.common.ideFrame
-import com.intellij.driver.sdk.ui.components.common.toolwindows.DatabaseToolWindowUi
+import com.intellij.driver.sdk.ui.components.UiComponent
 import com.intellij.driver.sdk.ui.components.ultimate.dataSourcesAndDriversDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.waitFor
@@ -1277,9 +1277,9 @@ class LiveIdeSmokeTest {
     }
 
     private fun IdeaFrameUI.erdMaidDatabaseToolWindow(
-        action: DatabaseToolWindowUi.() -> Unit = {},
-    ): DatabaseToolWindowUi =
-        x(DatabaseToolWindowUi::class.java) {
+        action: UiComponent.() -> Unit = {},
+    ): UiComponent =
+        x {
             or(
                 byAccessibleName("Database Tool Window"),
                 byAccessibleName("Database Explorer Tool Window"),
