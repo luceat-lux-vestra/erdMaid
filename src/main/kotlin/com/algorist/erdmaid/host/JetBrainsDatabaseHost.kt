@@ -86,7 +86,10 @@ internal object DatabaseToolsCompatibility {
                 directElementsReader(dataContext)
             }
             val directIterator = (direct as? Iterable<*>)?.iterator() ?: return false
-            !directIterator.hasNext() || directIterator.next() is DbTable
+            if (!directIterator.hasNext()) return true
+
+            val first = directIterator.next() as? DbTable ?: return false
+            first.isValid && first.dasObject.kind == ObjectKind.TABLE
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: ReflectiveOperationException) {

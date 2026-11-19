@@ -32,6 +32,10 @@ class DatabaseSelectionBoundaryTest {
         assertEquals(false, eligible(emptyList<Any>(), emptyList<DbElement>()))
         assertEquals(false, eligible(listOf("node"), listOf(element())))
         assertEquals(true, eligible(listOf("node"), listOf(table(source))))
+        assertEquals(
+            false,
+            eligible(listOf("view-node"), listOf(table(source, ObjectKind.VIEW))),
+        )
         // The Tables-group node has no direct DbElement; expanding it belongs to invocation.
         assertEquals(true, eligible(listOf("tables-group"), emptyList<DbElement>()))
     }
