@@ -627,7 +627,7 @@ class LiveIdeSmokeTest {
         val groupCandidates = databaseTree.collectExpandedPaths().filter { path ->
             path.path.last().matchesDatabaseTreeLabel("Tables", ignoreCase = true) &&
                 path.path.any { it.contains(H2_DRIVER_NAME, ignoreCase = true) } &&
-                path.path.any { it.equals("PUBLIC", ignoreCase = true) }
+                path.path.any { it.matchesDatabaseTreeLabel("PUBLIC", ignoreCase = true) }
         }
         assertEquals(
             1,
