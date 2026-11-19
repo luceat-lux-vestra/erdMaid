@@ -434,7 +434,7 @@ class LiveIdeSmokeTest {
             }
             assertEquals(2, databaseTree.collectSelectedPaths().size)
             databaseTree.rightClickRow(orders.row)
-            ui.popup().list().waitOneText(
+            ui.popup().waitOneText(
                 EXPORT_ACTION_TEXT,
                 message = "erdMaid action must remain available for reordered table selection",
                 timeout = 30.seconds,
@@ -619,7 +619,7 @@ class LiveIdeSmokeTest {
         val tablesRow = groupCandidates.single().row
         databaseTree.clickRow(tablesRow)
         databaseTree.rightClickRow(tablesRow)
-        ui.popup().list().waitOneText(
+        ui.popup().waitOneText(
             EXPORT_ACTION_TEXT,
             message = "erdMaid action must be enabled for the schema Tables node",
             timeout = 30.seconds,
@@ -696,7 +696,7 @@ class LiveIdeSmokeTest {
         )
 
         databaseTree.rightClickRow(salesOrders.row)
-        ui.popup().list().waitOneText(
+        ui.popup().waitOneText(
             EXPORT_ACTION_TEXT,
             message = "erdMaid action must support multiple schemas in one datasource",
             timeout = 30.seconds,
@@ -748,7 +748,7 @@ class LiveIdeSmokeTest {
         }
         assertEquals(2, databaseTree.collectSelectedPaths().size)
         databaseTree.rightClickRow(upper.row)
-        ui.popup().list().waitOneText(
+        ui.popup().waitOneText(
             EXPORT_ACTION_TEXT,
             message = "erdMaid action must preserve quoted case-sensitive table identities",
             timeout = 30.seconds,
@@ -787,7 +787,7 @@ class LiveIdeSmokeTest {
         }
         databaseTree.clickRow(view.row)
         databaseTree.rightClickRow(view.row)
-        val popup = ui.popup().list()
+        val popup = ui.popup()
         assertFalse(
             popup.hasText(EXPORT_ACTION_TEXT),
             "view-only selection must not expose an enabled erdMaid export action",
@@ -1099,7 +1099,7 @@ class LiveIdeSmokeTest {
                 "opening the Database popup must preserve selected row $expected",
             )
         }
-        val popup = ui.popup().list()
+        val popup = ui.popup()
         if (!popup.hasText(EXPORT_ACTION_TEXT)) {
             assertTrue(
                 allowSuppressedAction,
