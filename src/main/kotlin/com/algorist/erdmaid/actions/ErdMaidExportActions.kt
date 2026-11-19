@@ -55,7 +55,7 @@ open class ErdMaidExportAction : DumbAwareAction() {
                             ?: return@withBackgroundProgress ExportOutcome.Cancelled
                         // DatabaseContextFun group expansion is a live Database-tree operation.
                         // Capture that ephemeral selection on EDT while the action DataContext is valid;
-                        // metadata extraction remains cancellable background readAction work below.
+                        // metadata extraction remains cancellable background work below.
                         withContext(Dispatchers.EDT) {
                             JetBrainsDatabaseHost.captureSelectionForInvocation(context)
                         }
