@@ -333,8 +333,11 @@ class LiveIdeSmokeTest {
         user: String? = null,
         password: String? = null,
     ) {
+        // This helper runs twice (H2 then SQLite) in the same IDE process.
+        // ActivateDatabaseToolWindow toggles a visible tool window closed on
+        // the second call; only activate it if Database is currently hidden.
+        ensureDatabaseToolWindowVisible()
         ideFrame {
-            invokeAction("ActivateDatabaseToolWindow", now = false)
             databaseToolWindow {
                 actionButton {
                     and(byClass("ActionButton"), byAccessibleName("New"))
