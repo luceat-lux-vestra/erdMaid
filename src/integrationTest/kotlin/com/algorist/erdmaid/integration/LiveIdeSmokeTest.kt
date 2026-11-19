@@ -20,8 +20,9 @@ import com.intellij.driver.sdk.ui.components.elements.popup
 import com.intellij.driver.sdk.ui.components.elements.popups
 import com.intellij.driver.sdk.ui.components.elements.textField
 import com.intellij.driver.sdk.ui.components.elements.tree
-import com.intellij.driver.sdk.ui.components.common.databaseToolWindow
+import com.intellij.driver.sdk.ui.components.common.IdeaFrameUI
 import com.intellij.driver.sdk.ui.components.common.ideFrame
+import com.intellij.driver.sdk.ui.components.common.toolwindows.DatabaseToolWindowUi
 import com.intellij.driver.sdk.ui.components.ultimate.dataSourcesAndDriversDialog
 import com.intellij.driver.sdk.ui.ui
 import com.intellij.driver.sdk.waitFor
@@ -37,6 +38,7 @@ import com.intellij.ide.starter.report.ErrorReporterToCI
 import com.intellij.ide.starter.runner.CurrentTestMethod
 import com.intellij.ide.starter.runner.Starter
 import com.intellij.tools.ide.starter.product.idea.ultimate.IdeaUltimate
+import com.intellij.tools.ide.starter.product.datagrip.DataGrip
 import org.h2.Driver as H2Driver
 import org.h2.tools.Server
 import org.sqlite.JDBC as SQLiteDriver
@@ -119,6 +121,32 @@ class LiveIdeSmokeTest {
     fun `IDEA 2026_3 exports real H2 and SQLite Database selections through the popup`(
         @TempDir projectDirectory: Path,
     ) {
+        runDatabaseExportE2E(
+            projectDirectory = projectDirectory,
+            ideInfo = IdeInfo.IdeaUltimate,
+            productLabel = "IDEA_ULTIMATE",
+            ensureActivation = ::ensureUltimateActivation,
+        )
+    }
+
+    @Test
+    fun `DataGrip 2026_3 exports real H2 and SQLite Database selections through the popup`(
+        @TempDir projectDirectory: Path,
+    ) {
+        runDatabaseExportE2E(
+            projectDirectory = projectDirectory,
+            ideInfo = IdeInfo.DataGrip,
+            productLabel = "DATAGRIP",
+            ensureActivation = ::ensureDataGripActivation,
+        )
+    }
+
+    private fun runDatabaseExportE2E(
+        projectDirectory: Path,
+        ideInfo: IdeInfo,
+        productLabel: String,
+        ensureActivation: (com.intellij.ide.starter.ide.IDETestContext, Path) -> Unit,
+    ) {
         Files.writeString(
             projectDirectory.resolve("README.md"),
             "Disposable project for erdMaid Starter Database Tools E2E.\n",
@@ -136,7 +164,7 @@ class LiveIdeSmokeTest {
             val context = Starter.newContext(
                 CurrentTestMethod.hyphenateWithClass(),
                 TestCase(
-                    IdeInfo.IdeaUltimate,
+                    ideInfo,
                     LocalProjectInfo(projectDirectory, isReusable = false),
                 ).withVersion(IDE_RELEASE),
             ).apply {
@@ -145,7 +173,7 @@ class LiveIdeSmokeTest {
                     ?.let(::setLicense)
                 PluginConfigurator(this).installPluginFromPath(pluginPath)
             }
-            ensureUltimateActivation(context, projectDirectory)
+            ensureActivation(context, projectDirectory)
             writeDatabaseToolsDriverFixture(
                 configDir = context.paths.configDir,
                 h2SourceJar = h2.driverJar,
@@ -179,7 +207,7 @@ class LiveIdeSmokeTest {
                         "Starter must launch the exact maintained IDEA release",
                     )
                     println(
-                        "ERDMAID_E2E_HOST product=IDEA_ULTIMATE " +
+                        "ERDMAID_E2E_HOST product=$productLabel " +
                             "version=${applicationInfo.getFullVersion()} " +
                             "build=${applicationInfo.getBuild().asString()}",
                     )
@@ -281,6 +309,24 @@ class LiveIdeSmokeTest {
         }
     }
 
+    private fun ensureDataGripActivation(
+        context: com.intellij.ide.starter.ide.IDETestContext,
+        projectDirectory: Path,
+    ) {
+        if (!System.getenv("LICENSE_KEY").isNullOrBlank()) {
+            return
+        }
+
+        // DataGrip 2026.3 auto-starts its trial in a fresh config. Unlike IDEA Ultimate,
+        // that active state is not represented by idea.key, and getTrialAvailable()
+        // becomes false once the trial has already started. Seeding a separate config
+        // therefore cannot be copied reliably. Let the actual DataGrip test context
+        // establish its own auto-trial; the real H2/SQLite flow is the acceptance proof.
+        check(context.paths.configDir != projectDirectory) {
+            "DataGrip Starter context must keep its config isolated from the fixture project"
+        }
+    }
+
     private fun ensureUltimateActivation(
         context: com.intellij.ide.starter.ide.IDETestContext,
         projectDirectory: Path,
@@ -338,7 +384,7 @@ class LiveIdeSmokeTest {
         // the second call; only activate it if Database is currently hidden.
         ensureDatabaseToolWindowVisible()
         ideFrame {
-            databaseToolWindow {
+            erdMaidDatabaseToolWindow {
                 actionButton {
                     and(byClass("ActionButton"), byAccessibleName("New"))
                 }.performAction()
@@ -419,7 +465,7 @@ class LiveIdeSmokeTest {
 
         ensureDatabaseToolWindowVisible()
         ideFrame {
-            databaseToolWindow {
+            erdMaidDatabaseToolWindow {
                 waitFor("DatabaseView.Refresh is accepted", timeout = 30.seconds) {
                     runCatching {
                         driver.invokeAction(
@@ -601,7 +647,7 @@ class LiveIdeSmokeTest {
         // the selected datasource; the previous exact-head database log contained no
         // new introspection statements after the container-scoped invocation.
         ideFrame {
-            databaseToolWindow {
+            erdMaidDatabaseToolWindow {
                 driver.invokeAction(
                     "DatabaseView.Refresh",
                     now = false,
@@ -1230,9 +1276,19 @@ class LiveIdeSmokeTest {
         return true
     }
 
+    private fun IdeaFrameUI.erdMaidDatabaseToolWindow(
+        action: DatabaseToolWindowUi.() -> Unit = {},
+    ): DatabaseToolWindowUi =
+        x(DatabaseToolWindowUi::class.java) {
+            or(
+                byAccessibleName("Database Tool Window"),
+                byAccessibleName("Database Explorer Tool Window"),
+            )
+        }.apply(action)
+
     private fun Driver.ensureDatabaseToolWindowVisible() {
         ideFrame {
-            val toolWindow = databaseToolWindow()
+            val toolWindow = erdMaidDatabaseToolWindow()
             if (toolWindow.present()) {
                 return@ideFrame
             }
@@ -1248,7 +1304,7 @@ class LiveIdeSmokeTest {
         ensureDatabaseToolWindowVisible()
         lateinit var databaseTree: JTreeUiComponent
         ideFrame {
-            databaseToolWindow {
+            erdMaidDatabaseToolWindow {
                 databaseTree = tree()
             }
         }
@@ -1694,7 +1750,7 @@ class LiveIdeSmokeTest {
 
     private companion object {
         const val IDE_RELEASE = "2026.3"
-        const val FIXTURE_REVISION = "idea-263-h2-sqlite-v7"
+        const val FIXTURE_REVISION = "idea-datagrip-263-h2-sqlite-v8"
         const val H2_DRIVER_NAME = "erdMaid H2 2.5.252"
         const val H2_PASSWORD = "erdmaid-e2e"
         const val SQLITE_DRIVER_NAME = "erdMaid SQLite 3.54.1.0"
