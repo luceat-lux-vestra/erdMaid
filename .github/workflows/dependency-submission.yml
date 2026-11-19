@@ -46,19 +46,21 @@ jobs:
           distribution: zulu
           java-version: 25
 
-      - name: Generate and submit exact main dependency graph
+      - name: Generate and submit exact packaged-runtime dependency graph
         uses: gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        env:
+          DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: '^intellijPlatformSandboxRuntimeClasspath$'
         with:
           cache-read-only: true
+          dependency-graph-include-configurations: '^intellijPlatformSandboxRuntimeClasspath$'
           dependency-graph: generate-and-submit
           dependency-graph-continue-on-failure: false
 
-      - name: Verify submitted graph coverage and provenance
+      - name: Verify submitted packaged-runtime graph provenance and scope
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           python3 scripts/trusted_dependency_submission_validation.py verify-main \
             --dir dependency-graph-reports \
-            --head "$EXPECTED_SHA" \
-            --build-gradle build.gradle.kts
+            --head "$EXPECTED_SHA"
