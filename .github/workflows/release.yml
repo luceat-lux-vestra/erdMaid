@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: marketplace-release-${{ github.event.release.tag_name }}
+  group: marketplace-release-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
       - name: Fetch exact tag for candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -94,7 +94,7 @@ jobs:
       - name: Fetch immutable release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
 
