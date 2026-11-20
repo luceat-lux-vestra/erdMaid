@@ -3,6 +3,9 @@
 # erdMaid Changelog
 
 ## [Unreleased]
+### Fixed
+- Preserve the stable release SemVer across nested Gradle verifier invocations so release validation cannot create a second timestamp-version distribution ZIP.
+- Add an explicit fail-closed recovery dispatch for an existing immutable release tag instead of blindly rerunning a historical workflow definition.
 
 ## [1.1.0] - 2026-11-21
 ### Fixed
