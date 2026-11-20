@@ -242,6 +242,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.source.outputs.version }}
           RELEASE_COMMIT: ${{ steps.source.outputs.commit }}
+          ORG_GRADLE_PROJECT_buildVersion: ${{ steps.source.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
