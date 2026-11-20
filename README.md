@@ -105,6 +105,7 @@ Evidence classes are deliberately separate. A PASS in one class does not imply t
 | Evidence class | Host | Exact version/build | What it proves |
 | --- | --- | --- | --- |
 | Compile + automated test runtime | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | Plugin compilation and repository automated tests on the current SDK. |
+| Automated real-process Database Tools export E2E | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | #239 exercises the packaged plugin against real H2/SQLite datasources through the Database tool-window UI/clipboard boundary; this does not substitute for the separate manual acceptance protocol. |
 | Exact DatabaseTools Host API Inventory | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | The reviewed DatabaseTools classes/symbols and selection boundary are present for this exact binary. |
 | Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.3 / `IU-263.7307.200` | Packaged-plugin binary compatibility for the current SDK. |
 | Plugin Verifier binary compatibility | IntelliJ IDEA Ultimate | 2026.2.2 / `IU-262.10315.125` | Packaged-plugin backward binary compatibility only for this exact 262 target. |
