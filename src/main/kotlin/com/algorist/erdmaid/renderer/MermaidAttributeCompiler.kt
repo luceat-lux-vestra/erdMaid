@@ -165,9 +165,9 @@ object MermaidAttributeCompiler {
             p != null && s != null -> "($p,$s)"
             // JetBrains DatabaseTools may expose the same character/binary size through both
             // length and precision. Collapse equal evidence rather than rendering it twice.
-            l != null && p != null && s == null && l == p -> "($l)"
+            l != null && p != null && l == p -> "($l)"
             l != null && p == null && s == null -> "($l)"
-            l == null && p != null && s == null -> "($p)"
+            l == null && p != null -> "($p)"
             // Conflicting optional details without a coherent renderer-neutral representation
             // are presentation metadata. Preserve the authoritative raw type name rather than
             // inventing dialect semantics or an invalid Mermaid token.
