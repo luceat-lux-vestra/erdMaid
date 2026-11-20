@@ -159,19 +159,24 @@ object MermaidAttributeCompiler {
         val p = (precision as? OptionalIntResult.Present)?.value
         val s = (scale as? OptionalIntResult.Present)?.value
         val dimensions = when {
-            l == null && p == null && s == null -> ""
+            // Precision + scale form one coherent SQL-style dimension pair. Some hosts also
+            // report length for the same numeric type; do not leak that duplicate transport
+            // metadata into the user-visible type as synthetic L/P/S labels.
+            p != null && s != null -> "($p,$s)"
+            // JetBrains DatabaseTools may expose the same character/binary size through both
+            // length and precision. Collapse equal evidence rather than rendering it twice.
+            l != null && p != null && s == null && l == p -> "($l)"
             l != null && p == null && s == null -> "($l)"
             l == null && p != null && s == null -> "($p)"
-            l == null && p != null && s != null -> "($p,$s)"
-            else -> "(" + listOfNotNull(
-                l?.let { "L$it" },
-                p?.let { "P$it" },
-                s?.let { "S$it" },
-            ).joinToString(",") + ")"
+            // Conflicting optional details without a coherent renderer-neutral representation
+            // are presentation metadata. Preserve the authoritative raw type name rather than
+            // inventing dialect semantics or an invalid Mermaid token.
+            else -> ""
         }
 
         // The authoritative type name may already include the same dimensions.
-        // Avoid repeating an identical suffix while preserving conflicting metadata visibly.
+        // Avoid repeating an identical suffix; ambiguous optional details are intentionally
+        // omitted instead of becoming synthetic database facts.
         val display = if (dimensions.isNotEmpty() && rawType.name.endsWith(dimensions)) {
             rawType.name
         } else {
@@ -254,7 +259,7 @@ object MermaidAttributeCompiler {
                 letter || cp == '_'.code
             } else {
                 letter || (Character.isDigit(cp) && cp <= 0xffff) ||
-                    cp in ATTRIBUTE_WORD_PUNCTUATION
+                    cp in READABLE_ATTRIBUTE_WORD_PUNCTUATION
             }
             if (!valid) return false
             offset += Character.charCount(cp)
@@ -267,7 +272,7 @@ object MermaidAttributeCompiler {
             // Quoting is for readable one-line SQL names, not a way to admit hostile
             // punctuation or markup into Mermaid's attribute/rendering context.
             Character.isLetterOrDigit(cp) ||
-                cp in ATTRIBUTE_WORD_PUNCTUATION ||
+                cp in BACKTICK_ATTRIBUTE_WORD_PUNCTUATION ||
                 cp == ' '.code
         }
 
@@ -299,10 +304,14 @@ object MermaidAttributeCompiler {
     }
 
     private const val OPAQUE_ATTRIBUTE_PREFIX = "ERDMAID_"
-    private val ATTRIBUTE_WORD_PUNCTUATION = setOf(
+    private val READABLE_ATTRIBUTE_WORD_PUNCTUATION = setOf(
         '_'.code, '-'.code, '['.code, ']'.code,
-        '('.code, ')'.code, '.'.code, ','.code,
+        '('.code, ')'.code, '.'.code,
     )
+    // Comma support differs across Mermaid ER lexer versions. Keep SQL-style precision/scale
+    // readable through backtick quoting instead of relying on an unquoted comma token.
+    private val BACKTICK_ATTRIBUTE_WORD_PUNCTUATION =
+        READABLE_ATTRIBUTE_WORD_PUNCTUATION + ','.code
     private val HEX = "0123456789ABCDEF".toCharArray()
     private val UNSAFE_COMMENT_ASCII = setOf(
         '_'.code,
