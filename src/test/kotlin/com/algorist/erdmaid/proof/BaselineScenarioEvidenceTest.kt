@@ -156,7 +156,7 @@ class BaselineScenarioEvidenceTest {
                 test(CORE, "fun `authoritative absence and unavailable metadata are distinct states`"),
             ),
             "optional-type-detail-absent" to listOf(
-                test(ATTRIBUTE, "fun `type details preserve present absent and fixed L P S order without dialect inference`"),
+                test(ATTRIBUTE, "fun `type details prefer coherent SQL dimensions and collapse duplicate host metadata`"),
                 test(HOST, "fun `complete export reaches publication exactly once`"),
             ),
             "hostile-metadata" to listOf(

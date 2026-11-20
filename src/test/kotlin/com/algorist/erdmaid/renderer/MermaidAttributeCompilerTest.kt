@@ -64,22 +64,40 @@ class MermaidAttributeCompilerTest {
     }
 
     @Test
-    fun `type details preserve present absent and fixed L P S order without dialect inference`() {
-        val all = rawType(
-            name = "number_raw",
+    fun `type details prefer coherent SQL dimensions and collapse duplicate host metadata`() {
+        val numericWithHostLength = rawType(
+            name = "NUMERIC",
             length = OptionalValue.Present(12),
             precision = OptionalValue.Present(10),
             scale = OptionalValue.Present(-2),
         )
+        val characterWithDuplicateSize = rawType(
+            name = "CHARACTER VARYING",
+            length = OptionalValue.Present(255),
+            precision = OptionalValue.Present(255),
+        )
         val onlyPrecision = rawType(name = "varchar", precision = OptionalValue.Present(7))
+        val ambiguous = rawType(
+            name = "vendor_type",
+            length = OptionalValue.Present(12),
+            precision = OptionalValue.Present(10),
+        )
 
         assertEquals(
-            ExportOutcome.Complete("number_raw(L12,P10,S-2)"),
-            MermaidAttributeCompiler.encodeType(all),
+            ExportOutcome.Complete("`NUMERIC(10,-2)`"),
+            MermaidAttributeCompiler.encodeType(numericWithHostLength),
+        )
+        assertEquals(
+            ExportOutcome.Complete("`CHARACTER VARYING(255)`"),
+            MermaidAttributeCompiler.encodeType(characterWithDuplicateSize),
         )
         assertEquals(
             ExportOutcome.Complete("varchar(7)"),
             MermaidAttributeCompiler.encodeType(onlyPrecision),
+        )
+        assertEquals(
+            ExportOutcome.Complete("vendor_type"),
+            MermaidAttributeCompiler.encodeType(ambiguous),
         )
     }
 
@@ -271,7 +289,7 @@ class MermaidAttributeCompilerTest {
         val attributes = completeAttributes(graph(snapshot)).entities.single().columns
 
         assertEquals(listOf("customer_id", "created_at", "금액", "memo"), attributes.map { it.name })
-        assertEquals(listOf("BIGINT", "TIMESTAMP", "NUMERIC(18,2)", "VARCHAR(255)"), attributes.map { it.type })
+        assertEquals(listOf("BIGINT", "TIMESTAMP", "`NUMERIC(18,2)`", "VARCHAR(255)"), attributes.map { it.type })
     }
 
     @Test

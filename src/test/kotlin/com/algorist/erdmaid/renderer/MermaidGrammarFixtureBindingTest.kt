@@ -60,14 +60,14 @@ class MermaidGrammarFixtureBindingTest {
                             column(
                                 child, "customer_name", 1,
                                 rawType = RawTypeMetadata(
-                                    "VARCHAR", OptionalValue.Present(255),
-                                    OptionalValue.Absent, OptionalValue.Absent,
+                                    "CHARACTER VARYING", OptionalValue.Present(255),
+                                    OptionalValue.Present(255), OptionalValue.Absent,
                                 ),
                             ),
                             column(
                                 child, "unit_price", 2,
                                 rawType = RawTypeMetadata(
-                                    "NUMERIC", OptionalValue.Absent,
+                                    "NUMERIC", OptionalValue.Present(18),
                                     OptionalValue.Present(18), OptionalValue.Present(2),
                                 ),
                             ),
