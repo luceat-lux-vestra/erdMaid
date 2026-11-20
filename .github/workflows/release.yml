@@ -3,6 +3,12 @@ name: Marketplace Release
 on:
   release:
     types: [released]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable release tag to recover (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,7 +27,7 @@ jobs:
       actions: write # Isolated dispatch-only authority; no release write or publication secrets.
       contents: read
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
     steps:
       - name: Fetch exact tag for candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,7 +89,7 @@ jobs:
       id-token: write
       attestations: write
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
     steps:
       - name: Fetch immutable release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
