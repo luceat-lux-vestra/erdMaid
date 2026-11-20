@@ -3,12 +3,18 @@ name: Marketplace Release
 on:
   release:
     types: [released]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable release tag to recover (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: marketplace-release-${{ github.event.release.tag_name }}
+  group: marketplace-release-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -21,12 +27,12 @@ jobs:
       actions: write # Isolated dispatch-only authority; no release write or publication secrets.
       contents: read
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
     steps:
       - name: Fetch exact tag for candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -83,12 +89,12 @@ jobs:
       id-token: write
       attestations: write
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
     steps:
       - name: Fetch immutable release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
 

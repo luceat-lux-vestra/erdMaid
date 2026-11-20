@@ -37,9 +37,13 @@ A green candidate is evidence only. It is not production publication authority.
 
 `.github/workflows/release.yml` is the only automated production publication authority.
 
-It runs only for a published GitHub Release whose tag is stable `vMAJOR.MINOR.PATCH`. The effective
-plugin version is the tag with the leading `v` removed. The tag commit must be reachable from
-reviewed `main`.
+Normal publication is triggered by a published GitHub Release whose tag is stable `vMAJOR.MINOR.PATCH`.
+For recovery of an already-published GitHub Release after a fail-closed workflow defect, the same
+protected-main workflow also exposes an explicit `workflow_dispatch` input containing that existing
+stable release tag. Recovery does not create, move, or replace a tag and must pass the same release
+identity, reviewed-main ancestry, CodeQL, rebuild/verifier, signing, publication-lock, and Marketplace
+checks as the normal release event. The effective plugin version is the tag with the leading `v`
+removed.
 
 ### CodeQL execution cadence and release preflight
 
@@ -145,6 +149,8 @@ The workflow intentionally distinguishes three states:
 - `erdmaid-release-identity.json` only: publication is ambiguous/pending and automatic rerun stops;
 - `erdmaid-release-published.json`: rerun is a verified no-op only after the recorded signed
   GitHub Release asset digest is revalidated.
+
+If a release workflow fails before any pending identity is created, use the protected-main explicit recovery dispatch with the unchanged existing release tag after the workflow defect is reviewed and fixed; do not rerun a historical workflow definition blindly.
 
 A pending identity may mean Marketplace publication succeeded before a later workflow step failed.
 Do not rerun or republish blindly. Check Marketplace version state and the GitHub Release assets

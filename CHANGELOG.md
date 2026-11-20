@@ -4,9 +4,15 @@
 
 ## [Unreleased]
 ### Fixed
+- Preserve the stable release SemVer across nested Gradle verifier invocations so release validation cannot create a second timestamp-version distribution ZIP.
+- Add an explicit fail-closed recovery dispatch for an existing immutable release tag instead of blindly rerunning a historical workflow definition.
+
+## [1.1.0] - 2026-11-21
+### Fixed
 - Suppress erdMaid's Database popup action for a provably empty selection or directly unsupported object without expanding groups on the EDT; validate group/mixed selection authoritatively only when invoked.
 - Prevent unrelated SQLite-style `UNIQUE` indices or ungrouped candidate-key markers from suppressing otherwise valid foreign-key ERDs; still fail closed when index coverage may constrain the FK tuple or cannot be resolved.
 - Restore readable SQL column and type names in exported Mermaid attributes (for example `INT user_id`, `VARCHAR(255) customer_name`, `NUMERIC(18,2) unit_price`) instead of opaque `c_...` / `t_...` tokens. Preserve grammar-safe quoting and an injective fallback for unrepresentable source text.
+- Make SQL precision/scale type rendering portable across Mermaid ER parsers by collapsing duplicate JetBrains type metadata and backtick-quoting comma-bearing type tokens such as `NUMERIC(18,2)`.
 
 ### Added
 - Mermaid `erDiagram` export for physical database-table selections from the IntelliJ Database tool window.

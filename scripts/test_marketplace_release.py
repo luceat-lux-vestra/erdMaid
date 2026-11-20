@@ -82,11 +82,16 @@ class MarketplaceReleaseTest(unittest.TestCase):
         self.assertIn("git merge-base --is-ancestor", codeql)
         self.assertIn("if [ \"$GITHUB_EVENT_NAME\" = \"schedule\" ]; then", codeql)
 
-    def test_release_only_trigger_and_environment_boundary(self):
+    def test_release_and_explicit_recovery_trigger_keep_environment_boundary(self):
         self.assertIn("release:\n    types: [released]", self.workflow)
+        self.assertIn("workflow_dispatch:", self.workflow)
+        self.assertIn("release_tag:", self.workflow)
         self.assertNotIn("pull_request:", self.workflow)
         self.assertNotIn("pull_request_target:", self.workflow)
-        self.assertNotIn("workflow_dispatch:", self.workflow)
+        self.assertIn(
+            "github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag",
+            self.workflow,
+        )
         self.assertIn("environment: jetbrains-marketplace", self.workflow)
         self.assertIn("persist-credentials: false", self.workflow)
 
