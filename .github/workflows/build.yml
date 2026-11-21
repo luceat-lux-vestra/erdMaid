@@ -222,7 +222,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: 25
@@ -352,7 +352,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: 25
@@ -448,14 +448,14 @@ jobs:
 
       - name: Setup Java
         if: ${{ needs.scope.outputs.docs_only != 'true' }}
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: 25
 
       - name: Qodana - Code Inspection
         if: ${{ needs.scope.outputs.docs_only != 'true' }}
-        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2
+        uses: JetBrains/qodana-action@13e3acbbaeb2cbfc37893b98e74594985edf42eb # v2026.2.4
         with:
           args: --project-dir . --repository-root . --image jetbrains/qodana-jvm-community:2026.2 --clear-cache
           use-caches: false
@@ -520,7 +520,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: 25
@@ -924,7 +924,7 @@ jobs:
 
       - name: Setup supported Java
         if: ${{ steps.dependency-scope.outputs.required == 'true' }}
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: 25
@@ -959,7 +959,7 @@ jobs:
     steps:
       - name: Review dependency changes
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         with:
           fail-on-severity: moderate
 
