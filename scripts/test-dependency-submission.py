@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,8 @@ FILTER_LINE = (
 RUNTIME_SCOPE_ENV_LINE = (
     f"DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: '{RUNTIME_PATTERN}'"
 )
+
+ARM64_RUNNER = re.compile(r"(?m)^    runs-on: (ubuntu-[0-9]+[.][0-9]+-arm)$")
 
 
 def require(text: str, needle: str, label: str) -> None:
@@ -58,7 +61,9 @@ def check(path: Path) -> None:
         "github.ref == 'refs/heads/main'",
         "main-only job guard",
     )
-    require(text, "runs-on: ubuntu-24.04-arm", "ARM64 runner")
+    runner = ARM64_RUNNER.search(text)
+    if runner is None:
+        raise AssertionError("ARM64 runner: expected an explicit versioned Ubuntu ARM64 runner")
     require(text, "contents: write", "submission permission")
     require(text, "cache-read-only: true", "read-only Gradle cache")
     require(
@@ -139,9 +144,12 @@ def expect_fail(name: str, old: str, new: str) -> None:
 
 def main() -> int:
     check(WORKFLOW)
+    runner = ARM64_RUNNER.search(WORKFLOW.read_text(encoding="utf-8"))
+    if runner is None:
+        raise AssertionError("ARM64 runner fixture anchor missing")
     expect_fail(
         "ARM64 runner",
-        "runs-on: ubuntu-24.04-arm",
+        runner.group(0).strip(),
         "runs-on: ubuntu-latest",
     )
     expect_fail(

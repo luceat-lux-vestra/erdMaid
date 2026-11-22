@@ -1,0 +1,6 @@
+# Temporary compatibility adapter for GitHub-hosted Ubuntu 26.04 ARM.
+# actionlint 1.7.12 does not yet recognize GitHub's GA ubuntu-26.04-arm label.
+# Remove this entry once the managed actionlint dependency recognizes the label natively.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04-arm

@@ -8,7 +8,7 @@ Submission. Managed ADS should remain disabled while this workflow is active.
 The publisher:
 - runs automatically only on protected `main` pushes that change Gradle dependency/build-definition inputs;
 - supports manual dispatch on `main` for recovery or explicit refresh;
-- uses JDK25 on `ubuntu-24.04-arm`;
+- uses JDK25 on `ubuntu-26.04-arm`;
 - keeps Gradle cache access read-only;
 - submits with `dependency-graph: generate-and-submit`;
 - verifies exact-main provenance and fail-closed graph coverage after submission.

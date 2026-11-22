@@ -432,7 +432,7 @@ jobs:
   inspect:
     name: Inspect code
     needs: [ scope ]
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 45
     permissions:
       contents: read
@@ -895,7 +895,7 @@ jobs:
 
   dependencySubmissionValidation:
     name: Dependency submission PR validation
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 30
     permissions:
       contents: read

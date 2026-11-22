@@ -92,6 +92,23 @@ def write_ephemeral_fixture(root, owner="issue #201", retire="remove when bounde
 
 
 
+def check_qodana_full_provenance_binding(root):
+    path = os.path.join(root, ".github", "workflows", "qodana-full.yml")
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    if re.search(r'"qodana_action":\s*"JetBrains/qodana-action@[0-9a-f]{40}"', text):
+        raise AssertionError("Qodana provenance duplicates an action SHA instead of deriving workflow authority")
+    for token in (
+        'workflow_sha = os.environ["GITHUB_WORKFLOW_SHA"]',
+        'os.environ["GITHUB_WORKFLOW_REF"]',
+        '"qodana_action": qodana_action',
+        'git", "show"',
+    ):
+        if token not in text:
+            raise AssertionError(f"Qodana provenance binding missing {token!r}")
+    print("ok: Qodana provenance derives action identity from exact workflow SHA")
+
+
 def check_gradle_seed_input_paths(root):
     """Only inputs that can affect the protected-main Gradle cache trigger a seed."""
     seed_path = os.path.join(root, ".github", "workflows", "gradle-cache-seed.yml")
@@ -215,6 +232,7 @@ else:
 def main():
     check_ready_for_review_fast_evidence_fallback(ROOT)
     check_gradle_seed_input_paths(ROOT)
+    check_qodana_full_provenance_binding(ROOT)
     baseline = run(ROOT)
     if baseline.returncode != 0:
         print(baseline.stdout + baseline.stderr, file=sys.stderr)
