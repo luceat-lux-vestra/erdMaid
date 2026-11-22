@@ -27,7 +27,7 @@ permissions: {}
 jobs:
   scan-guard:
     name: Qodana schedule guard
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       actions: read
@@ -89,7 +89,7 @@ jobs:
     needs: scan-guard
     if: needs.scan-guard.outputs.should_scan == 'true'
     name: Qodana full scan
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 45
     permissions:
       contents: read
@@ -187,6 +187,7 @@ jobs:
           import hashlib
           import json
           import os
+          import re
           import subprocess
           from pathlib import Path
 
@@ -207,6 +208,21 @@ jobs:
               raise SystemExit("Qodana provenance cannot record a rejected High/Critical verdict")
 
           config = Path(".qodana-source/qodana.yml")
+          workflow_sha = os.environ["GITHUB_WORKFLOW_SHA"]
+          workflow_source = subprocess.check_output(
+              ["git", "show", f"{workflow_sha}:.github/workflows/qodana-full.yml"],
+              text=True,
+          )
+          action_refs = re.findall(
+              r"^\s*uses:\s*(JetBrains/qodana-action@[0-9a-f]{40})\s+#\s+v[^\s]+\s*$",
+              workflow_source,
+              re.MULTILINE,
+          )
+          if len(action_refs) != 1:
+              raise SystemExit(
+                  f"Expected exactly one immutable Qodana action ref in workflow source, got {len(action_refs)}"
+              )
+          qodana_action = action_refs[0]
           payload = {
               "schema": 1,
               "candidate_sha": source,
@@ -216,7 +232,9 @@ jobs:
               "repository": os.environ["GITHUB_REPOSITORY"],
               "run_id": int(os.environ["GITHUB_RUN_ID"]),
               "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
-              "qodana_action": "JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f",
+              "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+              "workflow_sha": workflow_sha,
+              "qodana_action": qodana_action,
               "qodana_image": "jetbrains/qodana-jvm-community:2026.2",
               "profile": "qodana.recommended",
               "severity_gate": ["High", "Critical"],
