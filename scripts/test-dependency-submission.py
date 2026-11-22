@@ -15,6 +15,8 @@ RUNTIME_SCOPE_ENV_LINE = (
     f"DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: '{RUNTIME_PATTERN}'"
 )
 
+ARM64_RUNNER = re.compile(r"(?m)^    runs-on: (ubuntu-[0-9]+[.][0-9]+-arm)$")
+
 
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
