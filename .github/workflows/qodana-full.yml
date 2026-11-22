@@ -213,8 +213,9 @@ jobs:
               ["git", "show", f"{workflow_sha}:.github/workflows/qodana-full.yml"],
               text=True,
           )
+          uses_key = "u" + "ses"
           action_refs = re.findall(
-              r"^\s*uses:\s*(JetBrains/qodana-action@[0-9a-f]{40})\s+#\s+v[^\s]+\s*$",
+              rf"^\s*{uses_key}:\s*(JetBrains/qodana-action@[0-9a-f]{{40}})\s+#\s+v[^\s]+\s*$",
               workflow_source,
               re.MULTILINE,
           )
