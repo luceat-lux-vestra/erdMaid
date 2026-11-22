@@ -63,7 +63,7 @@ dependencies {
     // Security-align only the process-level Starter/E2E tooling graph. These are not plugin
     // runtime dependencies; remove the constraints when JetBrains' Starter graph carries
     // equivalent-or-newer fixed versions natively.
-    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.20.Final"))
+    add("integrationTestImplementation", platform("io.netty:netty-bom:4.2.21.Final"))
     add("integrationTestImplementation", platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
     add("integrationTestImplementation", platform("tools.jackson:jackson-bom:3.3.0"))
     add("integrationTestImplementation", platform("io.opentelemetry:opentelemetry-bom:1.68.0"))
@@ -77,7 +77,7 @@ dependencies {
         add("integrationTestImplementation", "org.bouncycastle:bcutil-jdk18on:1.87") {
             because("keep Bouncy Castle Starter tooling modules version-aligned")
         }
-        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.14.0") {
+        add("integrationTestImplementation", "at.yawk.lz4:lz4-java:1.14.1") {
             because("1.11.3 includes the security fixes released in 1.11.2")
         }
         add("integrationTestImplementation", "org.jsoup:jsoup:1.24.1") {
