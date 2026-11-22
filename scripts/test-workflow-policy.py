@@ -45,6 +45,16 @@ def replace(path, old, new):
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text.replace(old, new, 1))
 
+
+def replace_regex(path, pattern, new):
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    updated, count = re.subn(pattern, new, text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        raise AssertionError(f"fixture regex anchor count={count}: {path}: {pattern!r}")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(updated)
+
 def expect_success(name, mutate):
     with tempfile.TemporaryDirectory() as temp:
         root = os.path.join(temp, "repo")
@@ -270,12 +280,20 @@ def main():
         ),
         "expected needs",
     )
+    expect_success(
+        "inspect job accepts immutable Qodana release advancement",
+        lambda root: replace_regex(
+            os.path.join(root, ".github/workflows/build.yml"),
+            r"^        uses: JetBrains/qodana-action@[0-9a-f]{40} # v[^\n]+$",
+            "        uses: JetBrains/qodana-action@" + ("f" * 40) + " # v2099.1.2",
+        ),
+    )
     expect_failure(
         "inspect job missing pinned Qodana action",
-        lambda root: replace(
+        lambda root: replace_regex(
             os.path.join(root, ".github/workflows/build.yml"),
-            "        uses: JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f # v2026.2.2\n",
-            "        run: echo qodana-removed\n",
+            r"^        uses: JetBrains/qodana-action@[0-9a-f]{40} # v[^\n]+$",
+            "        run: echo qodana-removed",
         ),
         "Inspect code contract missing",
     )
@@ -346,7 +364,7 @@ def main():
         "non-reusable job without timeout",
         lambda root: replace(
             os.path.join(root, ".github/workflows/build.yml"),
-            "    uses: ./.github/workflows/host-api-evidence.yml # zizmor: ignore[self-repository] actionlint 1.7.12 rejects GitHub's newer $/ self-repository syntax.\n",
+            "    uses: ./.github/workflows/host-api-evidence.yml # zizmor: ignore[self-repository] actionlint compatibility suppression for GitHub's newer $/ self-repository syntax.\n",
             "    runs-on: ubuntu-latest\n",
         ),
         "has no timeout-minutes",
