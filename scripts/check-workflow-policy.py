@@ -106,8 +106,14 @@ def check_entries(root, entries, classification):
                 item.strip() for item in inspect_needs.group(1).split(",") if item.strip()
             } != {"scope"}:
                 raise ValueError("Inspect code must depend only on trusted Validation scope")
+            qodana_pin = re.search(
+                r"^\s*uses:\s*JetBrains/qodana-action@[0-9a-f]{40}\s+#\s+v[0-9A-Za-z][0-9A-Za-z._-]*\s*$",
+                inspect,
+                re.MULTILINE,
+            )
+            if qodana_pin is None:
+                raise ValueError("Inspect code contract missing immutable JetBrains/qodana-action pin with release metadata")
             required_inspect_tokens = (
-                "JetBrains/qodana-action@3e8d76ff0e0241618abd808682f426afe84bab3f",
                 "jetbrains/qodana-jvm-community:2026.2",
                 ".github/scripts/check-qodana-sarif.py",
                 "needs.scope.outputs.docs_only == 'true'",

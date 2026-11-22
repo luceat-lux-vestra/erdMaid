@@ -38,3 +38,9 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  - package-ecosystem: "gomod"
+    directory: "/.github/tools/actionlint"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
