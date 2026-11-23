@@ -47,7 +47,40 @@ last_mutation:
 stop_condition: <repository-policy stop condition>
 ```
 
-Do not store the mutable checkpoint in a production branch and do not mirror volatile CI state in it.
+Do not store the mutable checkpoint in a production branch. The checkpoint may
+summarize the **current** CI or verification judgment needed to resume safely,
+but it is never an authoritative mirror of GitHub. Fresh-read current GitHub
+state before any decision that depends on checks, workflows, reviews, merge
+state, or the default branch.
+
+Checkpoint ownership is single-writer for the owning work item. Delegates may
+propose state, but must not concurrently overwrite the canonical checkpoint.
+Where multiple processes can write the same durable state, use an appropriate
+lock/lease or version-checked compare-and-swap and an atomic durable replacement
+where supported. Confirm the prior revision before committing the new one. If
+coordination, conflict detection, or atomic persistence cannot be assured,
+operate with one writer only. On a conflicting or uncertain write, re-read
+GitHub and the current checkpoint, reconcile, and STOP rather than applying
+last-writer-wins.
+
+### Rolling-checkpoint discipline
+
+The canonical owning-Issue checkpoint is a **latest-state snapshot, not an
+append-only log**. Keep at most one marked mutable checkpoint for the active
+work item. Each edit replaces obsolete or superseded state; retain only concise
+completed outcomes needed to understand the current situation, current state,
+blockers, the next safe unit, and the STOP condition.
+
+Do not accumulate old `Step N` sections, prior CI snapshots, superseded HEAD
+states, per-turn/session progress, or duplicate checkpoint comments merely for
+chronology. Git commits, PR history, Issue events, review records, and other
+independently durable evidence own that history. Preserve user-authored
+decisions, review discussion, and immutable evidence in their authoritative
+records rather than copying them into checkpoint history.
+
+Before writing checkpoint state, fresh-read Issue comments and reuse the
+existing `<!-- agent-resume-checkpoint:v1 -->` comment. If duplicates already
+exist, do not create another; reconcile them and keep one canonical writer.
 
 Normal durable boundaries are: work selected, candidate ref verified, PR verified, final candidate HEAD established, merge verified, post-merge housekeeping verified, done.
 
@@ -105,7 +138,14 @@ Classify movement before deciding what prior evidence still proves:
 
 Before relying on same-HEAD evidence after base advancement, fresh-read the current PR HEAD, `main`, merge-base, live ruleset, required checks, review threads, and mergeability. Determine whether the evidence was produced for the unchanged HEAD itself or for an old synthetic merge/base+HEAD composition.
 
-For erdMaid specifically, the live `main protection` ruleset requires the GitHub Actions `Merge Gate` with strict required-status-check enforcement. `AGENTS.md` also requires merge-time revalidation of `main`, the ruleset, required CI contexts, and unresolved review-thread state. Those stricter requirements remain authoritative. Same-HEAD evidence reuse therefore never authorizes an out-of-date or otherwise invalid current composition.
+For erdMaid specifically, fresh-read the live `main protection` ruleset at
+merge judgment time. The ruleset currently requires the GitHub Actions
+`Merge Gate`; do not infer a strict latest-base/up-to-date requirement unless
+the live ruleset actually establishes one. `AGENTS.md` also requires
+merge-time revalidation of `main`, the ruleset, required CI contexts, and
+unresolved review-thread state. Those stricter repository requirements remain
+authoritative. Same-HEAD evidence reuse therefore never authorizes a
+semantically invalid current composition.
 
 Evidence reuse is claim-scoped, not blanket merge authorization:
 
