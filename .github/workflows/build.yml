@@ -364,13 +364,11 @@ jobs:
           cache-read-only: true
           cache-disabled: ${{ startsWith(github.head_ref, 'dependabot/') }}
 
-      # IJPGP 2.18.1 has a known intermittent jar FileSystem lifecycle bug while
-      # resolving bundled plugins. The gate retries exactly once only when the
-      # complete command-specific ClosedFileSystemException signature is present;
-      # every other failure remains an immediate failure.
+      # One native Gradle invocation; isolate the daemon from the outset.
+      # A failed command fails the gate without log-signature retries.
       - name: Run Tests
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
-        run: python3 scripts/gradle_check_gate.py check
+        run: ./gradlew --no-daemon check
 
       - name: Show large-workload proof evidence
         if: ${{ needs.scope.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.action != 'ready_for_review' || steps.fast-evidence.outputs.reuse != 'true') }}
@@ -458,7 +456,7 @@ jobs:
         if: ${{ needs.scope.outputs.docs_only != 'true' }}
         uses: JetBrains/qodana-action@13e3acbbaeb2cbfc37893b98e74594985edf42eb # v2026.2.4
         with:
-          args: --project-dir . --repository-root . --image jetbrains/qodana-jvm-community:2026.2 --clear-cache
+          args: --project-dir . --repository-root . --clear-cache
           use-caches: false
           upload-result: true
           artifact-name: qodana-report
@@ -543,8 +541,8 @@ jobs:
           version="$(date -u +'%y.%m.%d.%H%M%S')"
           echo "ORG_GRADLE_PROJECT_buildVersion=$version" >> "$GITHUB_ENV"
 
-      # Execute one Gradle invocation through the original narrow zipfs-only
-      # retry gate. A job-local Gradle init hook emits the ZIP-ready marker
+      # Execute one native Gradle invocation. A job-local Gradle init hook emits
+      # the ZIP-ready marker
       # strictly AFTER buildPlugin has completed; then DataGrip launches in
       # parallel with IDEA. No polling on ZIP size or partial output.
       - name: Verify IDEA and DataGrip compatibility concurrently
@@ -574,7 +572,7 @@ jobs:
           GROOVY
 
           gate_start="$(date +%s)"
-          (set -o pipefail; python3 scripts/gradle_check_gate.py verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
+          (set -o pipefail; ./gradlew --no-daemon verifyPlugin 2>&1 | tee "$RUNNER_TEMP/idea-verifier.log") &
           idea_pid=$!
 
           # The Gradle task (not file existence/stable size) signals a fully
@@ -703,9 +701,6 @@ jobs:
         run: |
           python3 scripts/test_issue_metadata.py
           node --test scripts/issue-metadata.test.cjs
-
-      - name: Check bounded Gradle retry fixtures
-        run: python3 scripts/test_gradle_check_gate.py
 
       - name: Check DataGrip verifier fixtures
         run: python3 scripts/test_datagrip_verifier.py

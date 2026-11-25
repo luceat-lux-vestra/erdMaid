@@ -2,7 +2,9 @@
 
 Owning issue: #111 (completed)
 
-> **Historical reassessment record.** This file records the 2026-09-20 reassessment and later closure notes. Current merge/release authority lives in `AGENTS.md`, the active repository rulesets, and `docs/marketplace-publication.md`; point-in-time wording below is not a current backlog.
+> **Historical reassessment record.** This file records the 2026-09-20 reassessment and later closure notes. Current merge/release authority is listed below; point-in-time wording below is not a current backlog.
+
+> **Current authority:** [engineering contract](engineering/engineering-contract.md), [repository policy](../.github/repository-policy.json), live rulesets and [Marketplace publication](marketplace-publication.md). The sections below are historical observations, not current gates: the required context is now Merge Gate and production CodeQL is scheduled/manual, not PR/push. The retired failure-classification and aggregate gate descriptions must not be reintroduced.
 
 > **2026-09-27 supersession note.** The mandatory failure-remediation declaration and automated failure-classification reporter described below were retired. Failure investigation remains an engineering discipline, while required PR validation is aggregated behind the fail-closed `Merge Gate`.
 
@@ -40,13 +42,13 @@ Dependency Review is PR-diff-scoped and therefore has no merged-main execution p
 
 ## ADVISORY — CodeQL Actions; Kotlin upstream-blocked
 
-GitHub Actions CodeQL analysis runs on exact pull-request heads, `main`, and schedule.
+At the reassessment, GitHub Actions CodeQL analysis ran on exact pull-request heads, `main`, and schedule.
 
 The attempted Java/Kotlin leg produced a useful hardening result: the stable CodeQL extractor rejects this repository's Kotlin 2.4.20 compile path as too recent, while GitHub's current supported-language documentation lists Kotlin 2.4.20. This is treated as an external scanner-boundary mismatch, not hidden as a repository success.
 
 The reassessment therefore keeps stable Actions analysis, removes the persistently red Kotlin advisory leg, and tracks restoration in #114. It does not downgrade the product Kotlin version or adopt a nightly CodeQL bundle just to obtain a green advisory signal.
 
-Build, Test, Plugin Verifier, Workflow Static Analysis, and failure-triage remain authoritative.
+At that point Build, Test, Plugin Verifier, Workflow Static Analysis, and failure-triage were authoritative.
 
 ## MACHINE-READABLE MANUAL ASSERTIONS — live security features
 
@@ -100,7 +102,7 @@ The remaining audited trusted-base / metadata-only use is:
 - `.github/workflows/pr-metadata.yml`
 
 The required failure-remediation declaration is **not** part of this exception.
-It now runs as the unprivileged `.github/workflows/failure-declaration.yml`
+At that point it ran as the unprivileged `.github/workflows/failure-declaration.yml`
 `pull_request` gate and delegates validation to the immutable central
 `failure-declaration` action.
 

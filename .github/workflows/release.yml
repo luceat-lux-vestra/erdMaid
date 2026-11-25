@@ -253,8 +253,8 @@ jobs:
         run: |
           set -euo pipefail
           ./gradlew clean buildPlugin -PbuildVersion="$RELEASE_VERSION"
-          python3 scripts/gradle_check_gate.py check
-          python3 scripts/gradle_check_gate.py verifyPlugin
+          ./gradlew --no-daemon check
+          ./gradlew --no-daemon verifyPlugin
           python3 scripts/datagrip_verifier.py
           python3 scripts/marketplace_candidate.py inspect             --archive "build/distributions/erdMaid-${RELEASE_VERSION}.zip"             --version "$RELEASE_VERSION"             --commit "$RELEASE_COMMIT"             --output build/reports/marketplace-release-candidate.json
 

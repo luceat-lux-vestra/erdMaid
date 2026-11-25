@@ -22,6 +22,7 @@ def run(root):
 
 def copy_tree(destination):
     shutil.copytree(os.path.join(ROOT, ".github"), os.path.join(destination, ".github"))
+    shutil.copy2(os.path.join(ROOT, "qodana.yml"), os.path.join(destination, "qodana.yml"))
 
 
 def expect_failure(name, mutate, token):
@@ -102,11 +103,15 @@ def check_qodana_full_provenance_binding(root):
         'workflow_sha = os.environ["GITHUB_WORKFLOW_SHA"]',
         'os.environ["GITHUB_WORKFLOW_REF"]',
         '"qodana_action": qodana_action',
+        '"qodana_image": qodana_image',
+        'config_text = config.read_text(encoding="utf-8")',
         'git", "show"',
     ):
         if token not in text:
             raise AssertionError(f"Qodana provenance binding missing {token!r}")
-    print("ok: Qodana provenance derives action identity from exact workflow SHA")
+    if re.search(r'"qodana_image":\s*"jetbrains/qodana-', text):
+        raise AssertionError("Qodana provenance must derive the linter from exact source config")
+    print("ok: Qodana provenance derives action and linter identity from exact sources")
 
 
 def check_gradle_seed_input_paths(root):
@@ -371,9 +376,9 @@ def main():
     )
     expect_failure(
         "mutable action ref",
-        lambda root: replace(
+        lambda root: replace_regex(
             os.path.join(root, ".github/workflows/build.yml"),
-            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            r"actions/checkout@[0-9a-f]{40}",
             "actions/checkout@v7",
         ),
         "mutable action ref",
@@ -386,6 +391,50 @@ def main():
             "    runs-on: ubuntu-latest\n",
         ),
         "has no timeout-minutes",
+    )
+    expect_failure(
+        "Qodana workflow overrides native linter config",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "args: --project-dir . --repository-root . --clear-cache",
+            "args: --project-dir . --repository-root . --image jetbrains/qodana-jvm-community:latest --clear-cache",
+        ),
+        "duplicates Qodana linter authority",
+    )
+    expect_failure(
+        "Qodana mutable config image",
+        lambda root: replace_regex(
+            os.path.join(root, "qodana.yml"),
+            r"^linter: jetbrains/qodana-jvm-community:[^\n]+$",
+            "linter: jetbrains/qodana-jvm-community:latest",
+        ),
+        "one explicit versioned",
+    )
+    expect_success(
+        "Qodana version changes through native config only",
+        lambda root: replace_regex(
+            os.path.join(root, "qodana.yml"),
+            r"^linter: jetbrains/qodana-jvm-community:[^\n]+$",
+            "linter: jetbrains/qodana-jvm-community:2099.1",
+        ),
+    )
+    expect_failure(
+        "Gradle validation masked",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/build.yml"),
+            "run: ./gradlew --no-daemon check",
+            "run: ./gradlew --no-daemon check || true",
+        ),
+        "masks Gradle validation failure",
+    )
+    expect_failure(
+        "retired retry wrapper restored",
+        lambda root: replace(
+            os.path.join(root, ".github/workflows/release.yml"),
+            "./gradlew --no-daemon check",
+            "python3 scripts/gradle_check_gate.py check",
+        ),
+        "restored retired Gradle retry wrapper",
     )
     print("all workflow-policy fixtures passed")
     return 0

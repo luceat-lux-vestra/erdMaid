@@ -2,6 +2,7 @@
 from pathlib import Path
 import re
 import tempfile
+from trusted_dependency_submission_validation import action_pin
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "dependency-submission.yml"
@@ -116,12 +117,10 @@ def check(path: Path) -> None:
             "obsolete broad aggregate-graph coverage floor returned"
         )
     require(validator, '"refs/heads/main"', "exact-main provenance")
-    require(
-        text,
-        "gradle/actions/dependency-submission@"
-        "8da46b539cd8fe6ab27ca75128919a18d757604c",
-        "action pin",
-    )
+    try:
+        action_pin(text, "gradle/actions/dependency-submission")
+    except ValueError as error:
+        raise AssertionError("dependency submission action requires one immutable full SHA") from error
 
 
 def expect_fail(name: str, old: str, new: str) -> None:
@@ -172,6 +171,15 @@ def main() -> int:
         RUNTIME_SCOPE_ENV_LINE,
         "DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: '.*'",
     )
+    action = "gradle/actions/dependency-submission"
+    source = WORKFLOW.read_text(encoding="utf-8")
+    pin = action_pin(source, action)
+    expect_fail("mutable submission action", f"{action}@{pin}", f"{action}@v6")
+    with tempfile.TemporaryDirectory() as tmp:
+        candidate = Path(tmp) / "dependency-submission.yml"
+        replacement = "f" * 40 if pin != "f" * 40 else "e" * 40
+        candidate.write_text(source.replace(f"{action}@{pin}", f"{action}@{replacement}", 1), encoding="utf-8")
+        check(candidate)
     print("dependency submission policy passed")
     return 0
 

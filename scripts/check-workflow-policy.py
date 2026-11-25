@@ -114,7 +114,6 @@ def check_entries(root, entries, classification):
             if qodana_pin is None:
                 raise ValueError("Inspect code contract missing immutable JetBrains/qodana-action pin with release metadata")
             required_inspect_tokens = (
-                "jetbrains/qodana-jvm-community:2026.2",
                 ".github/scripts/check-qodana-sarif.py",
                 "needs.scope.outputs.docs_only == 'true'",
                 "needs.scope.outputs.docs_only != 'true'",
@@ -174,6 +173,52 @@ def check_workflow_security(root):
         if not re.search(r"^concurrency:\s*$", text, re.MULTILINE):
             raise ValueError(f"{os.path.basename(path)} has no concurrency control")
 
+def check_qodana_config_authority(root):
+    config_path = os.path.join(root, "qodana.yml")
+    with open(config_path, encoding="utf-8") as handle:
+        config = handle.read()
+    if os.path.exists(os.path.join(root, "qodana.yaml")):
+        raise ValueError("competing Qodana configuration")
+    entries = re.findall(r"^linter[ \t]*:", config, re.MULTILINE)
+    linters = re.findall(
+        r"^linter:[ \t]*(jetbrains/qodana-jvm-community:[0-9]{4}\.[0-9]+(?:\.[0-9]+)?)[ \t]*$",
+        config, re.MULTILINE,
+    )
+    if len(entries) != 1 or len(linters) != 1:
+        raise ValueError("Qodana config must declare one explicit versioned JVM Community linter")
+    if not re.search(r"^profile:[ \t]*\n  name:[ \t]*qodana\.recommended[ \t]*$", config, re.MULTILINE):
+        raise ValueError("Qodana config must use the reviewed inspection profile")
+    for name in ("build.yml", "qodana-full.yml"):
+        with open(os.path.join(root, ".github", "workflows", name), encoding="utf-8") as handle:
+            workflow = handle.read()
+        # Also reject overrides in folded or multiline args, not just inline.
+        active_lines = "\n".join(
+            line for line in workflow.splitlines() if not line.lstrip().startswith("#")
+        )
+        if re.search(r"(?:^|[\s,])--(?:image|linter)(?:[\s,=]|$)", active_lines):
+            raise ValueError(f"{name} duplicates Qodana linter authority")
+
+
+def check_native_gradle_validation(root):
+    # Review the executable workflow contract, not a second Gradle wrapper.
+    expected = {
+        "build.yml": ("run: ./gradlew --no-daemon check", "(set -o pipefail; ./gradlew --no-daemon verifyPlugin 2>&1 | tee"),
+        "host-api-evidence.yml": ("run: ./gradlew --no-daemon check",),
+        "marketplace-candidate.yml": ("run: ./gradlew --no-daemon check", "run: ./gradlew --no-daemon verifyPlugin"),
+        "release.yml": ("./gradlew --no-daemon check", "./gradlew --no-daemon verifyPlugin"),
+    }
+    for name, commands in expected.items():
+        with open(os.path.join(root, ".github", "workflows", name), encoding="utf-8") as handle:
+            workflow = handle.read()
+        if "scripts/gradle_check_gate.py" in workflow:
+            raise ValueError(f"{name} restored retired Gradle retry wrapper")
+        for command in commands:
+            if workflow.count(command) != 1:
+                raise ValueError(f"{name} requires exactly one native Gradle validation: {command}")
+        if re.search(r"(?:run:[ \t]+)?\./gradlew --no-daemon (?:check|verifyPlugin)[^\n]*\|\|", workflow):
+            raise ValueError(f"{name} masks Gradle validation failure")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -187,6 +232,8 @@ def main():
         check_entries(args.root, policy["required"], "required")
         check_entries(args.root, policy.get("staged", []), "staged")
         check_workflow_security(args.root)
+        check_qodana_config_authority(args.root)
+        check_native_gradle_validation(args.root)
     except (OSError, json.JSONDecodeError, ValueError) as error:
         return fail(str(error))
     print(

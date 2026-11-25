@@ -2,29 +2,26 @@
 
 Status: **ACTIVE repository-owned ARM64 publisher**.
 
-The repository-owned workflow replaces GitHub-managed Automatic Dependency
-Submission. Managed ADS should remain disabled while this workflow is active.
+[Production workflow](../.github/workflows/dependency-submission.yml) owns
+the protected-main publisher; managed Automatic Dependency Submission must
+not run alongside it. The PR adapter in [Build](../.github/workflows/build.yml)
+uses the same immutable action pins and packaged-runtime configuration in
+read-only generate-and-upload mode, not submission. The
+[shared graph verifier](../scripts/trusted_dependency_submission_validation.py)
+owns exact-source/ref, graph and scope checks.
 
-The publisher:
-- runs automatically only on protected `main` pushes that change Gradle dependency/build-definition inputs;
-- supports manual dispatch on `main` for recovery or explicit refresh;
-- uses JDK25 on `ubuntu-26.04-arm`;
-- keeps Gradle cache access read-only;
-- submits with `dependency-graph: generate-and-submit`;
-- verifies exact-main provenance and fail-closed graph coverage after submission.
+Current product graph is the developed plugin's packaged sandbox runtime
+configuration. Require a nonempty graph with direct dependency evidence,
+valid package identities and runtime classification. The sole admitted
+development node is the dependency-graph plugin's direct Gradle core tool
+node. Host, Starter, test and build-tool graphs are not product dependencies.
+No fixed aggregate graph count is a correctness threshold. The earlier
+aggregate counts and ARM64 cutover experiment are historical observations,
+not current coverage or runtime requirements.
 
-Current reference graph: 814 resolved / 53 direct / 4,752 edges / 814 purls.
-The ARM64 pre-cutover probe produced canonical resolved SHA256
-`0ae9aef365152e7c17500fa324e0b73be94ec29a1bfe2dc95e9f662290eb967c`,
-identical to the earlier x64 graph. The workflow fails closed below 750
-resolved or 45 direct dependencies.
-
-A cold ARM64 graph generation succeeded with zero cache restores and zero
-cache saves, so this publisher does not depend on a pre-existing ARM64 cache.
-
-Rollback:
-1. disable or remove the repository-owned publisher;
-2. re-enable GitHub-managed Automatic Dependency Submission;
-3. require a successful fresh managed main snapshot before considering the rollback complete.
-
-Do not intentionally keep both publishers active.
+The production publisher runs on protected-main dependency-input pushes or
+explicit main dispatch. Cache use is read-only. Verify exact submitted
+main provenance; PR evidence is not production submission evidence.
+Replace a publisher through an authorized coherent migration; do not retain
+parallel publishers or invent a rollback fallback merely to keep legacy
+behavior.
