@@ -2,7 +2,7 @@
 
 This document defines repository-operation recovery after an agent session, connection, harness, or process interruption in `luceat-lux-vestra/erdMaid`.
 
-Existing repository-specific architecture, validation, CI, merge, release, and security policy remains authoritative.
+Use the authorized desired-state design under [EG-AI-001](agent-execution-policy.md). Current live state determines what has happened; it does not freeze obsolete architecture, configuration or policy. Verify actual required obligations through the resulting design.
 
 ## Authority
 
@@ -40,14 +40,14 @@ expected:
 last_verified:
   at: <timestamp>
   authority: github
-next_safe_action: <short-semantic-action>
+next_safe_work_unit: <scope, evidence obligations, and stop condition>
 last_mutation:
   kind: <operation-or-none>
   outcome: verified | unknown | none
 stop_condition: <repository-policy stop condition>
 ```
 
-Do not store the mutable checkpoint in a production branch. The checkpoint may
+Do not store the mutable checkpoint in a production branch. For purely local work without an Issue, use one approved access-controlled durable record outside production history; discover or configure its location. Do not create competing local and GitHub records. Checkpoint updates must not move the production PR HEAD. The checkpoint may
 summarize the **current** CI or verification judgment needed to resume safely,
 but it is never an authoritative mirror of GitHub. Fresh-read current GitHub
 state before any decision that depends on checks, workflows, reviews, merge
@@ -98,7 +98,7 @@ read policy
 -> read checks/reviews when decision-relevant
 -> compare checkpoint with GitHub
 -> classify
--> derive exactly one safe next action
+-> derive exactly one safe next work unit and its stop condition
 ```
 
 Classify as `MATCH`, `CHECKPOINT_STALE_BUT_RECONCILABLE`, `EXTERNAL_STATE_MISSING_RETRYABLE`, `CONFLICT`, or `UNKNOWN`.
@@ -107,15 +107,18 @@ Classify as `MATCH`, `CHECKPOINT_STALE_BUT_RECONCILABLE`, `EXTERNAL_STATE_MISSIN
 
 ## Mutation protocol
 
-Every material external mutation follows:
+A coherent authorized work unit may contain multiple material mutations. Each follows:
 
 ```text
 fresh precondition read
 -> bounded mutation
 -> authoritative read-back
 -> classify postcondition
--> checkpoint after verified postcondition
+-> replace checkpoint after verified durable postcondition
+-> continue only within the declared work unit until its STOP boundary
 ```
+
+A verified internal mutation alone does not force a new authorization. Stop on pending, conflicting, materially unknown or failed obligations. Audit and consolidate related remediation before moving HEAD.
 
 If a response/session is lost, never replay a mutation only because the checkpoint is behind. Re-read authority first.
 
@@ -141,10 +144,7 @@ Before relying on same-HEAD evidence after base advancement, fresh-read the curr
 For erdMaid specifically, fresh-read the live `main protection` ruleset at
 merge judgment time. The ruleset currently requires the GitHub Actions
 `Merge Gate`; do not infer a strict latest-base/up-to-date requirement unless
-the live ruleset actually establishes one. `AGENTS.md` also requires
-merge-time revalidation of `main`, the ruleset, required CI contexts, and
-unresolved review-thread state. Those stricter repository requirements remain
-authoritative. Same-HEAD evidence reuse therefore never authorizes a
+the live ruleset actually establishes one. The engineering contract requires merge-time revalidation of `main`, the ruleset, required CI contexts, and unresolved review-thread state. The [engineering contract](engineering-contract.md) requires actual current-composition proof; the old policy representation is not a veto on authorized replacement. Same-HEAD evidence reuse therefore never authorizes a
 semantically invalid current composition.
 
 Evidence reuse is claim-scoped, not blanket merge authorization:
@@ -167,7 +167,7 @@ Do not change CI workflows, `.github/merge-gate-policy.json`, `.github/repositor
 - Stale checkpoint/HEAD movement: current GitHub state wins after ownership is proven.
 - Concurrent actor: no last-write-wins assumption.
 - Partial multi-step work: recover existing objects and complete only missing steps.
-- Async CI/review: read current evidence for current HEAD.
+- Async CI/review: use one bounded exact-HEAD observation as defined by EG-AI-001; no polling or wait-to-green.
 - Authority unavailable or ownership ambiguous: fail closed.
 - Missing/corrupt checkpoint: reconstruct only when one work unit is unambiguous.
 

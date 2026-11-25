@@ -138,16 +138,107 @@ def validate_ruleset_collection(actual, expected_main, expected_publication):
     return errors
 
 
+# The API field schema is a contract, not inferred from whatever policy keys
+# happen to remain. Missing/extra fields and bool/int coercion fail closed.
+PR_PARAMETER_TYPES = {
+    "required_approving_review_count": int,
+    "dismiss_stale_reviews_on_push": bool,
+    "required_reviewers": list,
+    "require_code_owner_review": bool,
+    "require_last_push_approval": bool,
+    "required_review_thread_resolution": bool,
+    "require_extra_approval_for_unattributed_changes": bool,
+    "allowed_merge_methods": list,
+}
+
+
+def valid_string_list(value):
+    return (
+        type(value) is list
+        and all(type(item) is str and item for item in value)
+        and len(value) == len(set(value))
+    )
+
+
+def validate_pull_request_parameters(observed, expected):
+    errors = []
+    for label, params in (("policy", expected), ("live", observed)):
+        if type(params) is not dict or set(params) != set(PR_PARAMETER_TYPES):
+            errors.append(f"ruleset.pull_request.{label}: missing or unexpected parameter fields")
+            continue
+        for key, kind in PR_PARAMETER_TYPES.items():
+            value = params[key]
+            valid = type(value) is kind
+            if valid and key == "required_approving_review_count":
+                valid = value >= 0
+            elif valid and key == "allowed_merge_methods":
+                valid = valid_string_list(value) and bool(value)
+            elif valid and key == "required_reviewers":
+                valid = all(type(item) is dict and item for item in value)
+            if not valid:
+                errors.append(f"ruleset.pull_request.{label}.{key}: malformed value")
+    if errors:
+        return errors
+    for key, wanted in expected.items():
+        actual = observed[key]
+        if key == "allowed_merge_methods":
+            equal = sorted(actual) == sorted(wanted)
+        elif key == "required_reviewers":
+            equal = sorted(json.dumps(item, sort_keys=True) for item in actual) == sorted(
+                json.dumps(item, sort_keys=True) for item in wanted
+            )
+        else:
+            equal = actual == wanted
+        if not equal:
+            errors.append(f"ruleset.pull_request.{key}: expected {wanted!r}, observed {actual!r}")
+    return errors
+
+
+def validate_status_parameters(observed, expected, required_contexts):
+    errors = []
+    bool_keys = {"strict_required_status_checks_policy", "do_not_enforce_on_create"}
+    if (
+        type(expected) is not dict
+        or set(expected) != bool_keys | {"integration_id"}
+        or any(type(expected[key]) is not bool for key in bool_keys)
+        or type(expected["integration_id"]) is not int
+        or expected["integration_id"] <= 0
+        or not valid_string_list(required_contexts)
+        or not required_contexts
+    ):
+        return ["ruleset.required_status_checks: missing or malformed policy contract"]
+    if type(observed) is not dict or set(observed) != bool_keys | {"required_status_checks"}:
+        return ["ruleset.required_status_checks: missing or unexpected live fields"]
+    for key in sorted(bool_keys):
+        if type(observed[key]) is not bool or observed[key] != expected[key]:
+            errors.append(f"ruleset.required_status_checks.{key}: expected {expected[key]!r}, observed {observed[key]!r}")
+    checks = observed["required_status_checks"]
+    if type(checks) is not list or any(
+        type(item) is not dict
+        or set(item) != {"context", "integration_id"}
+        or type(item["context"]) is not str
+        or not item["context"]
+        for item in checks
+    ):
+        return errors + ["ruleset.required_status_checks: malformed live context entries"]
+    contexts = [item["context"] for item in checks]
+    if not valid_string_list(contexts) or sorted(contexts) != sorted(required_contexts):
+        errors.append(f"ruleset required contexts: expected {sorted(required_contexts)!r}, observed {contexts!r}")
+    if any(type(item["integration_id"]) is not int or item["integration_id"] != expected["integration_id"] for item in checks):
+        errors.append(f"ruleset required check source drift: expected integration {expected['integration_id']}")
+    return errors
+
+
 def validate_ruleset(actual, expected, required_contexts, expected_bypass_actors):
     errors = []
     for key in ("name", "target", "source_type", "source", "enforcement"):
         if actual.get(key) != expected[key]:
             errors.append(f"ruleset.{key}: expected {expected[key]!r}, observed {actual.get(key)!r}")
     ref_name = actual.get("conditions", {}).get("ref_name", {})
-    if ref_name.get("include", []) != expected["include"]:
-        errors.append(f"ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include', [])!r}")
-    if ref_name.get("exclude", []) != expected["exclude"]:
-        errors.append(f"ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude', [])!r}")
+    if ref_name.get("include") != expected["include"]:
+        errors.append(f"ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include')!r}")
+    if ref_name.get("exclude") != expected["exclude"]:
+        errors.append(f"ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude')!r}")
 
     # GitHub deliberately redacts bypass_actors unless the caller has write access
     # to the ruleset. The scheduled read-only audit must not treat a missing field
@@ -164,26 +255,14 @@ def validate_ruleset(actual, expected, required_contexts, expected_bypass_actors
         errors.append(f"ruleset rule topology: expected {sorted(expected['required_rule_types'])!r}, observed {sorted(observed_types)!r}")
 
     pr = _rule(rules, "pull_request")
-    if pr:
-        params = pr.get("parameters", {})
-        for key, value in expected["pull_request"].items():
-            if params.get(key) != value:
-                errors.append(f"ruleset.pull_request.{key}: expected {value!r}, observed {params.get(key)!r}")
-
     checks = _rule(rules, "required_status_checks")
-    if checks:
-        params = checks.get("parameters", {})
-        wanted = expected["required_status_checks"]
-        for key in ("strict_required_status_checks_policy", "do_not_enforce_on_create"):
-            if params.get(key) != wanted[key]:
-                errors.append(f"ruleset.required_status_checks.{key}: expected {wanted[key]!r}, observed {params.get(key)!r}")
-        observed_checks = params.get("required_status_checks", [])
-        contexts = sorted(item.get("context") for item in observed_checks)
-        if contexts != sorted(required_contexts):
-            errors.append(f"ruleset required contexts: expected {sorted(required_contexts)!r}, observed {contexts!r}")
-        wrong_sources = [item for item in observed_checks if item.get("integration_id") != wanted["integration_id"]]
-        if wrong_sources:
-            errors.append(f"ruleset required check source drift: expected integration {wanted['integration_id']}")
+    errors.extend(validate_pull_request_parameters(
+        pr.get("parameters") if pr else None, expected.get("pull_request")
+    ))
+    errors.extend(validate_status_parameters(
+        checks.get("parameters") if checks else None,
+        expected.get("required_status_checks"), required_contexts
+    ))
     return errors
 
 
@@ -196,13 +275,13 @@ def validate_publication_ruleset(actual, expected, expected_bypass_actors):
             )
 
     ref_name = actual.get("conditions", {}).get("ref_name", {})
-    if ref_name.get("include", []) != expected["include"]:
+    if ref_name.get("include") != expected["include"]:
         errors.append(
-            f"publication_ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include', [])!r}"
+            f"publication_ruleset.include: expected {expected['include']!r}, observed {ref_name.get('include')!r}"
         )
-    if ref_name.get("exclude", []) != expected["exclude"]:
+    if ref_name.get("exclude") != expected["exclude"]:
         errors.append(
-            f"publication_ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude', [])!r}"
+            f"publication_ruleset.exclude: expected {expected['exclude']!r}, observed {ref_name.get('exclude')!r}"
         )
 
     if "bypass_actors" in actual and actual["bypass_actors"] != expected_bypass_actors:

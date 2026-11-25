@@ -39,7 +39,7 @@ jobs:
         run: python3 scripts/test_database_host_api_inventory.py
 
       - name: Resolve exact IDEA DatabaseTools runtime
-        run: python3 scripts/gradle_check_gate.py check
+        run: ./gradlew --no-daemon check
 
       - name: Collect exact IDEA host API evidence
         run: |

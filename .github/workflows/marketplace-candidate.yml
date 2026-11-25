@@ -70,10 +70,10 @@ jobs:
         run: ./gradlew buildPlugin
 
       - name: Run tests
-        run: python3 scripts/gradle_check_gate.py check
+        run: ./gradlew --no-daemon check
 
       - name: Verify IntelliJ IDEA compatibility
-        run: python3 scripts/gradle_check_gate.py verifyPlugin
+        run: ./gradlew --no-daemon verifyPlugin
 
       - name: Verify DataGrip compatibility
         run: python3 scripts/datagrip_verifier.py

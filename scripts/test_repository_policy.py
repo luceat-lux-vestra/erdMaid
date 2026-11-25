@@ -187,6 +187,7 @@ def main():
         "pull_request": {
             "required_approving_review_count": 0,
             "dismiss_stale_reviews_on_push": True,
+            "required_reviewers": [],
             "require_code_owner_review": False,
             "require_last_push_approval": False,
             "required_review_thread_resolution": True,
@@ -278,6 +279,65 @@ def main():
     }
     require(rp.validate_ruleset(good_ruleset, expected_ruleset, ["Build", "Test"], []) == [], "read-only ruleset fixture with redacted bypass actors must pass")
 
+    pr_params = good_ruleset["rules"][-2]["parameters"]
+    status_params = good_ruleset["rules"][-1]["parameters"]
+    checked_pr = policy["ruleset"]["pull_request"]
+    checked_status = policy["ruleset"]["required_status_checks"]
+    contexts = rp.required_contexts()
+    # Schema validation only: construct a synthetic observed response from
+    # checked-in intent, not a claim about the live GitHub ruleset.
+    synthetic_status = {
+        key: checked_status[key]
+        for key in ("strict_required_status_checks_policy", "do_not_enforce_on_create")
+    }
+    synthetic_status["required_status_checks"] = [
+        {"context": context, "integration_id": checked_status["integration_id"]}
+        for context in contexts
+    ]
+    require(rp.validate_pull_request_parameters(checked_pr, checked_pr) == [],
+            "checked-in PR policy must declare the complete typed contract")
+    require(rp.validate_status_parameters(synthetic_status, checked_status, contexts) == [],
+            "checked-in status policy must declare the complete typed contract")
+    for key, value in pr_params.items():
+        for side in ("live", "policy", "both"):
+            live, wanted = copy.deepcopy(pr_params), copy.deepcopy(expected_ruleset["pull_request"])
+            if side in ("live", "both"):
+                live.pop(key)
+            if side in ("policy", "both"):
+                wanted.pop(key)
+            require(rp.validate_pull_request_parameters(live, wanted),
+                    f"missing {side} PR field {key} must fail")
+        malformed = copy.deepcopy(pr_params)
+        malformed[key] = (int(value) if type(value) is bool else False if type(value) is int else None)
+        require(rp.validate_pull_request_parameters(malformed, expected_ruleset["pull_request"]),
+                f"malformed PR field {key} must fail")
+        drifted = copy.deepcopy(pr_params)
+        drifted[key] = (not value if type(value) is bool else value + 1 if type(value) is int
+                        else [{"reviewer": {"id": 7, "type": "Team"}}] if key == "required_reviewers" else ["merge"])
+        require(rp.validate_pull_request_parameters(drifted, expected_ruleset["pull_request"]),
+                f"PR field {key} drift must fail")
+    for key in status_params:
+        missing_status = copy.deepcopy(status_params)
+        missing_status.pop(key)
+        require(rp.validate_status_parameters(missing_status, expected_ruleset["required_status_checks"], ["Build", "Test"]),
+                f"missing live status field {key} must fail")
+    for key in expected_ruleset["required_status_checks"]:
+        missing_policy = copy.deepcopy(expected_ruleset["required_status_checks"])
+        missing_policy.pop(key)
+        require(rp.validate_status_parameters(status_params, missing_policy, ["Build", "Test"]),
+                f"missing status policy field {key} must fail")
+    for key in ("strict_required_status_checks_policy", "do_not_enforce_on_create"):
+        bad_status = copy.deepcopy(status_params)
+        bad_status[key] = int(status_params[key])
+        require(rp.validate_status_parameters(bad_status, expected_ruleset["required_status_checks"], ["Build", "Test"]),
+                f"non-boolean status field {key} must fail")
+    require(rp.validate_status_parameters(status_params, expected_ruleset["required_status_checks"], []),
+            "empty required context policy must fail")
+    missing_exclusion = copy.deepcopy(good_ruleset)
+    del missing_exclusion["conditions"]["ref_name"]["exclude"]
+    require(rp.validate_ruleset(missing_exclusion, expected_ruleset, ["Build", "Test"], []),
+            "missing main exclusion field must fail")
+
     exposed_bypass = copy.deepcopy(good_ruleset)
     exposed_bypass["bypass_actors"] = [{"actor_type": "RepositoryRole", "actor_id": 5}]
     require(rp.validate_ruleset(exposed_bypass, expected_ruleset, ["Build", "Test"], []), "visible bypass drift must fail")
@@ -319,6 +379,10 @@ def main():
         ) == [],
         "healthy publication ruleset must pass",
     )
+    publication_missing_exclude = copy.deepcopy(good_publication_ruleset)
+    del publication_missing_exclude["conditions"]["ref_name"]["exclude"]
+    require(rp.validate_publication_ruleset(publication_missing_exclude, expected_publication_ruleset, []),
+            "missing publication exclusion field must fail")
     publication_scope_drift = copy.deepcopy(good_publication_ruleset)
     publication_scope_drift["conditions"]["ref_name"]["include"] = ["refs/tags/*"]
     require(

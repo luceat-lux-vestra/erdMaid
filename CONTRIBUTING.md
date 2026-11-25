@@ -5,7 +5,7 @@ erdMaid is currently solo-maintained, but changes still follow the same proof ob
 ## Before changing code
 
 1. Start from a freshly read `main` SHA and keep the change tied to one owning issue/Track.
-2. Read `AGENTS.md`; it is the authoritative engineering/review contract.
+2. Read `AGENTS.md` and its mandatory local policy/engineering authorities.
 3. Do not widen product, IDE/DataGrip, metadata-fidelity, or distribution claims without evidence.
 
 ## Pull requests
@@ -20,7 +20,8 @@ Documentation-only changes use the bounded CI fast path only when every changed 
 
 Use full deterministic output assertions for rendering/identity behavior. Add literal hostile fixtures for sanitization defects. Do not weaken or skip a test to obtain green CI.
 
-The internal `Test`, `Inspect code`, and `Verify plugin` component jobs remain distinct authorities: Test requires successful `./gradlew check`, Inspect code requires a valid Qodana SARIF report with zero High/Critical findings, and Verify plugin requires the maintained IDEA/DataGrip compatibility gates. The required `Merge Gate` fails if any applicable component fails. The CI wrapper may repeat either command **once** only for the known JetBrains IJ Platform Gradle Plugin 2.18.1 bundled-plugin failure where the log contains that command's complete erdMaid-specific `ClosedFileSystemException` / DatabaseTools / `com.intellij.database` dependency-resolution signature. `Test` and `Verify plugin` use different configuration signatures and cannot authorize each other's retry. A partial signature, another bundled plugin, an ordinary test failure, a real Plugin Verifier finding, or any failed second attempt remains a hard failure. This exception exists for the upstream jar-FileSystem lifecycle bug tracked as JetBrains `intellij-platform-gradle-plugin#2192` / `MP-8217`; it is not a general flaky-test retry policy.
+The internal `Test`, `Inspect code`, and `Verify plugin` component jobs remain distinct authorities: Test requires successful `./gradlew check`, Inspect code requires a valid Qodana SARIF report with zero High/Critical findings, and Verify plugin requires the maintained IDEA/DataGrip compatibility gates. The required `Merge Gate` fails if any applicable component fails. Run each Gradle validation directly once with `--no-daemon`; preserve its exit status. A failed invocation is not repaired by a log-signature retry. Investigate the whole failure set before remediation.
+
 
 ## Repository automation
 
