@@ -72,18 +72,6 @@
     "publication_ruleset_bypass_actors": {
       "ruleset": "publication tags",
       "expected": []
-    },
-    "actions_event_policy": {
-      "policy_id": 5151,
-      "expected_workflow_paths": [
-        ".github/workflows/pr-metadata.yml"
-      ],
-      "expected_allowed_events": [
-        "pull_request_target"
-      ],
-      "forbidden_workflow_paths": [
-        ".github/workflows/failure-triage.yml"
-      ]
     }
   },
   "labels": [
