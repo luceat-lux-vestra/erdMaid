@@ -40,6 +40,11 @@ configurations.getByName("integrationTestImplementation") {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
+    // Explicit, Dependabot-visible tooling dependency in IJPGP's verifier
+    // configuration (same coordinates/classifier as pluginVerifier(version)).
+    // Avoid implicit latest-version Maven metadata lookup for each validation.
+    add("intellijPluginVerifier", "org.jetbrains.intellij.plugins:verifier-cli:1.411:all")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
     testImplementation(platform("tools.jackson:jackson-bom:3.3.0"))
