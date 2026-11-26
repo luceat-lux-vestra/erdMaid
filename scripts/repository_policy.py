@@ -303,36 +303,40 @@ def validate_publication_ruleset(actual, expected, expected_bypass_actors):
 def validate_actions_event_policy_contract(policy):
     errors = []
     expected = policy.get("actions_event_policy")
-    manual = policy.get("manual_live_assertions", {}).get("actions_event_policy")
-    if not isinstance(expected, dict) or not isinstance(manual, dict):
-        return ["actions event-policy contract is missing"]
+    if type(expected) is not dict or set(expected) != {
+        "id", "name", "target", "source_type", "source", "enforcement",
+        "workflow_paths", "allowed_events", "retired_workflow_paths",
+    }:
+        return ["actions event-policy contract is missing or has unexpected fields"]
+    if "actions_event_policy" in policy.get("manual_live_assertions", {}):
+        errors.append("duplicate Actions event-policy authority; use the canonical record")
+    if type(expected["id"]) is not int or expected["id"] <= 0:
+        errors.append("actions_event_policy.id must be a positive integer")
+    if type(expected["name"]) is not str or not expected["name"].strip():
+        errors.append("actions_event_policy.name must be nonempty")
+    for key, wanted in (
+        ("target", "actions"), ("source_type", "Repository"),
+        ("source", policy["repository"]["full_name"]), ("enforcement", "active"),
+    ):
+        if expected[key] != wanted:
+            errors.append(f"actions_event_policy.{key}: expected {wanted!r}, observed {expected[key]!r}")
 
-    if expected.get("id") != 5151:
-        errors.append(f"actions_event_policy.id: expected 5151, observed {expected.get('id')!r}")
-    if expected.get("workflow_paths") != [".github/workflows/pr-metadata.yml"]:
-        errors.append(
-            "actions_event_policy.workflow_paths must equal ['.github/workflows/pr-metadata.yml']"
-        )
-    if expected.get("allowed_events") != ["pull_request_target"]:
-        errors.append("actions_event_policy.allowed_events must equal ['pull_request_target']")
-    if expected.get("retired_workflow_paths") != [".github/workflows/failure-triage.yml"]:
-        errors.append(
-            "actions_event_policy.retired_workflow_paths must equal ['.github/workflows/failure-triage.yml']"
-        )
-
-    if manual.get("policy_id") != expected.get("id"):
-        errors.append("manual Actions event-policy assertion targets a different policy id")
-    if manual.get("expected_workflow_paths") != expected.get("workflow_paths"):
-        errors.append("manual Actions event-policy workflow paths drifted from canonical policy")
-    if manual.get("expected_allowed_events") != expected.get("allowed_events"):
-        errors.append("manual Actions event-policy allowed events drifted from canonical policy")
-    if manual.get("forbidden_workflow_paths") != expected.get("retired_workflow_paths"):
-        errors.append("manual Actions event-policy forbidden paths drifted from canonical policy")
-
-    for rel in expected.get("workflow_paths", []):
+    # Independent least-privilege security invariant established by #120:
+    # only the reviewed trusted-base metadata workflow has this exception.
+    # Changing hosted resource identity requires updated live evidence, not a
+    # source-code change to a numeric ID. Broadening privilege requires review.
+    if expected["workflow_paths"] != [".github/workflows/pr-metadata.yml"]:
+        errors.append("Actions event policy must scope to the audited metadata workflow only")
+    if expected["allowed_events"] != ["pull_request_target"]:
+        errors.append("Actions event policy must permit only pull_request_target")
+    if expected["retired_workflow_paths"] != [".github/workflows/failure-triage.yml"]:
+        errors.append("retired privileged failure-triage workflow must remain forbidden")
+    if errors:
+        return errors
+    for rel in expected["workflow_paths"]:
         if not (ROOT / rel).is_file():
             errors.append(f"active Actions event-policy workflow is missing: {rel}")
-    for rel in expected.get("retired_workflow_paths", []):
+    for rel in expected["retired_workflow_paths"]:
         if (ROOT / rel).exists():
             errors.append(f"retired Actions event-policy workflow unexpectedly exists: {rel}")
     return errors
@@ -461,13 +465,13 @@ def audit(policy, token):
             f"observed {len(publication_candidates)}"
         )
 
-    actions_manual = policy["manual_live_assertions"]["actions_event_policy"]
+    actions_policy = policy["actions_event_policy"]
     print(
         "actions event-policy live readback remains a separate privileged assertion: "
-        f"policy {actions_manual['policy_id']} must scope exactly to "
-        f"{actions_manual['expected_workflow_paths']!r} with events "
-        f"{actions_manual['expected_allowed_events']!r}; forbidden paths "
-        f"{actions_manual['forbidden_workflow_paths']!r}"
+        f"policy {actions_policy['id']} must scope exactly to "
+        f"{actions_policy['workflow_paths']!r} with events "
+        f"{actions_policy['allowed_events']!r}; forbidden paths "
+        f"{actions_policy['retired_workflow_paths']!r}"
     )
 
     labels = read_all_labels(repo, token)
@@ -495,7 +499,10 @@ def sync_labels(policy, token):
             )
             print(f"updated label {wanted['name']}")
             changed += 1
-    print(f"label synchronization complete: {changed} change(s); extra maintainer labels preserved")
+    errors = validate_labels(read_all_labels(repo, token), policy["labels"])
+    if errors:
+        raise RuntimeError("label synchronization postcondition failed: " + "; ".join(errors))
+    print(f"label synchronization verified: {changed} change(s); extra maintainer labels preserved")
 
 
 def main():

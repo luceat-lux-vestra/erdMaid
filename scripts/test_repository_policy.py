@@ -95,15 +95,31 @@ def main():
         rp.validate_actions_event_policy_contract(bad_actions_policy),
         "retired failure-triage path must not be re-admitted to the Actions event policy",
     )
-    bad_actions_manual = copy.deepcopy(policy)
-    bad_actions_manual["manual_live_assertions"]["actions_event_policy"]["expected_allowed_events"] = [
-        "pull_request_target",
-        "push",
-    ]
-    require(
-        rp.validate_actions_event_policy_contract(bad_actions_manual),
-        "manual Actions event-policy assertion must not drift from canonical allowed events",
-    )
+    replacement_id = copy.deepcopy(policy)
+    replacement_id["actions_event_policy"]["id"] += 1
+    require(rp.validate_actions_event_policy_contract(replacement_id) == [],
+            "hosted policy identity is configuration, not a compiled-in number")
+    for value in (None, False, 0, -1, "5151"):
+        invalid = copy.deepcopy(policy)
+        invalid["actions_event_policy"]["id"] = value
+        require(rp.validate_actions_event_policy_contract(invalid), "malformed policy identity must fail")
+    for key in policy["actions_event_policy"]:
+        missing = copy.deepcopy(policy)
+        del missing["actions_event_policy"][key]
+        require(rp.validate_actions_event_policy_contract(missing), f"missing event-policy field {key} must fail")
+    for key, value in (
+        ("allowed_events", ["pull_request_target", "push"]),
+        ("workflow_paths", [".github/workflows/build.yml"]),
+        ("retired_workflow_paths", []),
+        ("source", "other/repo"), ("target", "branch"),
+        ("source_type", "Organization"), ("enforcement", "disabled"), ("name", ""),
+    ):
+        invalid = copy.deepcopy(policy)
+        invalid["actions_event_policy"][key] = value
+        require(rp.validate_actions_event_policy_contract(invalid), f"event-policy {key} drift must fail")
+    duplicate = copy.deepcopy(policy)
+    duplicate["manual_live_assertions"]["actions_event_policy"] = {}
+    require(rp.validate_actions_event_policy_contract(duplicate), "duplicate event-policy authority must fail")
 
     expected_repo = {
         "full_name": "o/r",
@@ -420,6 +436,27 @@ def main():
     require(rp.validate_labels([{"name": "area:ci", "color": "5319E7", "description": "CI"}], wanted) == [], "healthy label fixture must pass")
     require(rp.validate_labels([], wanted), "missing canonical label must fail")
     require(rp.validate_labels([{"name": "area:ci", "color": "ffffff", "description": "CI"}], wanted), "label metadata drift must fail")
+
+    # Explicitly mocked API fixture: prove read-after-write detects drift even
+    # when the mutation endpoint returns normally. No production API calls.
+    from unittest.mock import patch
+    label_policy = {"repository": {"full_name": "fixture/repo"}, "labels": wanted}
+    with patch.object(rp, "read_all_labels", side_effect=[[], wanted]) as read, \
+         patch.object(rp, "api_request") as mutate:
+        rp.sync_labels(label_policy, "fixture-token")
+        require(read.call_count == 2 and mutate.call_count == 1, "sync must read before and after mutation")
+    with patch.object(rp, "read_all_labels", side_effect=[[], []]), \
+         patch.object(rp, "api_request"):
+        try:
+            rp.sync_labels(label_policy, "fixture-token")
+        except RuntimeError as error:
+            require("postcondition failed" in str(error), "wrong synchronization error")
+        else:
+            raise AssertionError("successful mutation response must not hide missing label")
+    with patch.object(rp, "read_all_labels", side_effect=[wanted, wanted]) as read, \
+         patch.object(rp, "api_request") as mutate:
+        rp.sync_labels(label_policy, "fixture-token")
+        require(read.call_count == 2 and mutate.call_count == 0, "unchanged labels still require live readback")
 
     print("repository policy negative controls OK")
     return 0

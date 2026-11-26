@@ -87,6 +87,9 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
+        // Resolve an explicit released verifier, not implicit latest metadata.
+        pluginVerifier("1.411")
+
         // Compile and run the IntelliJ unit-test framework on released IDEA 2026.3.
         // The 262 minimum remains an independent binary/Starter compatibility claim,
         // never inferred from this newer SDK or the bundled DatabaseTools API.
@@ -100,6 +103,12 @@ dependencies {
             configurationName = "integrationTestImplementation",
         )
     }
+}
+
+// IJPGP's executable resolver requires exactly one file. The all-classifier
+// verifier is self-contained; resolving its POM transitives is not a CLI classpath.
+configurations.named("intellijPluginVerifier") {
+    isTransitive = false
 }
 
 val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
