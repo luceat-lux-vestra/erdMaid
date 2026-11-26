@@ -40,11 +40,6 @@ configurations.getByName("integrationTestImplementation") {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    // Explicit, Dependabot-visible tooling dependency in IJPGP's verifier
-    // configuration (same coordinates/classifier as pluginVerifier(version)).
-    // Avoid implicit latest-version Maven metadata lookup for each validation.
-    add("intellijPluginVerifier", "org.jetbrains.intellij.plugins:verifier-cli:1.411:all")
-
     testImplementation("junit:junit:4.13.2")
     testImplementation(platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
     testImplementation(platform("tools.jackson:jackson-bom:3.3.0"))
@@ -92,6 +87,9 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
+        // Resolve an explicit released verifier, not implicit latest metadata.
+        pluginVerifier("1.411")
+
         // Compile and run the IntelliJ unit-test framework on released IDEA 2026.3.
         // The 262 minimum remains an independent binary/Starter compatibility claim,
         // never inferred from this newer SDK or the bundled DatabaseTools API.
@@ -105,6 +103,12 @@ dependencies {
             configurationName = "integrationTestImplementation",
         )
     }
+}
+
+// IJPGP's executable resolver requires exactly one file. The all-classifier
+// verifier is self-contained; resolving its POM transitives is not a CLI classpath.
+configurations.named("intellijPluginVerifier") {
+    isTransitive = false
 }
 
 val verifyStarterSecurityGraph = tasks.register("verifyStarterSecurityGraph") {
